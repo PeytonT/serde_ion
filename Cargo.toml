@@ -1,7 +1,36 @@
 [package]
 name = "serde_ion"
 version = "0.1.0"
-authors = ["Peyton Turner <donaldpeytonturner@gmail.com>"]
+authors = ["Peyton Turner <donaldpeytonturner@gmail.com>, Matthew Langhinrichs <mlanghinrichs@gmail.com>"]
 edition = "2018"
+description = """
+A native Rust encoding and decoding library for the Amazon Ion text and binary data formats.
+Provides Serialize/Deserialize traits for Ion data to enable (de)serializing to and from Rust structures.
+"""
+# TODO: Any documentation...
+documentation = "https://github.com/PeytonT/serde_ion"
+# TODO: Better homepage
+homepage = "https://github.com/PeytonT/serde_ion"
+repository = "https://github.com/PeytonT/serde_ion"
+keywords = ["ion", "serde", "serialization"]
+categories = ["encoding", "parser-implementations"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+
+[badges]
+#TODO: Setup codecov
+#TODO: Setup travis-ci / appveyor / both(?)
 
 [dependencies]
+clippy = {version = "*", optional = true}
+serde = "1.0"
+serde_bytes = "0.10"
+serde_derive = "1.0"
+serde_stacker = "0.1"
+linked-hash-map = { version = "0.5", optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[build-dependencies]
