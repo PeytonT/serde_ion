@@ -1,3 +1,5 @@
+mod ion_types;
+
 #[cfg(test)]
 mod tests {
     #[test]
