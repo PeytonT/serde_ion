@@ -1,0 +1,2 @@
+For serde_ion license information see LICENSE-APACHE or LICENSE-MIT.
+Amazon Ion is available under the Apache License 2.0 as described in [Amazon.com Inc.'s officially supported libraries](http://amzn.github.io/ion-docs/libs.html). 
