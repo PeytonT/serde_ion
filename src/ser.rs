@@ -9,16 +9,19 @@
 use serde::ser::{self, Serialize};
 use crate::error::{Error, Result};
 use bytes::{BytesMut, BufMut};
+use itoa;
 
 pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: Serialize,
 {
     let mut serializer = text::TextSerializer {
-        output: String::new(),
+        output: Vec::new(),
     };
     value.serialize(&mut serializer)?;
-    Ok(serializer.output)
+    //TODO add exception handling
+    let out = String::from_utf8(serializer.output).unwrap();
+    Ok(out)
 }
 
 pub fn to_bytes<T>(value: &T) -> Result<BytesMut>
@@ -36,7 +39,7 @@ mod text {
     use super::{ser, Serialize, Error, Result};
 
     pub struct TextSerializer {
-        pub output: String,
+        pub output: Vec<u8>,
     }
 
     impl<'a> ser::Serializer for &'a mut TextSerializer {
@@ -52,48 +55,49 @@ mod text {
         type SerializeStructVariant = Self;
 
         fn serialize_bool(self, v: bool) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            let o = if v { "true" } else { "false" };
+            self.output.extend(o.to_string().into_bytes());
+            Ok(())
         }
 
         fn serialize_i8(self, v: i8) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_i64(i64::from(v))
         }
 
         fn serialize_i16(self, v: i16) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_i64(i64::from(v))
         }
 
         fn serialize_i32(self, v: i32) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_i64(i64::from(v))
         }
 
         fn serialize_i64(self, v: i64) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            if let Err(e) = itoa::write(&mut self.output, v) {
+                Err(Error::Message(e.to_string()))
+            } else {
+                Ok(())
+            }
         }
 
         fn serialize_u8(self, v: u8) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_u64(u64::from(v))
         }
 
         fn serialize_u16(self, v: u16) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_u64(u64::from(v))
         }
 
         fn serialize_u32(self, v: u32) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_u64(u64::from(v))
         }
 
         fn serialize_u64(self, v: u64) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            if let Err(e) = itoa::write(&mut self.output, v) {
+                Err(Error::Message(e.to_string()))
+            } else {
+                Ok(())
+            }
         }
 
         fn serialize_f32(self, v: f32) -> Result<()> {
