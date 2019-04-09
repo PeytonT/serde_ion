@@ -1,5 +1,6 @@
 extern crate serde_ion;
 
+// Serialization
 #[test]
 fn bool_test() {
     let x: bool = true;
@@ -46,4 +47,13 @@ fn u32_test() {
 fn u64_test() {
     let x: u64 = 100;
     assert_eq!(serde_ion::to_string(&x).unwrap(), "100".to_string())
+}
+// Floats
+// TODO add float tests
+
+// Other types
+#[test]
+fn null_test() {
+    let item: Option<String> = None;
+    assert_eq!(serde_ion::to_string(&item).unwrap(), "null".to_string());
 }

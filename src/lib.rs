@@ -11,9 +11,9 @@ mod error;
 mod ser;
 extern crate serde;
 
-#[cfg(test)]
-#[macro_use]
-extern crate serde_derive;
+// #[cfg(test)]
+// #[macro_use]
+// extern crate serde_derive;
 
 pub use crate::error::{Error, Result};
 pub use ser::{to_string, to_bytes};

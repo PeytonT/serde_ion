@@ -9,7 +9,8 @@
 use serde::ser::{self, Serialize};
 use crate::error::{Error, Result};
 use bytes::{BytesMut, BufMut};
-use itoa;
+
+// --- PUBLIC FUNCTIONS ---
 
 pub fn to_string<T>(value: &T) -> Result<String>
 where
@@ -34,6 +35,8 @@ where
     value.serialize(&mut serializer)?;
     Ok(serializer.output)
 }
+
+// --- INTERNAL IMPLEMENTATIONS ---
 
 mod text {
     use super::{ser, Serialize, Error, Result};
@@ -101,23 +104,28 @@ mod text {
         }
 
         fn serialize_f32(self, v: f32) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.serialize_f64(f64::from(v))
         }
 
         fn serialize_f64(self, v: f64) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            if let Err(e) = dtoa::write(&mut self.output, v) {
+                Err(Error::Message(e.to_string()))
+            } else {
+                Ok(())
+            }
         }
 
         fn serialize_char(self, v: char) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            let out = v.to_string();
+            self.serialize_str(&out)
         }
 
         fn serialize_str(self, v: &str) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            let mut out: String = "\"".to_string();
+            out.push_str(v);
+            out.push_str("\"");
+            self.output.extend(out.as_bytes());
+            Ok(())
         }
 
         fn serialize_bytes(self, v: &[u8]) -> Result<()> {
@@ -126,16 +134,16 @@ mod text {
         }
 
         fn serialize_none(self) -> Result<()> {
-            // TODO add logic
-            unimplemented!()
+            self.output.extend("null".as_bytes());
+            Ok(())
         }
 
         fn serialize_some<T>(self, value: &T) -> Result<()>
         where
             T: ?Sized + Serialize,
         {
-            // TODO add logic
-            unimplemented!()
+            value.serialize(self);
+            Ok(())
         }
 
         fn serialize_unit(self) -> Result<()> {
