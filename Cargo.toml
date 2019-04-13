@@ -23,7 +23,7 @@ include = ["Cargo.toml", "src/**/*.rs", "LICENSE", "README.md", "LICENSE-APACHE"
 travis-ci = { repository = "PeytonT/serde_ion", branch = "master" }
 
 [dependencies]
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.10"
 serde_derive = "1.0"
 serde_stacker = "0.1"
