@@ -5,15 +5,18 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
+#![ allow( dead_code, unused_imports, unused_variables ) ]
+pub mod ion_types;
+pub mod parser;
+//mod error;
+//mod ser;
 
-mod ion_types;
-mod error;
-mod ser;
 extern crate serde;
+extern crate bit_vec;
 
 // #[cfg(test)]
 // #[macro_use]
 // extern crate serde_derive;
 
-pub use crate::error::{Error, Result};
-pub use ser::{to_string, to_bytes};
+//pub use error::{Error, Result};
+//pub use ser::{to_string, to_bytes};

@@ -12,7 +12,6 @@ use bytes::{BytesMut, BufMut};
 
 // --- PUBLIC FUNCTIONS ---
 
-#[allow(dead_code)]
 pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: Serialize,
@@ -26,7 +25,6 @@ where
     Ok(out)
 }
 
-#[allow(dead_code)]
 pub fn to_bytes<T>(value: &T) -> Result<BytesMut>
 where
     T: Serialize,
@@ -40,7 +38,6 @@ where
 
 // --- INTERNAL IMPLEMENTATIONS ---
 
-#[allow(dead_code)]
 mod text {
     use super::{ser, Serialize, Error, Result};
 
@@ -441,7 +438,6 @@ mod text {
     }
 }
 
-#[allow(dead_code)]
 mod binary {
     use super::{ser, Serialize, Error, Result, BytesMut, BufMut};
 
