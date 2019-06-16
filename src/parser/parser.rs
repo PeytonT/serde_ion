@@ -1,4 +1,3 @@
-#[macro_use]
 use nom;
 use nom::IResult;
 use nom::named;

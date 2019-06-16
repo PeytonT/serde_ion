@@ -1,10 +1,14 @@
 use nom;
 use nom::{IResult};
-use nom::{named, named_args, bits, take_bits, switch, pair, value, do_parse, apply};
+use nom::{named, named_args, bits, take_bits, take, take_while, switch, pair, value, do_parse, apply, ErrorKind, error_position};
+use nom::Context::Code;
 use num_bigint::{BigInt, BigUint, Sign};
+use num_traits::identities::Zero;
 use bit_vec::BitVec;
 
 use crate::ion_types;
+use crate::ion_types::IonNull;
+
 use super::parser;
 use super::parser::BVM_BYTES;
 
@@ -16,10 +20,51 @@ Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.ht
 ```
 */
 
-// combine all parsers in one function
-pub fn parse(i: &[u8]) -> IResult<&[u8], ion_types::IonValue> {
+// Parse a single IonValue from the head of an Ion byte stream
+pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], ion_types::IonValue> {
 
     let descriptor = take_type_descriptor(i);
+
+//    match descriptor {
+//        Ok((rest, info)) => {
+////            If the value is null (for that type), then L is set to 15.
+////            If the representation is less than 14 bytes long, then L is set to the length,
+////            and the length field is omitted.
+////                If the representation is at least 14 bytes long, then L is set to 14,
+////            and the length field is set to the representation length, encoded as a VarUInt field.
+//
+//            match info.format {
+//
+//            }
+//
+//            let length = match info.length {
+//                // If the value is null (for that type), then L is set to 15.
+//                0 .. 13 => info.length,
+//                14 => info.length,
+//                15 => return {
+//                    match info.format {
+//                        0: null
+//                            1: bool
+//                        2 and 3: int
+//                            // Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
+//                            4: float
+//                        5: decimal
+//                            6: timestamp
+//                        7: symbol
+//                            8: string
+//                        9: clob
+//                            10: blob
+//                        11: list
+//                            12: sexp
+//                        13: struct
+//                        14: Annotations
+//                            15: reserved
+//                    }
+//                }
+//            }
+//        },
+//        Err(err) => return Err(err)
+//    };
 
     unimplemented!();
 
@@ -64,8 +109,8 @@ and the length field is set to the representation length, encoded as a VarUInt f
 
 #[derive(Clone, Debug, PartialEq)]
 struct TypeDescriptor {
-    format: u8,
-    length: u8,
+    format: usize,
+    length: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,7 +119,7 @@ struct TypedValue<'a> {
     representation: Option<&'a[u8]>, // None for null
 }
 
-named!( take_descriptor_octet<(u8, u8)>, bits!( pair!( take_bits!(u8, 4), take_bits!(u8, 4) ) ) );
+named!( take_descriptor_octet<(usize, usize)>, bits!( pair!( take_bits!(usize, 4), take_bits!(usize, 4) ) ) );
 
 named!(take_type_descriptor<TypeDescriptor>,
     do_parse!(
@@ -82,21 +127,6 @@ named!(take_type_descriptor<TypeDescriptor>,
         (TypeDescriptor { format: descriptor_octet.0, length: descriptor_octet.1})
     )
 );
-
-//named!( take_typed_value<TypedValue>,
-//    do_parse!(
-//        type_descriptor: take_type_descriptor >>
-//
-//    ));
-//
-//
-//
-//
-//representation: switch!(value!(descriptor.1),
-//15 => tag!("XYZ") |
-//14 => call!(take_var_uint) |
-//_  =>
-//)
 
 #[test]
 fn take_descriptor_octet_test() {
@@ -187,9 +217,7 @@ on the highest-order bit of the first octet). This means that the representation
 ```
 */
 
-// TODO(peyton): Check if we have any test files to use for testing these
-
-named_args!(take_int ( length : usize ) -> num_bigint::BigInt,
+named_args!(take_int ( length : usize ) <num_bigint::BigInt>,
   do_parse!(
     bytes: take!(length) >>
     (parse_int(bytes))
@@ -214,7 +242,7 @@ pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
 
 }
 
-named_args!(take_uint ( length : usize ) -> num_bigint::BigUint,
+named_args!(take_uint ( length : usize ) <num_bigint::BigUint>,
   do_parse!(
     bytes: take!(length) >>
     (BigUint::from_bytes_be(bytes))
@@ -270,9 +298,7 @@ single octet VarInt field | 1 |   |  magnitude  |
 ```
 */
 
-// TODO(peyton): Check if we have any test files to use for testing these
-
-named_args!(take_var_int ( length : usize ) -> num_bigint::BigInt,
+named!(take_var_int<num_bigint::BigInt>,
   do_parse!(
     sequence: take_while!(sequence_continues) >>
     terminator: take!(1) >>
@@ -286,7 +312,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
                   "VarInt terminator slice must contain exactly 1 byte, found {}!",
                   terminator.len());
 
-    let sign = match sequence.first {
+    let sign = match sequence.first() {
         Some(byte) => {
             // we know that no byte in sequence has the high bit set
             if *byte > 0b0011_1111 {
@@ -295,7 +321,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
                 Sign::Plus
             }
         },
-        None => match terminator.first {
+        None => match terminator.first() {
             Some(byte) => {
                 // we know that the terminator byte has the high bit set
                 if *byte > 0b1011_1111 {
@@ -320,19 +346,19 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     let leading_bits = bit_capacity - payload_bits;
 
     // zero the extra leading bits
-    for _ in range(0, leading_bits) {
+    for _ in 0..leading_bits {
         bits.push(false);
     }
 
     // insert all payload bits
     for byte in sequence.iter().chain(terminator) {
-        bits.push(byte & (6 << n) != 0);
-        bits.push(byte & (5 << n) != 0);
-        bits.push(byte & (4 << n) != 0);
-        bits.push(byte & (3 << n) != 0);
-        bits.push(byte & (2 << n) != 0);
-        bits.push(byte & (1 << n) != 0);
-        bits.push(byte & (0 << n) != 0);
+        bits.push((byte & 0b01000000) != 0);
+        bits.push((byte & 0b00100000) != 0);
+        bits.push((byte & 0b00010000) != 0);
+        bits.push((byte & 0b00001000) != 0);
+        bits.push((byte & 0b00000100) != 0);
+        bits.push((byte & 0b00000010) != 0);
+        bits.push((byte & 0b00000001) != 0);
     }
 
     // clear the sign bit in the first byte
@@ -341,7 +367,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
 }
 
-named_args!(take_var_uint ( length : usize ) -> num_bigint::BigUint,
+named!(take_var_uint<num_bigint::BigUint>,
   do_parse!(
     sequence: take_while!(sequence_continues) >>
     terminator: take!(1) >>
@@ -366,19 +392,19 @@ pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint
     let leading_bits = bit_capacity - payload_bits;
 
     // zero the extra leading bits
-    for _ in range(0, leading_bits) {
+    for _ in 0..leading_bits {
         bits.push(false);
     }
 
     // insert all payload bits
     for byte in sequence.iter().chain(terminator) {
-        bits.push(byte & (6 << n) != 0);
-        bits.push(byte & (5 << n) != 0);
-        bits.push(byte & (4 << n) != 0);
-        bits.push(byte & (3 << n) != 0);
-        bits.push(byte & (2 << n) != 0);
-        bits.push(byte & (1 << n) != 0);
-        bits.push(byte & (0 << n) != 0);
+        bits.push((byte & 0b01000000) != 0);
+        bits.push((byte & 0b00100000) != 0);
+        bits.push((byte & 0b00010000) != 0);
+        bits.push((byte & 0b00001000) != 0);
+        bits.push((byte & 0b00000100) != 0);
+        bits.push((byte & 0b00000010) != 0);
+        bits.push((byte & 0b00000001) != 0);
     }
 
     BigUint::from_bytes_be(&*bits.to_bytes())
@@ -430,6 +456,31 @@ NOP padding is valid anywhere a value can be encoded, except for within an annot
 NOP padding in struct requires additional encoding considerations.
 ```
 */
+
+pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], Option<ion_types::IonNull>> {
+    match length {
+        0...13 => Ok((&i[length..], None)),
+        14 => match take_var_uint(i) {
+                Ok((rest, _)) => Ok((rest, None)),
+                Err(err) => Err(err),
+        },
+        15 => Ok((i, Some(ion_types::IonNull::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
+
+#[test]
+fn parse_null_test() {
+    let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+    let val = parser::take_ion_version( bytes ).unwrap();
+    let descriptor = take_type_descriptor(val.0).unwrap();
+
+    assert_eq!(
+        parse_null(descriptor.0, descriptor.1.length),
+        Ok((&[] as &[u8], Some(ion_types::IonNull::Null)))
+    );
+}
 
 
 

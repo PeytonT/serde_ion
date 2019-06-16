@@ -17,6 +17,7 @@ use num_bigint::BigUint;
 use chrono::{NaiveDateTime, FixedOffset};
 use base64::encode;
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
     IonPrimitive(IonPrimitive),
     IonContainer(IonContainer),
@@ -31,6 +32,7 @@ impl IonValue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonPrimitive {
     IonNull(IonNull),
     IonBoolean(IonBoolean),
@@ -61,6 +63,7 @@ impl IonPrimitive {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonContainer {
     IonStructure(IonStructure),
     IonList(IonList),
@@ -78,23 +81,21 @@ impl IonContainer {
 }
 
 // null - A generic null value
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonNull {
     Null,
-    NullNull, // Identical to unadorned null, maybe eliminate?
 }
 
 impl IonNull {
     pub fn to_text(&self) -> String {
         match self {
-            IonNull::Null => String::from("null"),
-            IonNull::NullNull => String::from("null.null"),
+            IonNull::Null => String::from("null.null"),
         }
     }
 }
 
 // bool - Boolean values
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonBoolean {
     Null,
     True,
@@ -112,7 +113,7 @@ impl IonBoolean {
 }
 
 // int - Signed integers of arbitrary size
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonInteger {
     Null,
     Integer { value: BigInt, },
@@ -126,7 +127,7 @@ impl IonInteger {
         }
     }
 }
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonIntegerTextFormat {
     Decimal,
     Hexadecimal,
@@ -134,7 +135,7 @@ pub enum IonIntegerTextFormat {
 }
 
 // float - Binary-encoded floating point numbers (IEEE 64-bit)
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonFloat {
     Null,
     Float32 { value: f32 },
@@ -153,7 +154,7 @@ impl IonFloat {
 
 // decimal - Decimal-encoded real numbers of arbitrary precision
 // Reference http://speleotrove.com/decimal/decarith.html
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonDecimal {
     Null,
     Decimal {
@@ -174,7 +175,7 @@ impl IonDecimal {
 
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonTimestamp {
     Null,
     Timestamp {
@@ -194,7 +195,7 @@ impl IonTimestamp {
 }
 
 // string - Unicode text literals
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonString {
     Null,
     String(String),
@@ -213,7 +214,7 @@ impl IonString {
 // A subset of symbols called identifiers can be denoted in text without single-quotes.
 // An identifier is a sequence of ASCII letters, digits, or the
 // characters $ (dollar sign) or _ (underscore), not starting with a digit.
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonSymbol {
     Null,
     Symbol(String),
@@ -229,7 +230,7 @@ impl IonSymbol {
 }
 
 // blob - Binary data of user-defined encoding
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonBlob {
     Null,
     Blob(Vec<u8>),
@@ -251,7 +252,7 @@ impl IonBlob {
 // string and symbol values. This guarantees that the value can be transmitted unscathed while
 // remaining generally readable (at least for western language text).
 // Like blobs, clobs disallow comments everywhere within the value.
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonClob {
     Null,
     Clob(Vec<u8>),
@@ -268,7 +269,7 @@ impl IonClob {
 }
 
 // struct - Unordered collections of tagged values
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonStructure {
     Null,
     Structure(Vec<(IonSymbol, IonValue)>),
@@ -284,7 +285,7 @@ impl IonStructure {
 }
 
 // list - Ordered collections of values
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonList {
     Null,
     List(Vec<(IonValue)>),
@@ -308,7 +309,7 @@ impl IonList {
 // An operator is an unquoted sequence of one or more of the following
 // nineteen ASCII characters: !#%&*+-./;<=>?@^`|~
 // Operators and identifiers can be juxtaposed without whitespace.
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum IonSymbolicExpression {
     Null,
     SymbolicExpression(Vec<(SymbolicExpressionSymbol)>),
@@ -323,7 +324,7 @@ impl IonSymbolicExpression {
         }
     }
 }
-
+#[derive(Clone, Debug, PartialEq)]
 pub enum SymbolicExpressionSymbol {
     SexpSymbol(IonSymbol),
     SexpOperator(IonOperator),
@@ -337,7 +338,7 @@ impl SymbolicExpressionSymbol {
         }
     }
 }
-
+#[derive(Clone, Debug, PartialEq)]
 pub struct IonOperator {
     seq_op_chars: String
 }
