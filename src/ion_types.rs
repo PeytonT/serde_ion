@@ -19,21 +19,6 @@ use base64::encode;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
-    IonPrimitive(IonPrimitive),
-    IonContainer(IonContainer),
-}
-
-impl IonValue {
-    pub fn to_text(&self) -> String {
-        match self {
-            IonValue::IonPrimitive(val) => val.to_text(),
-            IonValue::IonContainer(val) => val.to_text(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum IonPrimitive {
     IonNull(IonNull),
     IonBoolean(IonBoolean),
     IonInteger(IonInteger),
@@ -44,38 +29,27 @@ pub enum IonPrimitive {
     IonSymbol(IonSymbol),
     IonBlob(IonBlob),
     IonClob(IonClob),
-}
-
-impl IonPrimitive {
-    pub fn to_text(&self) -> String {
-        match self {
-            IonPrimitive::IonNull(val) => val.to_text(),
-            IonPrimitive::IonBoolean(val) => val.to_text(),
-            IonPrimitive::IonInteger(val) => val.to_text(),
-            IonPrimitive::IonFloat(val) => val.to_text(),
-            IonPrimitive::IonDecimal(val) => val.to_text(),
-            IonPrimitive::IonTimestamp(val) => val.to_text(),
-            IonPrimitive::IonString(val) => val.to_text(),
-            IonPrimitive::IonSymbol(val) => val.to_text(),
-            IonPrimitive::IonBlob(val) => val.to_text(),
-            IonPrimitive::IonClob(val) => val.to_text(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum IonContainer {
     IonStructure(IonStructure),
     IonList(IonList),
     IonSymbolicExpression(IonSymbolicExpression),
 }
 
-impl IonContainer {
+impl IonValue {
     pub fn to_text(&self) -> String {
         match self {
-            IonContainer::IonStructure(val) => val.to_text(),
-            IonContainer::IonList(val) => val.to_text(),
-            IonContainer::IonSymbolicExpression(val) => val.to_text(),
+            IonValue::IonNull(val) => val.to_text(),
+            IonValue::IonBoolean(val) => val.to_text(),
+            IonValue::IonInteger(val) => val.to_text(),
+            IonValue::IonFloat(val) => val.to_text(),
+            IonValue::IonDecimal(val) => val.to_text(),
+            IonValue::IonTimestamp(val) => val.to_text(),
+            IonValue::IonString(val) => val.to_text(),
+            IonValue::IonSymbol(val) => val.to_text(),
+            IonValue::IonBlob(val) => val.to_text(),
+            IonValue::IonClob(val) => val.to_text(),
+            IonValue::IonStructure(val) => val.to_text(),
+            IonValue::IonList(val) => val.to_text(),
+            IonValue::IonSymbolicExpression(val) => val.to_text(),
         }
     }
 }
@@ -84,12 +58,14 @@ impl IonContainer {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonNull {
     Null,
+    Pad,
 }
 
 impl IonNull {
     pub fn to_text(&self) -> String {
         match self {
             IonNull::Null => String::from("null.null"),
+            IonNull::Pad => unimplemented!(), // TODO(peyton): What error should go here?
         }
     }
 }
@@ -116,7 +92,7 @@ impl IonBoolean {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonInteger {
     Null,
-    Integer { value: BigInt, },
+    Integer { value: BigInt },
 }
 
 impl IonInteger {
@@ -127,6 +103,7 @@ impl IonInteger {
         }
     }
 }
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonIntegerTextFormat {
     Decimal,
@@ -324,6 +301,7 @@ impl IonSymbolicExpression {
         }
     }
 }
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum SymbolicExpressionSymbol {
     SexpSymbol(IonSymbol),
@@ -338,6 +316,7 @@ impl SymbolicExpressionSymbol {
         }
     }
 }
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct IonOperator {
     seq_op_chars: String

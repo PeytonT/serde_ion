@@ -1,5 +1,5 @@
 use nom;
-use nom::{IResult};
+use nom::IResult;
 use nom::{named, named_args, bits, take_bits, take, take_while, switch, pair, value, do_parse, apply, ErrorKind, error_position};
 use nom::Context::Code;
 use num_bigint::{BigInt, BigUint, Sign};
@@ -8,9 +8,23 @@ use bit_vec::BitVec;
 
 use crate::ion_types;
 use crate::ion_types::IonNull;
+use crate::ion_types::IonBoolean;
+use crate::ion_types::IonInteger;
+use crate::ion_types::IonFloat;
+use crate::ion_types::IonDecimal;
+use crate::ion_types::IonTimestamp;
+use crate::ion_types::IonSymbol;
+use crate::ion_types::IonString;
+use crate::ion_types::IonBlob;
+use crate::ion_types::IonClob;
+use crate::ion_types::IonList;
+use crate::ion_types::IonSymbolicExpression;
+use crate::ion_types::IonStructure;
+use crate::ion_types::IonValue;
 
 use super::parser;
 use super::parser::BVM_BYTES;
+use num_traits::cast::ToPrimitive;
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
 
@@ -21,53 +35,49 @@ Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.ht
 */
 
 // Parse a single IonValue from the head of an Ion byte stream
-pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], ion_types::IonValue> {
-
+pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], IonValue> {
     let descriptor = take_type_descriptor(i);
 
-//    match descriptor {
-//        Ok((rest, info)) => {
-////            If the value is null (for that type), then L is set to 15.
-////            If the representation is less than 14 bytes long, then L is set to the length,
-////            and the length field is omitted.
-////                If the representation is at least 14 bytes long, then L is set to 14,
-////            and the length field is set to the representation length, encoded as a VarUInt field.
-//
-//            match info.format {
-//
-//            }
-//
-//            let length = match info.length {
-//                // If the value is null (for that type), then L is set to 15.
-//                0 .. 13 => info.length,
-//                14 => info.length,
-//                15 => return {
-//                    match info.format {
-//                        0: null
-//                            1: bool
-//                        2 and 3: int
-//                            // Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
-//                            4: float
-//                        5: decimal
-//                            6: timestamp
-//                        7: symbol
-//                            8: string
-//                        9: clob
-//                            10: blob
-//                        11: list
-//                            12: sexp
-//                        13: struct
-//                        14: Annotations
-//                            15: reserved
-//                    }
-//                }
-//            }
-//        },
-//        Err(err) => return Err(err)
-//    };
-
-    unimplemented!();
-
+    match descriptor {
+        Ok((rest, info)) => {
+            match info.format {
+                // null
+                0 => parse_null(rest, info.length),
+                // bool,
+                1 => parse_bool(rest, info.length),
+                // 2 positive int
+                2 => unimplemented!(),
+                // 3 negative int
+                3 => unimplemented!(),
+                // float
+                4 => unimplemented!(),
+                // decimal
+                5 => unimplemented!(),
+                // timestamp
+                6 => unimplemented!(),
+                // symbol
+                7 => unimplemented!(),
+                // string
+                8 => unimplemented!(),
+                // clob
+                9 => unimplemented!(),
+                // blob
+                10 => unimplemented!(),
+                // list
+                11 => unimplemented!(),
+                // sexp
+                12 => unimplemented!(),
+                // struct
+                13 => unimplemented!(),
+                // Annotations
+                14 => unimplemented!(),
+                // reserved
+                15 => unimplemented!(),
+                _ => unimplemented!(),
+            }
+        }
+        Err(err) => return Err(err)
+    }
 }
 
 /**
@@ -106,7 +116,6 @@ If the representation is at least 14 bytes long, then L is set to 14,
 and the length field is set to the representation length, encoded as a VarUInt field.
 ```
 */
-
 #[derive(Clone, Debug, PartialEq)]
 struct TypeDescriptor {
     format: usize,
@@ -116,7 +125,7 @@ struct TypeDescriptor {
 #[derive(Clone, Debug, PartialEq)]
 struct TypedValue<'a> {
     format: u8,
-    representation: Option<&'a[u8]>, // None for null
+    representation: Option<&'a [u8]>, // None for null
 }
 
 named!( take_descriptor_octet<(usize, usize)>, bits!( pair!( take_bits!(usize, 4), take_bits!(usize, 4) ) ) );
@@ -132,16 +141,16 @@ named!(take_type_descriptor<TypeDescriptor>,
 fn take_descriptor_octet_test() {
     // Extracted type descriptor octet of null.null should be (0x0, 0xF)
     let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let null_val = parser::take_ion_version( null_null ).unwrap();
+    let null_val = parser::take_ion_version(null_null).unwrap();
     assert_eq!(
-        take_descriptor_octet ( null_val.0 ),
+        take_descriptor_octet(null_val.0),
         Ok((&null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], (0x0, 0xF)))
     );
     // Extracted type descriptor octet of null.bool should be (0x1, 0xF)
     let null_bool = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-    let bool_val = parser::take_ion_version( null_bool ).unwrap();
+    let bool_val = parser::take_ion_version(null_bool).unwrap();
     assert_eq!(
-        take_descriptor_octet ( bool_val.0 ),
+        take_descriptor_octet(bool_val.0),
         Ok((&null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], (0x1, 0xF)))
     );
 }
@@ -150,17 +159,17 @@ fn take_descriptor_octet_test() {
 fn take_type_descriptor_test() {
     // Constructed TypeDescriptor for null.null should contain {format: 0x0, length: 0xF}
     let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let null_val = parser::take_ion_version( null_null ).unwrap();
+    let null_val = parser::take_ion_version(null_null).unwrap();
     assert_eq!(
-        take_type_descriptor ( null_val.0 ),
-        Ok((&null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], TypeDescriptor {format: 0x0, length: 0xF} ))
+        take_type_descriptor(null_val.0),
+        Ok((&null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], TypeDescriptor { format: 0x0, length: 0xF }))
     );
     // Constructed TypeDescriptor for null.bool should contain {format: 0x1, length: 0xF}
     let null_bool = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-    let bool_val = parser::take_ion_version( null_bool ).unwrap();
+    let bool_val = parser::take_ion_version(null_bool).unwrap();
     assert_eq!(
-        take_type_descriptor ( bool_val.0 ),
-        Ok((&null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], TypeDescriptor {format: 0x1, length: 0xF} ))
+        take_type_descriptor(bool_val.0),
+        Ok((&null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..], TypeDescriptor { format: 0x1, length: 0xF }))
     );
 }
 
@@ -225,7 +234,6 @@ named_args!(take_int ( length : usize ) <num_bigint::BigInt>,
 );
 
 pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
-
     let sign = match digits.first() {
         Some(v) if *v > 0b0111_1111 => Sign::Minus,
         Some(_) => Sign::Plus,
@@ -239,7 +247,6 @@ pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
     } else {
         BigInt::from_biguint(sign, BigUint::from_bytes_be(digits))
     }
-
 }
 
 named_args!(take_uint ( length : usize ) <num_bigint::BigUint>,
@@ -307,7 +314,6 @@ named!(take_var_int<num_bigint::BigInt>,
 );
 
 pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
-
     debug_assert!(terminator.len() == 1,
                   "VarInt terminator slice must contain exactly 1 byte, found {}!",
                   terminator.len());
@@ -320,7 +326,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
             } else {
                 Sign::Plus
             }
-        },
+        }
         None => match terminator.first() {
             Some(byte) => {
                 // we know that the terminator byte has the high bit set
@@ -329,9 +335,8 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
                 } else {
                     Sign::Plus
                 }
-            },
+            }
             None => unreachable!("VarInt must contain at least 1 byte!")
-
         }
     };
 
@@ -376,7 +381,6 @@ named!(take_var_uint<num_bigint::BigUint>,
 );
 
 pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint {
-
     debug_assert!(terminator.len() == 1,
                   "VarUInt terminator slice must contain exactly 1 byte, found {}!",
                   terminator.len());
@@ -457,14 +461,19 @@ NOP padding in struct requires additional encoding considerations.
 ```
 */
 
-pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], Option<ion_types::IonNull>> {
+pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...13 => Ok((&i[length..], None)),
+        0...13 => Ok((&i[length..], IonValue::IonNull(IonNull::Pad))),
         14 => match take_var_uint(i) {
-                Ok((rest, _)) => Ok((rest, None)),
-                Err(err) => Err(err),
+            Ok((rest, bytes)) => {
+                match bytes.to_usize() {
+                    Some(len) => Ok((&rest[len..], IonValue::IonNull(IonNull::Pad))),
+                    None => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+                }
+            }
+            Err(err) => Err(err),
         },
-        15 => Ok((i, Some(ion_types::IonNull::Null))),
+        15 => Ok((i, IonValue::IonNull(IonNull::Null))),
         // TODO(peyton): Improve error message
         _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
     }
@@ -472,16 +481,40 @@ pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], Option<ion_types::I
 
 #[test]
 fn parse_null_test() {
-    let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let val = parser::take_ion_version( bytes ).unwrap();
-    let descriptor = take_type_descriptor(val.0).unwrap();
+    let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+    let value = parser::take_ion_version(file_bytes).unwrap();
+    let descriptor = take_type_descriptor(value.0).unwrap();
 
     assert_eq!(
         parse_null(descriptor.0, descriptor.1.length),
-        Ok((&[] as &[u8], Some(ion_types::IonNull::Null)))
+        Ok((&[] as &[u8], IonValue::IonNull(IonNull::Null)))
     );
 }
 
+#[test]
+fn parse_nop_test_one_byte() {
+    let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
+    let value = parser::take_ion_version(file_bytes).unwrap();
+    let descriptor = take_type_descriptor(value.0).unwrap();
+
+    assert_eq!(
+        parse_null(descriptor.0, descriptor.1.length),
+        Ok((&[] as &[u8], IonValue::IonNull(IonNull::Pad)))
+    );
+}
+
+#[test]
+fn parse_nop_test_16_bytes() {
+    let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
+    let value = parser::take_ion_version(file_bytes).unwrap();
+    let descriptor = take_type_descriptor(value.0).unwrap();
+    let parse = take_var_uint(descriptor.0);
+
+    assert_eq!(
+        parse_null(descriptor.0, descriptor.1.length),
+        Ok((&[] as &[u8],IonValue::IonNull(IonNull::Pad)))
+    );
+}
 
 
 /**
@@ -497,6 +530,15 @@ means true; and a representation of 15 means null.bool.
 ```
 */
 
+pub fn parse_bool(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0 => Ok((i, IonValue::IonBoolean(IonBoolean::False))),
+        1 => Ok((i, IonValue::IonBoolean(IonBoolean::True))),
+        15 => Ok((i, IonValue::IonBoolean(IonBoolean::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 /**
@@ -523,6 +565,23 @@ Note that this implies there are two equivalent binary representations of null i
 ```
 */
 
+pub fn parse_pos_int(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonInteger(IonInteger::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
+
+pub fn parse_neg_int(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonInteger(IonInteger::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 /**
@@ -551,6 +610,14 @@ of the standard may support 16-bit and 128-bit float values.
 ```
 */
 
+pub fn parse_float(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonFloat(IonFloat::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 /**
@@ -578,6 +645,15 @@ If the value is 0. (aka 0d0) then L is zero, there are no length or representati
 entire value is encoded as the single byte 0x50.
 ```
 */
+
+pub fn parse_decimal(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonDecimal(IonDecimal::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 
@@ -645,6 +721,15 @@ UTC and local time.
 ```
 */
 
+pub fn parse_timestamp(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonTimestamp(IonTimestamp::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
+
 
 
 /**
@@ -666,6 +751,14 @@ See Ion Symbols for more details about symbol representations and symbol tables.
 ```
 */
 
+pub fn parse_symbol(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonSymbol(IonSymbol::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 /**
@@ -682,6 +775,15 @@ String value |    8    |    L    |
 These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
 ```
 */
+
+pub fn parse_string(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonString(IonString::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 
@@ -703,6 +805,16 @@ Zero-length clobs are legal, so L may be zero.
 ```
 */
 
+pub fn parse_clob(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonClob(IonClob::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
+
+
 
 
 /**
@@ -721,6 +833,15 @@ This is a sequence of octets with no interpretation (and thus opaque to the appl
 Zero-length blobs are legal, so L may be zero.
 ```
 */
+
+pub fn parse_blob(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonBlob(IonBlob::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 
@@ -747,6 +868,15 @@ each successive value in constant time.
 ```
 */
 
+pub fn parse_list(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonList(IonList::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
+
 
 
 /**
@@ -765,6 +895,15 @@ Sexp value |   12    |    L    |
 Values of type sexp are encoded exactly as are list values, except with a different type code.
 ```
 */
+
+pub fn parse_sexp(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonSymbolicExpression(IonSymbolicExpression::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 
@@ -833,6 +972,15 @@ which is not allowed generally for annotations:
 0xD5 0x80 0xE3 0x81 0x84 0x00
 ```
 */
+
+pub fn parse_struct(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+    match length {
+        0...14 => unimplemented!(),
+        15 => Ok((i, IonValue::IonStructure(IonStructure::Null))),
+        // TODO(peyton): Improve error message
+        _ => Err(nom::Err::Failure(nom::Context::Code(i, nom::ErrorKind::Custom(0)))),
+    }
+}
 
 
 
@@ -915,9 +1063,6 @@ T	L	                Reason
 15	[0-15]	            The type code 15 is illegal in Ion 1.0 data.
 ```
 */
-
-
-
 #[test]
 fn binary_version_marker_test() {
     let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
