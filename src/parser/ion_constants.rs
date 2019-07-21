@@ -25,7 +25,7 @@ pub enum OperatorCharacter {
 impl OperatorCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &OperatorCharacter::PlaceHolder   => unimplemented!(),
+            &OperatorCharacter::PlaceHolder => unimplemented!(),
             // ...
         }
     }
@@ -34,41 +34,55 @@ impl OperatorCharacter {
 // In the text notation, integer values must be followed by one of the fifteen numeric stop-characters: {}[](),\"\'\ \t\n\r\v\f.
 // In the text notation, real values must be followed by one of the fifteen numeric stop-characters: {}[](),\"\'\ \t\n\r\v\f.
 pub enum NumericStopCharacter {
-    LeftCurlyBracket,   // {
-    RightCurlyBracket,  // }
-    LeftSquareBracket,  // [
-    RightSquareBracket, // ]
-    LeftParenthesis,    // (
-    RightParenthesis,   // )
-    Comma,              // ,
-    QuotationMark,      // "
-    Apostrophe,         // '
-    Space,              // U+0020
-    Tab,                // \t
-    LineFeed,           // \n
-    CarriageReturn,     // \r
-    VerticalTab,        // \v
+    LeftCurlyBracket,
+    // {
+    RightCurlyBracket,
+    // }
+    LeftSquareBracket,
+    // [
+    RightSquareBracket,
+    // ]
+    LeftParenthesis,
+    // (
+    RightParenthesis,
+    // )
+    Comma,
+    // ,
+    QuotationMark,
+    // "
+    Apostrophe,
+    // '
+    Space,
+    // U+0020
+    Tab,
+    // \t
+    LineFeed,
+    // \n
+    CarriageReturn,
+    // \r
+    VerticalTab,
+    // \v
     FormFeed,           // \f
 }
 
 impl NumericStopCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &NumericStopCharacter::LeftCurlyBracket   => unimplemented!(),
-            &NumericStopCharacter::RightCurlyBracket  => unimplemented!(),
-            &NumericStopCharacter::LeftSquareBracket  => unimplemented!(),
+            &NumericStopCharacter::LeftCurlyBracket => unimplemented!(),
+            &NumericStopCharacter::RightCurlyBracket => unimplemented!(),
+            &NumericStopCharacter::LeftSquareBracket => unimplemented!(),
             &NumericStopCharacter::RightSquareBracket => unimplemented!(),
-            &NumericStopCharacter::LeftParenthesis    => unimplemented!(),
-            &NumericStopCharacter::RightParenthesis   => unimplemented!(),
-            &NumericStopCharacter::Comma              => unimplemented!(),
-            &NumericStopCharacter::QuotationMark      => unimplemented!(),
-            &NumericStopCharacter::Apostrophe         => unimplemented!(),
-            &NumericStopCharacter::Space              => unimplemented!(),
-            &NumericStopCharacter::Tab                => unimplemented!(),
-            &NumericStopCharacter::LineFeed           => unimplemented!(),
-            &NumericStopCharacter::CarriageReturn     => unimplemented!(),
-            &NumericStopCharacter::VerticalTab        => unimplemented!(),
-            &NumericStopCharacter::FormFeed           => unimplemented!(),
+            &NumericStopCharacter::LeftParenthesis => unimplemented!(),
+            &NumericStopCharacter::RightParenthesis => unimplemented!(),
+            &NumericStopCharacter::Comma => unimplemented!(),
+            &NumericStopCharacter::QuotationMark => unimplemented!(),
+            &NumericStopCharacter::Apostrophe => unimplemented!(),
+            &NumericStopCharacter::Space => unimplemented!(),
+            &NumericStopCharacter::Tab => unimplemented!(),
+            &NumericStopCharacter::LineFeed => unimplemented!(),
+            &NumericStopCharacter::CarriageReturn => unimplemented!(),
+            &NumericStopCharacter::VerticalTab => unimplemented!(),
+            &NumericStopCharacter::FormFeed => unimplemented!(),
         }
     }
 }
@@ -99,7 +113,7 @@ pub enum TextFormatEscapeCharacter {
 impl TextFormatEscapeCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &TextFormatEscapeCharacter::PlaceHolder   => unimplemented!(),
+            &TextFormatEscapeCharacter::PlaceHolder => unimplemented!(),
             // ...
         }
     }

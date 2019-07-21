@@ -1,3 +1,5 @@
+extern crate base64;
+extern crate chrono;
 /**
 No promises of round-trip for optional representation details.
 There are too many and they are too absurd.
@@ -5,17 +7,16 @@ Reference http://amzn.github.io/ion-docs/docs/spec.html
 */
 
 extern crate num_bigint;
-extern crate chrono;
 extern crate serde_bytes;
-extern crate base64;
 
 use std::option::Option;
-use std::string::String;
 use std::str;
+use std::string::String;
+
+use base64::encode;
+use chrono::{FixedOffset, NaiveDateTime};
 use num_bigint::BigInt;
 use num_bigint::BigUint;
-use chrono::{NaiveDateTime, FixedOffset};
-use base64::encode;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {

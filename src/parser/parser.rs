@@ -1,11 +1,12 @@
 use nom;
-use nom::IResult;
-use nom::named;
 use nom::alt;
+use nom::do_parse;
+use nom::many0;
+use nom::named;
 use nom::tag;
 use nom::take;
-use nom::many0;
-use nom::do_parse;
+use nom::IResult;
+
 use crate::ion_types;
 
 // Binary Ion streams begin with a four-octet Binary Version Marker
@@ -30,7 +31,7 @@ pub struct IonVersion {
 
 #[derive(Clone, Debug, PartialEq)]
 struct BinaryVersionMarker {
-    start:  u8,
+    start: u8,
     major: u8,
     minor: u8,
     end: u8,
@@ -41,7 +42,7 @@ const fn ion_bvm(major_version: u8, minor_version: u8) -> BinaryVersionMarker {
         start: BVM_START_BYTE,
         major: major_version,
         minor: minor_version,
-        end: BVM_END_BYTE
+        end: BVM_END_BYTE,
     }
 }
 
@@ -70,17 +71,14 @@ named!(pub take_ion_version( &[u8] ) -> IonVersion,
 #[test]
 fn binary_version_marker_test() {
     let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    assert_eq!(
-        &BVM_1_0,
-        &data[0..4]
-    );
+    assert_eq!(&BVM_1_0, &data[0..4]);
 }
 
 #[test]
 fn take_binary_version_marker_test() {
     let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
     assert_eq!(
-        take_ion_version( null_null ),
+        take_ion_version(null_null),
         Ok((&null_null[4..], VERSION_1_0))
     );
 }
