@@ -1,11 +1,5 @@
 extern crate base64;
 extern crate chrono;
-/**
-No promises of round-trip for optional representation details.
-There are too many and they are too absurd.
-Reference http://amzn.github.io/ion-docs/docs/spec.html
-*/
-
 extern crate num_bigint;
 extern crate serde_bytes;
 
@@ -18,6 +12,11 @@ use chrono::{FixedOffset, NaiveDateTime};
 use num_bigint::BigInt;
 use num_bigint::BigUint;
 
+/**
+No promises of round-trip for optional representation details.
+There are too many and they are too absurd.
+Reference http://amzn.github.io/ion-docs/docs/spec.html
+*/
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
     IonNull(IonNull),
@@ -146,7 +145,11 @@ impl IonDecimal {
     pub fn to_text(&self) -> String {
         match self {
             IonDecimal::Null => String::from("null.decimal"),
-            IonDecimal::Decimal { sign, coefficient, exponent } => unimplemented!(),
+            IonDecimal::Decimal {
+                sign,
+                coefficient,
+                exponent,
+            } => unimplemented!(),
         }
     }
 }
@@ -273,8 +276,13 @@ impl IonList {
     pub fn to_text(&self) -> String {
         match self {
             IonList::Null => String::from("null.list"),
-            IonList::List(val) =>
-                format!("[{}]", val.iter().map(|x| x.to_text()).collect::<Vec<String>>().join(", ")),
+            IonList::List(val) => format!(
+                "[{}]",
+                val.iter()
+                    .map(|x| x.to_text())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -297,8 +305,13 @@ impl IonSymbolicExpression {
     pub fn to_text(&self) -> String {
         match self {
             IonSymbolicExpression::Null => String::from("null.sexp"),
-            IonSymbolicExpression::SymbolicExpression(sexp) =>
-                format!("({})", sexp.iter().map(|x| x.to_text()).collect::<Vec<String>>().join(" ")),
+            IonSymbolicExpression::SymbolicExpression(sexp) => format!(
+                "({})",
+                sexp.iter()
+                    .map(|x| x.to_text())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
         }
     }
 }
@@ -320,5 +333,5 @@ impl SymbolicExpressionSymbol {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IonOperator {
-    seq_op_chars: String
+    seq_op_chars: String,
 }
