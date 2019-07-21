@@ -6,6 +6,7 @@ edition = "2018"
 description = """
 A native Rust encoding and decoding library for the Amazon Ion text and binary data formats.
 Provides Serialize/Deserialize traits for Ion data to enable (de)serializing to and from Rust structures.
+Currently a work in progress with limited functionality.
 """
 # TODO: Any documentation...
 documentation = "https://github.com/PeytonT/serde_ion"

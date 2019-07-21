@@ -79,7 +79,7 @@ pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], IonValue> {
                 _ => unimplemented!(),
             }
         }
-        Err(err) => return Err(err),
+        Err(err) => Err(err),
     }
 }
 
@@ -182,7 +182,7 @@ fn take_type_descriptor_test() {
             &null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
             TypeDescriptor {
                 format: 0x0,
-                length: 0xF
+                length: 0xF,
             }
         ))
     );
@@ -195,7 +195,7 @@ fn take_type_descriptor_test() {
             &null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
             TypeDescriptor {
                 format: 0x1,
-                length: 0xF
+                length: 0xF,
             }
         ))
     );
@@ -385,13 +385,13 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
 
     // insert all payload bits
     for byte in sequence.iter().chain(terminator) {
-        bits.push((byte & 0b01000000) != 0);
-        bits.push((byte & 0b00100000) != 0);
-        bits.push((byte & 0b00010000) != 0);
-        bits.push((byte & 0b00001000) != 0);
-        bits.push((byte & 0b00000100) != 0);
-        bits.push((byte & 0b00000010) != 0);
-        bits.push((byte & 0b00000001) != 0);
+        bits.push((byte & 0b0100_0000) != 0);
+        bits.push((byte & 0b0010_0000) != 0);
+        bits.push((byte & 0b0001_0000) != 0);
+        bits.push((byte & 0b0000_1000) != 0);
+        bits.push((byte & 0b0000_0100) != 0);
+        bits.push((byte & 0b0000_0010) != 0);
+        bits.push((byte & 0b0000_0001) != 0);
     }
 
     // clear the sign bit in the first byte
@@ -433,13 +433,13 @@ pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint
 
     // insert all payload bits
     for byte in sequence.iter().chain(terminator) {
-        bits.push((byte & 0b01000000) != 0);
-        bits.push((byte & 0b00100000) != 0);
-        bits.push((byte & 0b00010000) != 0);
-        bits.push((byte & 0b00001000) != 0);
-        bits.push((byte & 0b00000100) != 0);
-        bits.push((byte & 0b00000010) != 0);
-        bits.push((byte & 0b00000001) != 0);
+        bits.push((byte & 0b0100_0000) != 0);
+        bits.push((byte & 0b0010_0000) != 0);
+        bits.push((byte & 0b0001_0000) != 0);
+        bits.push((byte & 0b0000_1000) != 0);
+        bits.push((byte & 0b0000_0100) != 0);
+        bits.push((byte & 0b0000_0010) != 0);
+        bits.push((byte & 0b0000_0001) != 0);
     }
 
     BigUint::from_bytes_be(&*bits.to_bytes())
