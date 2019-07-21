@@ -26,8 +26,8 @@ use crate::ion_types::IonSymbolicExpression;
 use crate::ion_types::IonTimestamp;
 use crate::ion_types::IonValue;
 
-use super::parser;
-use super::parser::BVM_BYTES;
+use super::parse;
+use super::parse::BVM_BYTES;
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
 
@@ -151,7 +151,7 @@ named!(
 fn take_descriptor_octet_test() {
     // Extracted type descriptor octet of null.null should be (0x0, 0xF)
     let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let null_val = parser::take_ion_version(null_null).unwrap();
+    let null_val = parse::take_ion_version(null_null).unwrap();
     assert_eq!(
         take_descriptor_octet(null_val.0),
         Ok((
@@ -161,7 +161,7 @@ fn take_descriptor_octet_test() {
     );
     // Extracted type descriptor octet of null.bool should be (0x1, 0xF)
     let null_bool = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-    let bool_val = parser::take_ion_version(null_bool).unwrap();
+    let bool_val = parse::take_ion_version(null_bool).unwrap();
     assert_eq!(
         take_descriptor_octet(bool_val.0),
         Ok((
@@ -175,7 +175,7 @@ fn take_descriptor_octet_test() {
 fn take_type_descriptor_test() {
     // Constructed TypeDescriptor for null.null should contain {format: 0x0, length: 0xF}
     let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let null_val = parser::take_ion_version(null_null).unwrap();
+    let null_val = parse::take_ion_version(null_null).unwrap();
     assert_eq!(
         take_type_descriptor(null_val.0),
         Ok((
@@ -188,7 +188,7 @@ fn take_type_descriptor_test() {
     );
     // Constructed TypeDescriptor for null.bool should contain {format: 0x1, length: 0xF}
     let null_bool = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-    let bool_val = parser::take_ion_version(null_bool).unwrap();
+    let bool_val = parse::take_ion_version(null_bool).unwrap();
     assert_eq!(
         take_type_descriptor(bool_val.0),
         Ok((
@@ -516,7 +516,7 @@ pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 #[test]
 fn parse_null_test() {
     let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let value = parser::take_ion_version(file_bytes).unwrap();
+    let value = parse::take_ion_version(file_bytes).unwrap();
     let descriptor = take_type_descriptor(value.0).unwrap();
 
     assert_eq!(
@@ -528,7 +528,7 @@ fn parse_null_test() {
 #[test]
 fn parse_nop_test_one_byte() {
     let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
-    let value = parser::take_ion_version(file_bytes).unwrap();
+    let value = parse::take_ion_version(file_bytes).unwrap();
     let descriptor = take_type_descriptor(value.0).unwrap();
 
     assert_eq!(
@@ -540,7 +540,7 @@ fn parse_nop_test_one_byte() {
 #[test]
 fn parse_nop_test_16_bytes() {
     let file_bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
-    let value = parser::take_ion_version(file_bytes).unwrap();
+    let value = parse::take_ion_version(file_bytes).unwrap();
     let descriptor = take_type_descriptor(value.0).unwrap();
     let parse = take_var_uint(descriptor.0);
 
