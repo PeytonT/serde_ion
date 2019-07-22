@@ -1,10 +1,14 @@
 use bit_vec::BitVec;
 use nom;
-use nom::Context::Code;
+use nom::bits::{bits, bytes, complete};
+use nom::combinator::rest;
+use nom::error::{ErrorKind, ParseError};
+use nom::sequence::pair;
+use nom::sequence::tuple;
+use nom::Err;
 use nom::IResult;
 use nom::{
-    apply, bits, do_parse, error_position, named, named_args, pair, switch, take, take_bits,
-    take_while, value, ErrorKind,
+    do_parse, error_position, named, named_args, pair, switch, take, take_bits, take_while, value,
 };
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::cast::ToPrimitive;
@@ -79,7 +83,9 @@ pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], IonValue> {
                 _ => unimplemented!(),
             }
         }
-        Err(err) => Err(err),
+        Err(Err::Error(error)) => Err(Err::Error(error)),
+        Err(Err::Failure(failure)) => Err(Err::Failure(failure)),
+        Err(Err::Incomplete(needed)) => Err(Err::Incomplete(needed)),
     }
 }
 
@@ -131,44 +137,11 @@ struct TypedValue<'a> {
     representation: Option<&'a [u8]>, // None for null
 }
 
-named!(
-    take_descriptor_octet<(usize, usize)>,
-    bits!(pair!(take_bits!(usize, 4), take_bits!(usize, 4)))
-);
-
-named!(
-    take_type_descriptor<TypeDescriptor>,
-    do_parse!(
-        descriptor_octet: take_descriptor_octet
-            >> (TypeDescriptor {
-                format: descriptor_octet.0,
-                length: descriptor_octet.1
-            })
-    )
-);
-
-#[test]
-fn take_descriptor_octet_test() {
-    // Extracted type descriptor octet of null.null should be (0x0, 0xF)
-    let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    let null_val = parse::take_ion_version(null_null).unwrap();
-    assert_eq!(
-        take_descriptor_octet(null_val.0),
-        Ok((
-            &null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
-            (0x0, 0xF)
-        ))
-    );
-    // Extracted type descriptor octet of null.bool should be (0x1, 0xF)
-    let null_bool = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-    let bool_val = parse::take_ion_version(null_bool).unwrap();
-    assert_eq!(
-        take_descriptor_octet(bool_val.0),
-        Ok((
-            &null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
-            (0x1, 0xF)
-        ))
-    );
+fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
+    let (input, descriptor) = nom::bytes::complete::take(1usize)(input)?;
+    let format: usize = (descriptor[0] >> 4) as usize;
+    let length: usize = (descriptor[0] & 0b0000_1111) as usize;
+    Ok((input, TypeDescriptor { format, length }))
 }
 
 #[test]
@@ -491,25 +464,20 @@ NOP padding in struct requires additional encoding considerations.
 ```
 */
 
-pub fn parse_null(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...13 => Ok((&i[length..], IonValue::IonNull(IonNull::Pad))),
-        14 => match take_var_uint(i) {
+        0...13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
+        14 => match take_var_uint(input) {
             Ok((rest, bytes)) => match bytes.to_usize() {
                 Some(len) => Ok((&rest[len..], IonValue::IonNull(IonNull::Pad))),
-                None => Err(nom::Err::Failure(nom::Context::Code(
-                    i,
-                    nom::ErrorKind::Custom(0),
-                ))),
+                None => Err(Err::Failure((input, ErrorKind::TooLarge))),
             },
-            Err(err) => Err(err),
+            Err(Err::Error(error)) => Err(Err::Error(error)),
+            Err(Err::Failure(failure)) => Err(Err::Failure(failure)),
+            Err(Err::Incomplete(needed)) => Err(Err::Incomplete(needed)),
         },
-        15 => Ok((i, IonValue::IonNull(IonNull::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonNull(IonNull::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -563,16 +531,12 @@ means true; and a representation of 15 means null.bool.
 ```
 */
 
-pub fn parse_bool(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0 => Ok((i, IonValue::IonBoolean(IonBoolean::False))),
-        1 => Ok((i, IonValue::IonBoolean(IonBoolean::True))),
-        15 => Ok((i, IonValue::IonBoolean(IonBoolean::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        0 => Ok((input, IonValue::IonBoolean(IonBoolean::False))),
+        1 => Ok((input, IonValue::IonBoolean(IonBoolean::True))),
+        15 => Ok((input, IonValue::IonBoolean(IonBoolean::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -600,27 +564,19 @@ Note that this implies there are two equivalent binary representations of null i
 ```
 */
 
-pub fn parse_pos_int(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonInteger(IonInteger::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
-pub fn parse_neg_int(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonInteger(IonInteger::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -650,15 +606,11 @@ of the standard may support 16-bit and 128-bit float values.
 ```
 */
 
-pub fn parse_float(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonFloat(IonFloat::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonFloat(IonFloat::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -688,15 +640,11 @@ entire value is encoded as the single byte 0x50.
 ```
 */
 
-pub fn parse_decimal(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonDecimal(IonDecimal::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -764,15 +712,11 @@ UTC and local time.
 ```
 */
 
-pub fn parse_timestamp(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonTimestamp(IonTimestamp::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonTimestamp(IonTimestamp::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -795,15 +739,11 @@ See Ion Symbols for more details about symbol representations and symbol tables.
 ```
 */
 
-pub fn parse_symbol(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonSymbol(IonSymbol::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonSymbol(IonSymbol::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -822,15 +762,11 @@ These are always sequences of Unicode characters, encoded as a sequence of UTF-8
 ```
 */
 
-pub fn parse_string(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonString(IonString::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonString(IonString::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -852,15 +788,11 @@ Zero-length clobs are legal, so L may be zero.
 ```
 */
 
-pub fn parse_clob(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonClob(IonClob::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonClob(IonClob::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -881,15 +813,11 @@ Zero-length blobs are legal, so L may be zero.
 ```
 */
 
-pub fn parse_blob(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonBlob(IonBlob::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonBlob(IonBlob::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -916,15 +844,11 @@ each successive value in constant time.
 ```
 */
 
-pub fn parse_list(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonList(IonList::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonList(IonList::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -945,18 +869,14 @@ Values of type sexp are encoded exactly as are list values, except with a differ
 ```
 */
 
-pub fn parse_sexp(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
         15 => Ok((
-            i,
+            input,
             IonValue::IonSymbolicExpression(IonSymbolicExpression::Null),
         )),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
@@ -1026,15 +946,11 @@ which is not allowed generally for annotations:
 ```
 */
 
-pub fn parse_struct(i: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0...14 => unimplemented!(),
-        15 => Ok((i, IonValue::IonStructure(IonStructure::Null))),
-        // TODO(peyton): Improve error message
-        _ => Err(nom::Err::Failure(nom::Context::Code(
-            i,
-            nom::ErrorKind::Custom(0),
-        ))),
+        15 => Ok((input, IonValue::IonStructure(IonStructure::Null))),
+        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
