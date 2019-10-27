@@ -32,6 +32,7 @@ use crate::ion_types::IonValue;
 
 use super::parse;
 use super::parse::BVM_BYTES;
+use num_traits::real::Real;
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
 
@@ -466,7 +467,7 @@ NOP padding in struct requires additional encoding considerations.
 
 pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
+        0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
         14 => match take_var_uint(input) {
             Ok((rest, bytes)) => match bytes.to_usize() {
                 Some(len) => Ok((&rest[len..], IonValue::IonNull(IonNull::Pad))),
@@ -566,7 +567,7 @@ Note that this implies there are two equivalent binary representations of null i
 
 pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -574,7 +575,7 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 
 pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -608,7 +609,7 @@ of the standard may support 16-bit and 128-bit float values.
 
 pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonFloat(IonFloat::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -642,7 +643,7 @@ entire value is encoded as the single byte 0x50.
 
 pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -714,7 +715,7 @@ UTC and local time.
 
 pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonTimestamp(IonTimestamp::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -741,7 +742,7 @@ See Ion Symbols for more details about symbol representations and symbol tables.
 
 pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonSymbol(IonSymbol::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -764,7 +765,7 @@ These are always sequences of Unicode characters, encoded as a sequence of UTF-8
 
 pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonString(IonString::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -790,7 +791,7 @@ Zero-length clobs are legal, so L may be zero.
 
 pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonClob(IonClob::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -815,7 +816,7 @@ Zero-length blobs are legal, so L may be zero.
 
 pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonBlob(IonBlob::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -846,7 +847,7 @@ each successive value in constant time.
 
 pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonList(IonList::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -871,7 +872,7 @@ Values of type sexp are encoded exactly as are list values, except with a differ
 
 pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((
             input,
             IonValue::IonSymbolicExpression(IonSymbolicExpression::Null),
@@ -948,7 +949,7 @@ which is not allowed generally for annotations:
 
 pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0...14 => unimplemented!(),
+        0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonStructure(IonStructure::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
