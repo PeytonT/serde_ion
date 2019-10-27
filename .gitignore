@@ -15,3 +15,7 @@ Cargo.lock
 /target
 **/*.rs.bk
 Cargo.lock
+
+# Intellij Files
+.idea/
+serde_ion.iml
