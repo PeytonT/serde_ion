@@ -1,16 +1,18 @@
 use bit_vec::BitVec;
-use nom;
-use nom::bits::{bits, bytes, complete};
-use nom::combinator::rest;
-use nom::error::{ErrorKind, ParseError};
-use nom::sequence::pair;
-use nom::sequence::tuple;
-use nom::Err;
-use nom::IResult;
+
 use nom::{
-    do_parse, error_position, named, named_args, pair, switch, take, take_bits, take_while, value,
+    bits::{bits, bytes, complete},
+    bytes::complete::{take, take_while},
+    combinator::rest,
+    combinator::{cut, map, opt},
+    error::{context, convert_error, ErrorKind, ParseError, VerboseError},
+    number::complete::double,
+    sequence::{delimited, preceded, separated_pair, terminated},
+    sequence::{pair, tuple},
+    Err, IResult,
 };
-use num_bigint::{BigInt, BigUint, Sign};
+
+use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
 
@@ -32,6 +34,7 @@ use crate::ion_types::IonValue;
 
 use super::parse;
 use super::parse::BVM_BYTES;
+use crate::ion_types::IonInteger::Integer;
 use num_traits::real::Real;
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
@@ -54,29 +57,29 @@ pub fn parse_single_value(i: &[u8]) -> IResult<&[u8], IonValue> {
                 // bool,
                 1 => parse_bool(rest, info.length),
                 // 2 positive int
-                2 => unimplemented!(),
+                2 => parse_positive_int(rest, info.length),
                 // 3 negative int
-                3 => unimplemented!(),
+                3 => parse_negative_int(rest, info.length),
                 // float
-                4 => unimplemented!(),
+                4 => parse_float(rest, info.length),
                 // decimal
-                5 => unimplemented!(),
+                5 => parse_decimal(rest, info.length),
                 // timestamp
-                6 => unimplemented!(),
+                6 => parse_timestamp(rest, info.length),
                 // symbol
-                7 => unimplemented!(),
+                7 => parse_symbol(rest, info.length),
                 // string
-                8 => unimplemented!(),
+                8 => parse_string(rest, info.length),
                 // clob
-                9 => unimplemented!(),
+                9 => parse_clob(rest, info.length),
                 // blob
-                10 => unimplemented!(),
+                10 => parse_blob(rest, info.length),
                 // list
-                11 => unimplemented!(),
+                11 => parse_list(rest, info.length),
                 // sexp
-                12 => unimplemented!(),
+                12 => parse_sexp(rest, info.length),
                 // struct
-                13 => unimplemented!(),
+                13 => parse_struct(rest, info.length),
                 // Annotations
                 14 => unimplemented!(),
                 // reserved
@@ -139,7 +142,7 @@ struct TypedValue<'a> {
 }
 
 fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
-    let (input, descriptor) = nom::bytes::complete::take(1usize)(input)?;
+    let (input, descriptor) = take(1usize)(input)?;
     let format: usize = (descriptor[0] >> 4) as usize;
     let length: usize = (descriptor[0] & 0b0000_1111) as usize;
     Ok((input, TypeDescriptor { format, length }))
@@ -226,12 +229,12 @@ on the highest-order bit of the first octet). This means that the representation
 ```
 */
 
-named_args!(take_int ( length : usize ) <num_bigint::BigInt>,
-  do_parse!(
-    bytes: take!(length) >>
-    (parse_int(bytes))
-  )
-);
+fn take_int(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigInt> {
+    move |i: &[u8]| {
+        let (input, bytes) = take(length)(i)?;
+        Ok((input, parse_int(bytes)))
+    }
+}
 
 pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
     let sign = match digits.first() {
@@ -249,12 +252,12 @@ pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
     }
 }
 
-named_args!(take_uint ( length : usize ) <num_bigint::BigUint>,
-  do_parse!(
-    bytes: take!(length) >>
-    (BigUint::from_bytes_be(bytes))
-  )
-);
+fn take_uint(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigUint> {
+    move |i: &[u8]| {
+        let (input, bytes) = take(length)(i)?;
+        Ok((input, BigUint::from_bytes_be(bytes)))
+    }
+}
 
 /**
 ```text
@@ -304,14 +307,11 @@ single octet VarInt field | 1 |   |  magnitude  |
 ```
 */
 
-named!(
-    take_var_int<num_bigint::BigInt>,
-    do_parse!(
-        sequence: take_while!(sequence_continues)
-            >> terminator: take!(1)
-            >> (parse_var_int(sequence, terminator))
-    )
-);
+fn take_var_int(i: &[u8]) -> IResult<&[u8], num_bigint::BigInt> {
+    let (input, sequence) = take_while(high_bit_unset)(i)?;
+    let (input, terminator) = take(1usize)(input)?;
+    Ok((input, parse_var_int(sequence, terminator)))
+}
 
 pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     debug_assert!(
@@ -374,14 +374,11 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
 }
 
-named!(
-    take_var_uint<num_bigint::BigUint>,
-    do_parse!(
-        sequence: take_while!(sequence_continues)
-            >> terminator: take!(1)
-            >> (parse_var_uint(sequence, terminator))
-    )
-);
+fn take_var_uint(i: &[u8]) -> IResult<&[u8], num_bigint::BigUint> {
+    let (input, sequence) = take_while(high_bit_unset)(i)?;
+    let (input, terminator) = take(1usize)(input)?;
+    Ok((input, parse_var_uint(sequence, terminator)))
+}
 
 pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint {
     debug_assert!(
@@ -419,7 +416,7 @@ pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint
     BigUint::from_bytes_be(&*bits.to_bytes())
 }
 
-fn sequence_continues(byte: u8) -> bool {
+fn high_bit_unset(byte: u8) -> bool {
     byte < 0b1000_0000
 }
 
@@ -469,7 +466,7 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
         14 => match take_var_uint(input) {
-            Ok((rest, bytes)) => match bytes.to_usize() {
+            Ok((rest, value)) => match value.to_usize() {
                 Some(len) => Ok((&rest[len..], IonValue::IonNull(IonNull::Pad))),
                 None => Err(Err::Failure((input, ErrorKind::TooLarge))),
             },
@@ -567,17 +564,48 @@ Note that this implies there are two equivalent binary representations of null i
 
 pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0..=14 => unimplemented!(),
+        0..=13 => {
+            let (rest, magnitude) = take_uint(length)(input).expect("Cannot take UInt");
+            Ok((
+                rest,
+                IonValue::IonInteger(IonInteger::Integer {
+                    value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
+                }),
+            ))
+        }
+        14 => match take_var_uint(input) {
+            Ok((rest, value)) => match value.to_usize() {
+                Some(length) => {
+                    let (rest, magnitude) = take_uint(length)(input).expect("Cannot take UInt");
+                    Ok((
+                        rest,
+                        IonValue::IonInteger(IonInteger::Integer {
+                            value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
+                        }),
+                    ))
+                }
+                None => Err(Err::Failure((input, ErrorKind::TooLarge))),
+            },
+            Err(Err::Error(error)) => Err(Err::Error(error)),
+            Err(Err::Failure(failure)) => Err(Err::Failure(failure)),
+            Err(Err::Incomplete(needed)) => Err(Err::Incomplete(needed)),
+        },
         15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
 }
 
 pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+    let (rest, value) = parse_positive_int(input, length).expect("cannot parse");
+    match value {
+        IonValue::IonInteger(value) => match value {
+            IonInteger::Null => Ok((rest, IonValue::IonInteger(IonInteger::Null))),
+            IonInteger::Integer { value } => Ok((
+                rest,
+                IonValue::IonInteger(IonInteger::Integer { value: -1 * value }),
+            )),
+        },
+        _ => Err(Err::Failure((input, ErrorKind::IsNot))),
     }
 }
 
