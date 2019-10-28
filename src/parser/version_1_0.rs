@@ -16,21 +16,10 @@ use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
 
-use crate::ion_types;
-use crate::ion_types::IonBlob;
-use crate::ion_types::IonBoolean;
-use crate::ion_types::IonClob;
-use crate::ion_types::IonDecimal;
-use crate::ion_types::IonFloat;
-use crate::ion_types::IonInteger;
-use crate::ion_types::IonList;
-use crate::ion_types::IonNull;
-use crate::ion_types::IonString;
-use crate::ion_types::IonStructure;
-use crate::ion_types::IonSymbol;
-use crate::ion_types::IonSymbolicExpression;
-use crate::ion_types::IonTimestamp;
-use crate::ion_types::IonValue;
+use crate::ion_types::{
+    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
+    IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
+};
 
 use super::parse;
 use super::parse::BVM_BYTES;
