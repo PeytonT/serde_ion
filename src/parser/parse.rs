@@ -1,13 +1,16 @@
-use nom;
-use nom::alt;
-use nom::do_parse;
-use nom::many0;
-use nom::named;
-use nom::tag;
-use nom::take;
-use nom::IResult;
-
-use crate::ion_types;
+use super::version_1_0::parse_value;
+use crate::ion_types::{
+    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
+    IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
+};
+use nom::{
+    branch::alt,
+    bytes::complete::{tag, take},
+    error::ErrorKind,
+    multi::many0,
+    sequence::{pair, preceded, tuple},
+    Err, IResult,
+};
 
 // Binary Ion streams begin with a four-octet Binary Version Marker
 // BVM_START MAJOR_VERSION MINOR_VERSION BVM_END
@@ -52,33 +55,78 @@ impl BinaryVersionMarker {
     }
 }
 
-named!(pub take_ion_version( &[u8] ) -> IonVersion,
-  do_parse!(
-    start: tag!(BVM_START) >>
-    major: take!(1) >>
-    minor: take!(1) >>
-    end: tag!(BVM_END) >>
-    (IonVersion {major: major[0], minor: minor[0]})
-  )
-);
-
-// Needs mechanism for parsing multiple values
-//named!(parse, alt!(
-//    tag!(&BVM_1_0)            => { |rest: &[u8]| ion_1_0::parse(rest) }
-//    // Handling for future Ion versions
-//));
-
-#[test]
-fn binary_version_marker_test() {
-    let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    assert_eq!(&BVM_1_0, &data[0..4]);
+pub fn take_ion_version(input: &[u8]) -> IResult<&[u8], IonVersion> {
+    let (input, (start, major, minor, end)) =
+        tuple((tag(BVM_START), take(1usize), take(1usize), tag(BVM_END)))(input)?;
+    Ok((
+        input,
+        IonVersion {
+            major: major[0],
+            minor: minor[0],
+        },
+    ))
 }
 
-#[test]
-fn take_binary_version_marker_test() {
-    let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-    assert_eq!(
-        take_ion_version(null_null),
-        Ok((&null_null[4..], VERSION_1_0))
-    );
+pub fn parse(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
+    alt((
+        preceded(tag(BVM_1_0), many0(super::version_1_0::parse_value)),
+        version_placeholder,
+    ))(input)
+}
+
+/** Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached. */
+fn version_placeholder(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
+    Err(Err::Error((input, ErrorKind::NoneOf)))
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn binary_version_marker_test() {
+        let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+        assert_eq!(&BVM_1_0, &data[0..4]);
+    }
+
+    #[test]
+    fn take_binary_version_marker_test() {
+        let null_null = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+        assert_eq!(
+            take_ion_version(null_null),
+            Ok((&null_null[4..], VERSION_1_0))
+        );
+    }
+
+    #[test]
+    fn test_parse_value_null_bool() {
+        // parse null.null
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+        let parse_result = parse(bytes).unwrap();
+        let remaining_bytes = parse_result.0;
+        let value = parse_result.1;
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonNull(IonNull::Null)]);
+    }
+
+    #[test]
+    fn test_parse_value_nop_pad_one_byte() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
+        let parse_result = parse(bytes).unwrap();
+        let remaining_bytes = parse_result.0;
+        let value = parse_result.1;
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonNull(IonNull::Pad)]);
+    }
+
+    #[test]
+    fn test_parse_value_nop_pad_16_bytes() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
+        let parse_result = parse(bytes).unwrap();
+        let remaining_bytes = parse_result.0;
+        let value = parse_result.1;
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonNull(IonNull::Pad)]);
+    }
 }

@@ -1,4 +1,3 @@
 extern crate serde_ion;
 
-fn main() {
-}
+fn main() {}

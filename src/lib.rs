@@ -5,14 +5,14 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-#![ allow( dead_code, unused_imports, unused_variables ) ]
+#![allow(dead_code, unused_imports, unused_variables)]
 pub mod ion_types;
 pub mod parser;
 //mod error;
 //mod ser;
 
-extern crate serde;
 extern crate bit_vec;
+extern crate serde;
 
 // #[cfg(test)]
 // #[macro_use]
