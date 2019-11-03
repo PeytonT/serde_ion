@@ -108,7 +108,7 @@ and the length field is set to the representation length, encoded as a VarUInt f
 ```
 */
 #[derive(Clone, Debug, PartialEq)]
-struct TypeDescriptor {
+pub struct TypeDescriptor {
     format: usize,
     length: usize,
 }
@@ -119,7 +119,7 @@ struct TypedValue<'a> {
     representation: Option<&'a [u8]>, // None for null
 }
 
-fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
+pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
     let (input, descriptor) = take(1usize)(input)?;
     let format: usize = (descriptor[0] >> 4) as usize;
     let length: usize = (descriptor[0] & 0b0000_1111) as usize;
@@ -255,13 +255,13 @@ single octet VarInt field | 1 |   |  magnitude  |
 ```
 */
 
-fn take_var_int(i: &[u8]) -> IResult<&[u8], num_bigint::BigInt> {
+pub fn take_var_int(i: &[u8]) -> IResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_int(sequence, terminator)))
 }
 
-pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
+fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     debug_assert!(
         terminator.len() == 1,
         "VarInt terminator slice must contain exactly 1 byte, found {}!",
@@ -322,13 +322,13 @@ pub fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
 }
 
-fn take_var_uint(i: &[u8]) -> IResult<&[u8], num_bigint::BigUint> {
+pub fn take_var_uint(i: &[u8]) -> IResult<&[u8], num_bigint::BigUint> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_uint(sequence, terminator)))
 }
 
-pub fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint {
+fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint {
     debug_assert!(
         terminator.len() == 1,
         "VarUInt terminator slice must contain exactly 1 byte, found {}!",
@@ -485,7 +485,7 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
         14 => match take_var_uint(input) {
             Ok((rest, value)) => match value.to_usize() {
                 Some(length) => {
-                    let (rest, magnitude) = take_uint(length)(input).expect("Cannot take UInt");
+                    let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
                     Ok((
                         rest,
                         IonValue::IonInteger(IonInteger::Integer {

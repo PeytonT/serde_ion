@@ -79,10 +79,13 @@ fn version_placeholder(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
     Err(Err::Error((input, ErrorKind::NoneOf)))
 }
 
+#[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use num_bigint::{BigInt, BigUint, Sign};
+    use std::str::FromStr;
 
     #[test]
     fn binary_version_marker_test() {
@@ -99,34 +102,153 @@ mod tests {
         );
     }
 
+    // Parse null tests
+
     #[test]
-    fn test_parse_value_null_bool() {
-        // parse null.null
+    fn test_parse_value_null() {
         let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-        let parse_result = parse(bytes).unwrap();
-        let remaining_bytes = parse_result.0;
-        let value = parse_result.1;
+        let (remaining_bytes, value) = parse(bytes).unwrap();
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonNull(IonNull::Null)]);
     }
 
     #[test]
-    fn test_parse_value_nop_pad_one_byte() {
+    fn test_parse_value_nopPadOneByte() {
         let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
-        let parse_result = parse(bytes).unwrap();
-        let remaining_bytes = parse_result.0;
-        let value = parse_result.1;
+        let (remaining_bytes, value) = parse(bytes).unwrap();
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonNull(IonNull::Pad)]);
     }
 
     #[test]
-    fn test_parse_value_nop_pad_16_bytes() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
-        let parse_result = parse(bytes).unwrap();
-        let remaining_bytes = parse_result.0;
-        let value = parse_result.1;
+    fn test_parse_value_emptyThreeByteNopPad() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonNull(IonNull::Pad)]);
+    }
+
+    #[test]
+    fn test_parse_value_nopPad16Bytes() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonNull(IonNull::Pad)]);
+    }
+
+    // Parse bool tests
+
+    #[test]
+    fn test_parse_value_nullBool() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonBoolean(IonBoolean::Null)]);
+    }
+
+    // Parse int tests
+
+    #[test]
+    fn test_parse_value_nullInt2() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonInteger(IonInteger::Null)]);
+    }
+
+    #[test]
+    fn test_parse_value_nullInt3() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonInteger(IonInteger::Null)]);
+    }
+
+    #[test]
+    fn test_parse_intBigSize13() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize13.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value.len(), 1usize);
+        match value[0].clone() {
+            IonValue::IonInteger(IonInteger::Integer { value: x }) => {}
+            _ => panic!("expected IonInteger"),
+        }
+    }
+
+    #[test]
+    fn test_parse_intBigSize14() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize14.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value.len(), 1usize);
+        match value[0].clone() {
+            IonValue::IonInteger(IonInteger::Integer { value: x }) => {}
+            _ => panic!("expected IonInteger"),
+        }
+    }
+
+    #[test]
+    fn test_parse_intBigSize16() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize16.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value.len(), 1usize);
+        match value[0].clone() {
+            IonValue::IonInteger(IonInteger::Integer { value: x }) => {}
+            _ => panic!("expected IonInteger"),
+        }
+    }
+
+    #[test]
+    fn test_parse_intBigSize256() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize256.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value.len(), 1usize);
+        match value[0].clone() {
+            IonValue::IonInteger(IonInteger::Integer { value: x }) => {}
+            _ => panic!("expected IonInteger"),
+        }
+    }
+
+    #[test]
+    fn test_parse_intBigSize1201() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize1201.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value.len(), 1usize);
+        match value[0].clone() {
+            IonValue::IonInteger(IonInteger::Integer { value: x }) => {}
+            _ => panic!("expected IonInteger"),
+        }
+    }
+
+    #[test]
+    fn test_parse_intLongMaxValuePlusOne() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMaxValuePlusOne.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonInteger(IonInteger::Integer {
+                value: BigInt::from_str("9223372036854775808").unwrap()
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_intLongMinValue() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMinValue.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonInteger(IonInteger::Integer {
+                value: BigInt::from_str("-9223372036854775808").unwrap()
+            })]
+        );
     }
 }
