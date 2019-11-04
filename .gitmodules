@@ -1,0 +1,3 @@
+[submodule "tests/ion-tests"]
+	path = tests/ion-tests
+	url = https://github.com/amzn/ion-tests

@@ -1,2 +1,0 @@
-// Malformed long string - surrogates cannot be split across boundaries
-'''\ud800''' '''\udc00'''

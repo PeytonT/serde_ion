@@ -1,2 +1,0 @@
-// malformed utf-16 surrogate - missing 2nd code unit in a symbol
-'\ud800'

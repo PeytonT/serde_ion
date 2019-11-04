@@ -1,9 +1,0 @@
-// Empty symbol is allowed.
-
-''
-{'':abc}
-''::abc
-''::''
-{'':''::''}
-abc::''
-{'''''':abc}
