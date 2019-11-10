@@ -74,7 +74,7 @@ pub fn parse(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
     ))(input)
 }
 
-/** Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached. */
+// Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached.
 fn version_placeholder(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
     Err(Err::Error((input, ErrorKind::NoneOf)))
 }
