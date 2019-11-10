@@ -67,63 +67,16 @@ pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// Typed Value Formats
-/// A value consists of a one-octet type descriptor, possibly followed by a length in octets,
-/// possibly followed by a representation.
+/// ## Basic Field Formats
 ///
-///        7       4 3       0
-///       +---------+---------+
-/// value |    T    |    L    |
-///       +---------+---------+======+
-///       :     length [VarUInt]     :
-///       +==========================+
-///       :      representation      :
-///       +==========================+
-///
-/// The type descriptor octet has two subfields: a four-bit type code T, and a four-bit length L.
-///
-/// Each value of T identifies the format of the representation, and generally (though not always)
-/// identifies an Ion datatype. Each type code T defines the semantics of its length field L as
-/// described below.
-///
-/// The length value – the number of octets in the representation field(s) – is encoded in L and/or
-/// length fields, depending on the magnitude and on some particulars of the actual type.
-/// The length field is empty (taking up no octets in the message) if we can store the length value
-/// inside L itself. If the length field is not empty, then it is a single VarUInt field.
-/// The representation may also be empty (no octets) in some cases, as detailed below.
-///
-/// Unless otherwise defined, the length of the representation is encoded as follows:
-///
-/// If the value is null (for that type), then L is set to 15.
-/// If the representation is less than 14 bytes long, then L is set to the length,
-/// and the length field is omitted.
-/// If the representation is at least 14 bytes long, then L is set to 14,
-/// and the length field is set to the representation length, encoded as a VarUInt field.
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TypeDescriptor {
-    format: usize,
-    length: usize,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct TypedValue<'a> {
-    format: u8,
-    representation: Option<&'a [u8]>, // None for null
-}
-
-pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
-    let (input, descriptor) = take(1usize)(input)?;
-    let format: usize = (descriptor[0] >> 4) as usize;
-    let length: usize = (descriptor[0] & 0b0000_1111) as usize;
-    Ok((input, TypeDescriptor { format, length }))
-}
-
-/// Basic Field Formats
+/// ```text
 /// Binary-encoded Ion values are comprised of one or more fields, and the fields use a small number
 /// of basic formats (separate from the Ion types visible to users).
+/// ```
 
-/// UInt and Int Fields
+/// ### UInt and Int Fields
+///
+/// ```text
 /// UInt and Int fields represent fixed-length unsigned and signed integer values.
 /// These field formats are always used in some context that clearly indicates the
 /// number of octets in the field.
@@ -161,6 +114,7 @@ pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
 /// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
 /// on the highest-order bit of the first octet). This means that the representations of
 /// 123456 and -123456 should only differ in their sign bit.
+/// ```
 
 fn take_int(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigInt> {
     move |i: &[u8]| {
@@ -192,8 +146,9 @@ fn take_uint(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigU
     }
 }
 
-/// VarUInt and VarInt Fields
+/// ## VarUInt and VarInt Fields
 ///
+/// ```text
 /// VarUInt and VarInt fields represent self-delimiting, variable-length unsigned and signed integer
 /// values. These field formats are always used in a context that does not indicate the number of octets
 /// in the field; the last octet (and only the last octet) has its high-order bit set to
@@ -235,6 +190,7 @@ fn take_uint(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigU
 ///                                 ^
 ///                                 |
 ///                                 +--sign
+/// ```
 
 pub fn take_var_int(i: &[u8]) -> IResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
@@ -349,7 +305,63 @@ fn high_bit_unset(byte: u8) -> bool {
     byte < 0b1000_0000
 }
 
-/// 0: null
+/// ## Typed Value Formats
+///
+/// ```text
+/// A value consists of a one-octet type descriptor, possibly followed by a length in octets,
+/// possibly followed by a representation.
+///
+///        7       4 3       0
+///       +---------+---------+
+/// value |    T    |    L    |
+///       +---------+---------+======+
+///       :     length [VarUInt]     :
+///       +==========================+
+///       :      representation      :
+///       +==========================+
+///
+/// The type descriptor octet has two subfields: a four-bit type code T, and a four-bit length L.
+///
+/// Each value of T identifies the format of the representation, and generally (though not always)
+/// identifies an Ion datatype. Each type code T defines the semantics of its length field L as
+/// described below.
+///
+/// The length value – the number of octets in the representation field(s) – is encoded in L and/or
+/// length fields, depending on the magnitude and on some particulars of the actual type.
+/// The length field is empty (taking up no octets in the message) if we can store the length value
+/// inside L itself. If the length field is not empty, then it is a single VarUInt field.
+/// The representation may also be empty (no octets) in some cases, as detailed below.
+///
+/// Unless otherwise defined, the length of the representation is encoded as follows:
+///
+/// If the value is null (for that type), then L is set to 15.
+/// If the representation is less than 14 bytes long, then L is set to the length,
+/// and the length field is omitted.
+/// If the representation is at least 14 bytes long, then L is set to 14,
+/// and the length field is set to the representation length, encoded as a VarUInt field.
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeDescriptor {
+    format: usize,
+    length: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct TypedValue<'a> {
+    format: u8,
+    representation: Option<&'a [u8]>, // None for null
+}
+
+pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
+    let (input, descriptor) = take(1usize)(input)?;
+    let format: usize = (descriptor[0] >> 4) as usize;
+    let length: usize = (descriptor[0] & 0b0000_1111) as usize;
+    Ok((input, TypeDescriptor { format, length }))
+}
+
+/// ### 0: null
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Null value |    0    |    15   |
@@ -386,7 +398,7 @@ fn high_bit_unset(byte: u8) -> bool {
 /// 0x0E 0x8E 0x00 ... <12 arbitrary octets> ... 0x00
 /// NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
 /// NOP padding in struct requires additional encoding considerations.
-
+/// ``
 pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
@@ -402,7 +414,9 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 1: bool
+/// ### 1: bool
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Bool value |    1    |   rep   |
@@ -410,7 +424,7 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Values of type bool always have empty lengths, and their representation is stored in the typedesc
 /// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 /// means true; and a representation of 15 means null.bool.
-
+/// ```
 pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0 => Ok((input, IonValue::IonBoolean(IonBoolean::False))),
@@ -420,7 +434,9 @@ pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 2 and 3: int
+/// ### 2: positive int
+///
+/// ```text
 /// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 /// Both codes use a UInt subfield to store the magnitude.
 ///
@@ -439,7 +455,7 @@ pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
-
+/// ```
 pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => {
@@ -471,6 +487,28 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
     }
 }
 
+/// ### 3: negative int
+///
+/// ```text
+/// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
+/// Both codes use a UInt subfield to store the magnitude.
+///
+///            7       4 3       0
+///           +---------+---------+
+/// Int value |  2 or 3 |    L    |
+///           +---------+---------+======+
+///           :     length [VarUInt]     :
+///           +==========================+
+///           :     magnitude [UInt]     :
+///           +==========================+
+/// Zero is always stored as positive; negative zero is illegal.
+///
+/// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
+/// As a result, when T is 3, both L and the magnitude subfield must be non-zero.
+///
+/// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
+/// Note that this implies there are two equivalent binary representations of null integer values.
+/// ```
 pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, value) = parse_positive_int(input, length).expect("cannot parse");
     match value {
@@ -485,7 +523,9 @@ pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
     }
 }
 
-/// 4: float
+/// ### 4: float
+///
+/// ```text
 ///               7       4 3       0
 ///             +---------+---------+
 /// Float value |    4    |    L    |
@@ -506,7 +546,7 @@ pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 /// If L is 15, then the value is null.float and the representation is empty.
 /// Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 /// of the standard may support 16-bit and 128-bit float values.
-
+/// ```
 pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -515,7 +555,9 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 5: decimal
+/// ### 5: decimal
+///
+/// ```text
 ///                7       4 3       0
 ///               +---------+---------+
 /// Decimal value |    5    |    L    |
@@ -536,7 +578,7 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 /// entire value is encoded as the single byte 0x50.
-
+/// ```
 pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -545,7 +587,9 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 6: timestamp
+/// ### 6: timestamp
+///
+/// ```text
 ///                  7       4 3       0
 ///                 +---------+---------+
 /// Timestamp value |    6    |    L    |
@@ -604,7 +648,7 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Note: The component values in the binary encoding are always in UTC, while components in the
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
-
+/// ```
 pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -613,7 +657,9 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
     }
 }
 
-/// 7: symbol
+/// ### 7: symbol
+///
+/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// Symbol value |    7    |    L    |
@@ -627,7 +673,7 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
 /// fields are omitted.
 ///
 /// See Ion Symbols for more details about symbol representations and symbol tables.
-
+/// ```
 pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -636,7 +682,9 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 8: string
+/// ### 8: string
+///
+/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// String value |    8    |    L    |
@@ -646,7 +694,7 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///              :  representation [UTF8]   :
 ///              +==========================+
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
-
+/// ```
 pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -655,7 +703,9 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 9: clob
+/// ### 9: clob
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Clob value |    9    |    L    |
@@ -668,7 +718,7 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// an unknown encoding (and thus opaque to the application).
 ///
 /// Zero-length clobs are legal, so L may be zero.
-
+/// ```
 pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -677,7 +727,9 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 10: blob
+/// ### 10: blob
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Blob value |   10    |    L    |
@@ -689,7 +741,7 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// This is a sequence of octets with no interpretation (and thus opaque to the application).
 ///
 /// Zero-length blobs are legal, so L may be zero.
-
+/// ```
 pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -698,7 +750,9 @@ pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 11: list
+/// ### 11: list
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// List value |   11    |    L    |
@@ -716,7 +770,7 @@ pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// Because values indicate their total lengths in octets, it is possible to locate the beginning of
 /// each successive value in constant time.
-
+/// ```
 pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -725,7 +779,9 @@ pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 12: sexp
+/// ### 12: sexp
+///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Sexp value |   12    |    L    |
@@ -737,7 +793,7 @@ pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///                          ⋮
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
-
+/// ```
 pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -749,7 +805,9 @@ pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 13: struct
+/// ### 13: struct
+///
+/// ```text
 /// Structs are encoded as sequences of symbol/value pairs. Since all symbols are encoded as positive
 /// integers, we can omit the typedesc on the field names and just encode the integer value.
 ///
@@ -810,7 +868,7 @@ pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// //  {$0:name::<NOP>}
 /// 0xD5 0x80 0xE3 0x81 0x84 0x00
-
+/// ```
 pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
@@ -819,7 +877,9 @@ pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     }
 }
 
-/// 14: Annotations
+/// ### 14: Annotations
+///
+/// ```text
 /// This special type code doesn’t map to an Ion value type,
 /// but instead is a wrapper used to associate annotations with content.
 ///
@@ -857,7 +917,7 @@ pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// 0xE3 0x81 0x84 0x00
 /// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
 /// Instead, that octet signals the start of a binary version marker.
-
+/// ```
 pub fn parse_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         3..=14 => unimplemented!(),
@@ -865,10 +925,13 @@ pub fn parse_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue>
     }
 }
 
-/// 15: reserved
+/// ### 15: reserved
+///
 /// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
 
-/// Illegal Type Descriptors
+/// ## Illegal Type Descriptors
+///
+/// ```text
 /// The preceding sections define valid type descriptor octets, composed of a type code (T) in the
 /// upper four bits and a length field (L) in the lower four bits. As mentioned,
 /// many possible combinations are illegal and must cause parsing errors.
@@ -889,6 +952,7 @@ pub fn parse_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue>
 ///                         where a type descriptor is expected should only cause parsing errors when
 ///                         it is not followed by the rest of the BVM octet sequence.
 /// 15	[0-15]	            The type code 15 is illegal in Ion 1.0 data.
+/// ```
 
 #[cfg(test)]
 mod tests {
