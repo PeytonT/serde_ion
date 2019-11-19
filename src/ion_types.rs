@@ -115,16 +115,14 @@ pub enum IonIntegerTextFormat {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonFloat {
     Null,
-    Float32 { value: f32 },
-    Float64 { value: f64 },
+    Float { value: f64 },
 }
 
 impl IonFloat {
     pub fn to_text(&self) -> String {
         match self {
             IonFloat::Null => String::from("null.float"),
-            IonFloat::Float32 { value } => unimplemented!(),
-            IonFloat::Float64 { value } => unimplemented!(),
+            IonFloat::Float { value } => unimplemented!(),
         }
     }
 }
@@ -135,8 +133,7 @@ impl IonFloat {
 pub enum IonDecimal {
     Null,
     Decimal {
-        sign: bool,
-        coefficient: BigUint,
+        coefficient: BigInt,
         exponent: BigInt,
     },
 }
@@ -146,7 +143,6 @@ impl IonDecimal {
         match self {
             IonDecimal::Null => String::from("null.decimal"),
             IonDecimal::Decimal {
-                sign,
                 coefficient,
                 exponent,
             } => unimplemented!(),

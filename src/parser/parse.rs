@@ -85,6 +85,8 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use num_bigint::{BigInt, BigUint, Sign};
+    use num_traits::identities::Zero;
+    use num_traits::Num;
     use std::str::FromStr;
 
     #[test]
@@ -248,6 +250,99 @@ mod tests {
             value,
             vec![IonValue::IonInteger(IonInteger::Integer {
                 value: BigInt::from_str("-9223372036854775808").unwrap()
+            })]
+        );
+    }
+
+    // Parse float tests
+
+    #[test]
+    fn test_parse_nullFloat() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullFloat.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonFloat(IonFloat::Null)]);
+    }
+
+    // Parse decimal tests
+
+    #[test]
+    fn test_parse_nullDecimal() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullDecimal.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonDecimal(IonDecimal::Null)]);
+    }
+
+    #[test]
+    fn test_parse_decimalNegativeOneDotZero() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeOneDotZero.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
+                exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_decimalNegativeZeroDot() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDot.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::zero(),
+                exponent: BigInt::zero(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_decimalNegativeZeroDotZero() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDotZero.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::zero(),
+                exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_decimalOneDotZero() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalOneDotZero.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::from_str_radix("10", 10).unwrap(),
+                exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_decimalZeroDot() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalZeroDot.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::zero(),
+                exponent: BigInt::zero(),
             })]
         );
     }

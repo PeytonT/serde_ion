@@ -7,6 +7,7 @@ use bit_vec::BitVec;
 use nom::{
     bytes::complete::{take, take_while},
     error::ErrorKind,
+    number::complete::{double, float},
     sequence::{pair, tuple},
     Err, IResult,
 };
@@ -265,6 +266,17 @@ pub fn take_var_uint(i: &[u8]) -> IResult<&[u8], num_bigint::BigUint> {
     Ok((input, parse_var_uint(sequence, terminator)))
 }
 
+// VarUints appear as byte-length tags, where there is no sensible use case for exceeding usize
+pub fn take_var_uint_length(i: &[u8]) -> IResult<&[u8], usize> {
+    let (rest, sequence) = take_while(high_bit_unset)(i)?;
+    let (rest, terminator) = take(1usize)(rest)?;
+    let value = parse_var_uint(sequence, terminator);
+    match value.to_usize() {
+        Some(length) => Ok((rest, length)),
+        None => Err(Err::Failure((rest, ErrorKind::TooLarge))),
+    }
+}
+
 fn parse_var_uint(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigUint {
     debug_assert!(
         terminator.len() == 1,
@@ -402,11 +414,8 @@ pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
 pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
-        14 => match take_var_uint(input) {
-            Ok((rest, value)) => match value.to_usize() {
-                Some(len) => Ok((&rest[len..], IonValue::IonNull(IonNull::Pad))),
-                None => Err(Err::Failure((input, ErrorKind::TooLarge))),
-            },
+        14 => match take_var_uint_length(input) {
+            Ok((rest, length)) => Ok((&rest[length..], IonValue::IonNull(IonNull::Pad))),
             Err(e) => Err(e),
         },
         15 => Ok((input, IonValue::IonNull(IonNull::Null))),
@@ -467,19 +476,16 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
                 }),
             ))
         }
-        14 => match take_var_uint(input) {
-            Ok((rest, value)) => match value.to_usize() {
-                Some(length) => {
-                    let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
-                    Ok((
-                        rest,
-                        IonValue::IonInteger(IonInteger::Integer {
-                            value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
-                        }),
-                    ))
-                }
-                None => Err(Err::Failure((input, ErrorKind::TooLarge))),
-            },
+        14 => match take_var_uint_length(input) {
+            Ok((rest, length)) => {
+                let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
+                Ok((
+                    rest,
+                    IonValue::IonInteger(IonInteger::Integer {
+                        value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
+                    }),
+                ))
+            }
             Err(e) => Err(e),
         },
         15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
@@ -549,7 +555,20 @@ pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 /// ```
 pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0..=14 => unimplemented!(),
+        0 => Ok((input, IonValue::IonFloat(IonFloat::Float { value: 0e0 }))),
+        4 => {
+            let (rest, value) = float(input)?;
+            Ok((
+                rest,
+                IonValue::IonFloat(IonFloat::Float {
+                    value: f64::from(value),
+                }),
+            ))
+        }
+        8 => {
+            let (rest, value) = double(input)?;
+            Ok((rest, IonValue::IonFloat(IonFloat::Float { value })))
+        }
         15 => Ok((input, IonValue::IonFloat(IonFloat::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
@@ -581,7 +600,49 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// ```
 pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
-        0..=14 => unimplemented!(),
+        0 => Ok((
+            input,
+            IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::zero(),
+                exponent: BigInt::zero(),
+            }),
+        )),
+        1..=13 => {
+            let (rest, exponent) = take_var_int(input)?;
+            let (rest, coefficient) = match length - (input.len() - rest.len()) {
+                0 => (rest, BigInt::zero()),
+                residual_length => take_int(residual_length)(rest)?,
+            };
+            Ok((
+                rest,
+                IonValue::IonDecimal(IonDecimal::Decimal {
+                    exponent,
+                    coefficient,
+                }),
+            ))
+        }
+        14 => match take_var_uint_length(input) {
+            Ok((after_length, length)) => {
+                let (after_exponent, exponent) = take_var_int(after_length)?;
+                let exponent_length = after_length.len() - after_exponent.len();
+                if exponent_length > length {
+                    return Err(Err::Failure((after_length, ErrorKind::TooLarge)));
+                }
+                let residual_length = length - exponent_length;
+                let (rest, coefficient) = match residual_length {
+                    0 => (after_exponent, BigInt::zero()),
+                    len => take_int(len)(after_exponent)?,
+                };
+                Ok((
+                    rest,
+                    IonValue::IonDecimal(IonDecimal::Decimal {
+                        exponent,
+                        coefficient,
+                    }),
+                ))
+            }
+            Err(e) => Err(e),
+        },
         15 => Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
         _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
     }
