@@ -4,6 +4,9 @@ use crate::ion_types::{
     IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
 };
 use bit_vec::BitVec;
+use nom::error::VerboseError;
+use nom::lib::std::ops::Mul;
+use nom::Err::Error;
 use nom::{
     bytes::complete::{take, take_while},
     error::ErrorKind,
@@ -15,6 +18,7 @@ use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
 use num_traits::real::Real;
+use num_traits::{One, Signed};
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
 
@@ -119,8 +123,8 @@ pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
 
 fn take_int(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigInt> {
     move |i: &[u8]| {
-        let (input, bytes) = take(length)(i)?;
-        Ok((input, parse_int(bytes)))
+        let (rest, bytes) = take(length)(i)?;
+        Ok((rest, parse_int(bytes)))
     }
 }
 
@@ -199,6 +203,19 @@ pub fn take_var_int(i: &[u8]) -> IResult<&[u8], num_bigint::BigInt> {
     Ok((input, parse_var_int(sequence, terminator)))
 }
 
+// There are scenarios (ex. timestamp exponent values) where allowing a VarInt that cannot fit in i32 is unreasonable.
+// This should not pose an issue for non-pathological use cases.
+// TODO: obvious room for performance improvement
+fn take_var_int_as_i32(i: &[u8]) -> IResult<&[u8], i32> {
+    let (rest, sequence) = take_while(high_bit_unset)(i)?;
+    let (rest, terminator) = take(1usize)(rest)?;
+    let value = parse_var_int(sequence, terminator);
+    match value.to_i32() {
+        Some(value) => Ok((rest, value)),
+        None => Err(Err::Failure((rest, ErrorKind::TooLarge))),
+    }
+}
+
 fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
     debug_assert!(
         terminator.len() == 1,
@@ -208,7 +225,7 @@ fn parse_var_int(sequence: &[u8], terminator: &[u8]) -> num_bigint::BigInt {
 
     let sign = match sequence.first() {
         Some(byte) => {
-            // we know that no byte in sequence has the high bit set
+            // we know that no byte in the sequence has the high bit set
             if *byte > 0b0011_1111 {
                 Sign::Minus
             } else {
@@ -266,13 +283,14 @@ pub fn take_var_uint(i: &[u8]) -> IResult<&[u8], num_bigint::BigUint> {
     Ok((input, parse_var_uint(sequence, terminator)))
 }
 
-// VarUints appear as byte-length tags, where there is no sensible use case for exceeding usize
-pub fn take_var_uint_length(i: &[u8]) -> IResult<&[u8], usize> {
+// There are scenarios (ex.  byte-length tags) where allowing a VarUint that cannot fit in usize is unreasonable.
+// TODO: obvious room for performance improvement
+pub fn take_usize_var_uint(i: &[u8]) -> IResult<&[u8], usize> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
     let value = parse_var_uint(sequence, terminator);
     match value.to_usize() {
-        Some(length) => Ok((rest, length)),
+        Some(value) => Ok((rest, value)),
         None => Err(Err::Failure((rest, ErrorKind::TooLarge))),
     }
 }
@@ -414,7 +432,7 @@ pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
 pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
-        14 => match take_var_uint_length(input) {
+        14 => match take_usize_var_uint(input) {
             Ok((rest, length)) => Ok((&rest[length..], IonValue::IonNull(IonNull::Pad))),
             Err(e) => Err(e),
         },
@@ -476,7 +494,7 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
                 }),
             ))
         }
-        14 => match take_var_uint_length(input) {
+        14 => match take_usize_var_uint(input) {
             Ok((rest, length)) => {
                 let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
                 Ok((
@@ -621,7 +639,7 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
                 }),
             ))
         }
-        14 => match take_var_uint_length(input) {
+        14 => match take_usize_var_uint(input) {
             Ok((after_length, length)) => {
                 let (after_exponent, exponent) = take_var_int(after_length)?;
                 let exponent_length = after_length.len() - after_exponent.len();
@@ -711,11 +729,145 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// UTC and local time.
 /// ```
 pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonTimestamp(IonTimestamp::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+    // TODO: This is broadly pretty inefficient, particularly the many heap allocations done here
+    // to handle the specification's use of infinite size integers for all fields.
+
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonTimestamp(IonTimestamp::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+    };
+
+    let (rest, offset) = take_var_int(rest)?;
+    let (rest, year) = take_var_uint(rest)?;
+
+    // Parsing complete with precision of Year
+    if input.len() - rest.len() == length {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Year { offset, year }),
+        ));
     }
+
+    let (rest, month) = take_var_uint(rest)?;
+
+    // Parsing complete with precision of Month
+    if input.len() - rest.len() == length {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Month {
+                offset,
+                year,
+                month,
+            }),
+        ));
+    }
+
+    let (rest, day) = take_var_uint(rest)?;
+
+    // Parsing complete with precision of Day
+    if input.len() - rest.len() == length {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Day {
+                offset,
+                year,
+                month,
+                day,
+            }),
+        ));
+    }
+
+    let (rest, hour) = take_var_uint(rest)?;
+    let (rest, minute) = take_var_uint(rest)?;
+
+    // Parsing complete with precision of Minute
+    if input.len() - rest.len() == length {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Minute {
+                offset,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+            }),
+        ));
+    }
+
+    let (rest, second) = take_var_uint(rest)?;
+
+    // Parsing complete with precision of Second
+    if input.len() - rest.len() == length {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Second {
+                offset,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+            }),
+        ));
+    }
+
+    let (rest, fraction_exponent) = take_var_int_as_i32(rest)?;
+    let (rest, fraction_coefficient) = match input.len() - rest.len() {
+        parsed_bytes if parsed_bytes > length => {
+            return Err(Err::Failure((input, ErrorKind::TooLarge)))
+        }
+        // A missing coefficient defaults to zero.
+        parsed_bytes if parsed_bytes == length => (rest, BigInt::zero()),
+        parsed_bytes if parsed_bytes < length => {
+            let remaining_bytes = length - (input.len() - rest.len());
+            take_int(remaining_bytes)(rest)?
+        }
+        // (parsed_bytes > length || parsed_bytes == length || parsed_bytes < length) == true
+        _ => unreachable!(),
+    };
+
+    // The fractional seconds’ value is (coefficient * 10 ^ exponent).
+    // It must be greater than or equal to zero and (TODO: less than 1).
+    let fraction_coefficient = match fraction_coefficient.to_biguint() {
+        Some(value) => value,
+        None => return Err(Err::Failure((input, ErrorKind::Verify))),
+    };
+
+    // Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
+    if fraction_coefficient.is_zero() && fraction_exponent > -1 {
+        return Ok((
+            rest,
+            IonValue::IonTimestamp(IonTimestamp::Second {
+                offset,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+            }),
+        ));
+    }
+
+    // Parsing complete with precision of FractionalSecond
+    Ok((
+        rest,
+        IonValue::IonTimestamp(IonTimestamp::FractionalSecond {
+            offset,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            fraction_coefficient,
+            fraction_exponent,
+        }),
+    ))
 }
 
 /// ### 7: symbol

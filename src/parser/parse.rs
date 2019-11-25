@@ -346,4 +346,86 @@ mod tests {
             })]
         );
     }
+
+    // Parse timestamp tests
+
+    #[test]
+    fn test_parse_nullTimestamp() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonTimestamp(IonTimestamp::Null)]);
+    }
+
+    #[test]
+    fn test_parse_timestamp2011() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonTimestamp(IonTimestamp::Year {
+                offset: BigInt::zero(),
+                year: BigUint::from(2011u32)
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp2011_02() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonTimestamp(IonTimestamp::Month {
+                offset: BigInt::zero(),
+                year: BigUint::from(2011u32),
+                month: BigUint::from(2u32)
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp2011_02_20() {
+        let bytes = include_bytes!(
+            "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20.10n"
+        );
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonTimestamp(IonTimestamp::Day {
+                offset: BigInt::zero(),
+                year: BigUint::from(2011u32),
+                month: BigUint::from(2u32),
+                day: BigUint::from(20u32)
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_timestamp2011_02_20T19_30_59_100_8_00() {
+        let bytes = include_bytes!(
+            "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20T19_30_59_100-08_00.10n"
+        );
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonTimestamp(IonTimestamp::FractionalSecond {
+                offset: BigInt::from(-480i32),
+                year: BigUint::from(2011u32),
+                month: BigUint::from(2u32),
+                day: BigUint::from(20u32),
+                hour: BigUint::from(19u32),
+                minute: BigUint::from(30u32),
+                second: BigUint::from(59u32),
+                fraction_coefficient: BigUint::from(100u32),
+                fraction_exponent: -3,
+            })]
+        );
+    }
 }

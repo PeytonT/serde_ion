@@ -152,13 +152,53 @@ impl IonDecimal {
 
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
+// Enum variant names represent the precision of the variant
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonTimestamp {
     Null,
-    Timestamp {
-        // probably not sufficient, will likely need some info on precision
-        time: NaiveDateTime,
-        offset: FixedOffset,
+    Year {
+        offset: BigInt,
+        year: BigUint,
+    },
+    Month {
+        offset: BigInt,
+        year: BigUint,
+        month: BigUint,
+    },
+    Day {
+        offset: BigInt,
+        year: BigUint,
+        month: BigUint,
+        day: BigUint,
+    },
+    Minute {
+        offset: BigInt,
+        year: BigUint,
+        month: BigUint,
+        day: BigUint,
+        hour: BigUint,
+        minute: BigUint,
+    },
+    Second {
+        offset: BigInt,
+        year: BigUint,
+        month: BigUint,
+        day: BigUint,
+        hour: BigUint,
+        minute: BigUint,
+        second: BigUint,
+    },
+    FractionalSecond {
+        offset: BigInt,
+        year: BigUint,
+        month: BigUint,
+        day: BigUint,
+        hour: BigUint,
+        minute: BigUint,
+        second: BigUint,
+        // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
+        fraction_coefficient: BigUint,
+        fraction_exponent: i32,
     },
 }
 
@@ -166,7 +206,7 @@ impl IonTimestamp {
     pub fn to_text(&self) -> String {
         match self {
             IonTimestamp::Null => String::from("null.timestamp"),
-            IonTimestamp::Timestamp { time, offset } => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 }
