@@ -1,5 +1,4 @@
 extern crate base64;
-extern crate chrono;
 extern crate num_bigint;
 extern crate serde_bytes;
 
@@ -8,7 +7,6 @@ use std::str;
 use std::string::String;
 
 use base64::encode;
-use chrono::{FixedOffset, NaiveDateTime};
 use num_bigint::BigInt;
 use num_bigint::BigUint;
 
@@ -227,13 +225,28 @@ impl IonString {
     }
 }
 
-// symbol - Interned, Unicode symbolic atoms (aka identifiers)
-// A subset of symbols called identifiers can be denoted in text without single-quotes.
-// An identifier is a sequence of ASCII letters, digits, or the
-// characters $ (dollar sign) or _ (underscore), not starting with a digit.
+/// ## symbol - Interned, Unicode symbolic atoms (aka identifiers)
+///
+/// ```text
+/// symbol - Interned, Unicode symbolic atoms (aka identifiers)
+/// A subset of symbols called identifiers can be denoted in text without single-quotes.
+/// An identifier is a sequence of ASCII letters, digits, or the
+/// characters $ (dollar sign) or _ (underscore), not starting with a digit.
+///
+/// Ion symbols may have text that is unknown. That is, there is no binding to a (potentially empty) sequence of text.
+/// This can happen as a result of not having access to a shared symbol table being imported,
+/// or having a symbol table (shared or local) that contains a null slot.
+///
+/// A processor encountering a symbol with unknown text and a valid SID other than $0 MAY produce an error
+/// because this means that the context of the data is missing.
+/// Note: serde_ion does not support symbols other than $0 with unknown text.
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonSymbol {
     Null,
+    // SID zero (i.e. $0) is a special symbol that is not assigned text by any symbol table.
+    // $0 is only semantically equivalent to itself and to locally-declared SIDs with unknown text.
+    SidZero,
     Symbol(String),
 }
 
@@ -241,7 +254,8 @@ impl IonSymbol {
     pub fn to_text(&self) -> String {
         match self {
             IonSymbol::Null => String::from("null.symbol"),
-            IonSymbol::Symbol(val) => unimplemented!(), // needs to re-expand escape sequences
+            IonSymbol::SidZero => String::from("$0"),
+            _ => unimplemented!(), // needs to re-expand escape sequences
         }
     }
 }
@@ -370,4 +384,77 @@ impl SymbolicExpressionSymbol {
 #[derive(Clone, Debug, PartialEq)]
 pub struct IonOperator {
     seq_op_chars: String,
+}
+
+/// ## IonSymbolTable
+///
+/// ```text
+/// Stores a symbol mapping used to convert encountered IonSymbols back into text.
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub enum IonSymbolTable<'a> {
+    Local(IonLocalSymbolTable<'a>),
+    Shared(IonSharedSymbolTable),
+    System(IonSystemSymbolTable<'static>),
+}
+
+/// ## IonLocalSymbolTable
+///
+/// ```text
+/// Stores an in-stream symbol table definition.
+/// A local symbol table imports either the symbols from a list of shared symbol tables,
+/// or may import the current symbol table.
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct IonLocalSymbolTable<'a> {
+    imports: IonLocalSymbolTableImport<'a>,
+    symbols: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IonLocalSymbolTableImport<'a> {
+    Current(&'a IonSymbolTable<'a>),
+    Shared(Vec<IonLocalSymbolTableImportSpec>),
+}
+
+// Specifies the import of a SharedSymbolTable into a LocalSymbolTable
+#[derive(Clone, Debug, PartialEq)]
+pub struct IonLocalSymbolTableImportSpec {
+    name: String,
+    version: u32,
+    max_id: u32,
+}
+
+/// ## IonSharedSymbolTable
+///
+/// ```text
+/// Stores an in-stream symbol table definition.
+/// A local symbol table imports either the symbols from a list of shared symbol tables,
+/// or may import the current symbol table.
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct IonSharedSymbolTable {
+    name: String,
+    version: u32,
+    // The imports field is for informational purposes only in shared tables.
+    // They assert that this table contains a superset of the strings in each of these named tables.
+    // It makes no assertion about any relationship between symbol IDs in this table and the imports,
+    // only that the symbols’ text occurs here.
+    imports: Vec<IonSharedSymbolTableImportSpec>,
+    symbols: Vec<String>,
+}
+
+// Specifies the import of a SharedSymbolTable into a SharedSymbolTable.
+// This differs from IonLocalSymbolTableImport in that the import is informational only, so the max_id is unnecessary.
+#[derive(Clone, Debug, PartialEq)]
+pub struct IonSharedSymbolTableImportSpec {
+    name: String,
+    version: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IonSystemSymbolTable<'a> {
+    pub name: &'a str,
+    pub version: u32,
+    pub symbols: [&'a str; 10],
 }

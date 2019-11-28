@@ -1,7 +1,8 @@
 use crate::ion_types::IonInteger::Integer;
 use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
-    IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
+    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull,
+    IonSharedSymbolTable, IonString, IonStructure, IonSymbol, IonSymbolicExpression,
+    IonSystemSymbolTable, IonTimestamp, IonValue,
 };
 use bit_vec::BitVec;
 use nom::error::VerboseError;
@@ -21,6 +22,23 @@ use num_traits::real::Real;
 use num_traits::{One, Signed};
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
+
+const SYSTEM_SYMBOL_TABLE: IonSystemSymbolTable = IonSystemSymbolTable {
+    name: &"$ion",
+    version: 1,
+    symbols: [
+        "$0",
+        "$ion",
+        "$ion_1_0",
+        "$ion_symbol_table",
+        "name",
+        "version",
+        "imports",
+        "symbols",
+        "max_id",
+        "$ion_shared_symbol_table",
+    ],
+};
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
@@ -888,11 +906,16 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
 /// See Ion Symbols for more details about symbol representations and symbol tables.
 /// ```
 pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonSymbol(IonSymbol::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
-    }
+    let (rest, length) = match length {
+        0 => return Ok((input, IonValue::IonSymbol(IonSymbol::SidZero))),
+        1..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonSymbol(IonSymbol::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+    };
+    let (rest, symbol_id) = take_uint(length)(rest)?;
+    // FIXME
+    Ok((rest, IonValue::IonSymbol(IonSymbol::Null)))
 }
 
 /// ### 8: string
@@ -909,11 +932,14 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
 /// ```
 pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonString(IonString::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
-    }
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonString(IonString::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+    };
+    // FIXME
+    Ok((input, IonValue::IonString(IonString::Null)))
 }
 
 /// ### 9: clob
