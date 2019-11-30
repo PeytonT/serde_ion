@@ -945,8 +945,10 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         Err(err) => return Err(Err::Failure((rest, ErrorKind::ParseTo))),
     };
     Ok((
-        input,
-        IonValue::IonString(IonString::String(String::from(representation))),
+        rest,
+        IonValue::IonString(IonString::String {
+            value: String::from(representation),
+        }),
     ))
 }
 
@@ -967,11 +969,19 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Zero-length clobs are legal, so L may be zero.
 /// ```
 pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonClob(IonClob::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
-    }
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonClob(IonClob::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
+    };
+    let (rest, data) = take(length)(rest)?;
+    Ok((
+        rest,
+        IonValue::IonClob(IonClob::Clob {
+            data: data.to_vec(),
+        }),
+    ))
 }
 
 /// ### 10: blob

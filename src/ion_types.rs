@@ -213,14 +213,14 @@ impl IonTimestamp {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonString {
     Null,
-    String(String),
+    String { value: String },
 }
 
 impl IonString {
     pub fn to_text(&self) -> String {
         match self {
             IonString::Null => String::from("null.string"),
-            IonString::String(val) => unimplemented!(), // needs to re-expand escape sequences
+            IonString::String { value } => unimplemented!(), // needs to re-expand escape sequences
         }
     }
 }
@@ -247,7 +247,7 @@ pub enum IonSymbol {
     // SID zero (i.e. $0) is a special symbol that is not assigned text by any symbol table.
     // $0 is only semantically equivalent to itself and to locally-declared SIDs with unknown text.
     SidZero,
-    Symbol(String),
+    Symbol { text: String },
 }
 
 impl IonSymbol {
@@ -255,7 +255,30 @@ impl IonSymbol {
         match self {
             IonSymbol::Null => String::from("null.symbol"),
             IonSymbol::SidZero => String::from("$0"),
-            _ => unimplemented!(), // needs to re-expand escape sequences
+            IonSymbol::Symbol { text } => unimplemented!(), // needs to re-expand escape sequences
+        }
+    }
+}
+
+// clob - Text data of user-defined encoding
+// In the text format, clob values use similar syntax to blob,
+// but the data between braces must be one string.
+// The string may only contain legal 7-bit ASCII characters, using the same escaping syntax as
+// string and symbol values. This guarantees that the value can be transmitted unscathed while
+// remaining generally readable (at least for western language text).
+// Like blobs, clobs disallow comments everywhere within the value.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IonClob {
+    Null,
+    Clob { data: Vec<u8> },
+}
+
+impl IonClob {
+    pub fn to_text(&self) -> String {
+        match self {
+            IonClob::Null => String::from("null.clob"),
+            // from_utf8's constraints might not be sufficiently strong
+            IonClob::Clob { data } => format!("{{{{{}}}}}", str::from_utf8(data).unwrap()),
         }
     }
 }
@@ -272,29 +295,6 @@ impl IonBlob {
         match self {
             IonBlob::Null => String::from("null.blob"),
             IonBlob::Blob(data) => format!("{{{{{}}}}}", encode(data)),
-        }
-    }
-}
-
-// clob - Text data of user-defined encoding
-// In the text format, clob values use similar syntax to blob,
-// but the data between braces must be one string.
-// The string may only contain legal 7-bit ASCII characters, using the same escaping syntax as
-// string and symbol values. This guarantees that the value can be transmitted unscathed while
-// remaining generally readable (at least for western language text).
-// Like blobs, clobs disallow comments everywhere within the value.
-#[derive(Clone, Debug, PartialEq)]
-pub enum IonClob {
-    Null,
-    Clob(Vec<u8>),
-}
-
-impl IonClob {
-    pub fn to_text(&self) -> String {
-        match self {
-            IonClob::Null => String::from("null.clob"),
-            // from_utf8's constraints might not be sufficiently strong
-            IonClob::Clob(data) => format!("{{{{{}}}}}", str::from_utf8(data).unwrap()),
         }
     }
 }

@@ -465,4 +465,49 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonString(IonString::Null)]);
     }
+
+    // Parse clob tests
+
+    #[test]
+    fn test_parse_nullClob() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullClob.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonClob(IonClob::Null)]);
+    }
+
+    #[test]
+    fn test_parse_clobWithDel() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithDel.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonClob(IonClob::Clob { data: vec![127u8] })]
+        );
+    }
+
+    #[test]
+    fn test_parse_clobWithNonAsciiCharacter() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNonAsciiCharacter.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonClob(IonClob::Clob { data: vec![128u8] })]
+        );
+    }
+
+    #[test]
+    fn test_parse_clobWithNullCharacter() {
+        let bytes =
+            include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNullCharacter.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonClob(IonClob::Clob { data: vec![0u8] })]
+        );
+    }
 }
