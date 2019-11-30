@@ -503,31 +503,19 @@ pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Note that this implies there are two equivalent binary representations of null integer values.
 /// ```
 pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=13 => {
-            let (rest, magnitude) = take_uint(length)(input).expect("Cannot take UInt");
-            Ok((
-                rest,
-                IonValue::IonInteger(IonInteger::Integer {
-                    value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
-                }),
-            ))
-        }
-        14 => match take_usize_var_uint(input) {
-            Ok((rest, length)) => {
-                let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
-                Ok((
-                    rest,
-                    IonValue::IonInteger(IonInteger::Integer {
-                        value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
-                    }),
-                ))
-            }
-            Err(e) => Err(e),
-        },
-        15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
-    }
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonInteger(IonInteger::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
+    };
+    let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
+    Ok((
+        rest,
+        IonValue::IonInteger(IonInteger::Integer {
+            value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
+        }),
+    ))
 }
 
 /// ### 3: negative int
@@ -553,17 +541,19 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 /// Note that this implies there are two equivalent binary representations of null integer values.
 /// ```
 pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    let (rest, value) = parse_positive_int(input, length).expect("cannot parse");
-    match value {
-        IonValue::IonInteger(value) => match value {
-            IonInteger::Null => Ok((rest, IonValue::IonInteger(IonInteger::Null))),
-            IonInteger::Integer { value } => Ok((
-                rest,
-                IonValue::IonInteger(IonInteger::Integer { value: -1 * value }),
-            )),
-        },
-        _ => Err(Err::Failure((input, ErrorKind::IsNot))),
-    }
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonInteger(IonInteger::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
+    };
+    let (rest, magnitude) = take_uint(length)(rest).expect("Cannot take UInt");
+    Ok((
+        rest,
+        IonValue::IonInteger(IonInteger::Integer {
+            value: -1 * magnitude.to_bigint().expect("Cannot convert to BigInt"),
+        }),
+    ))
 }
 
 /// ### 4: float
@@ -636,53 +626,34 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// entire value is encoded as the single byte 0x50.
 /// ```
 pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0 => Ok((
-            input,
-            IonValue::IonDecimal(IonDecimal::Decimal {
-                coefficient: BigInt::zero(),
-                exponent: BigInt::zero(),
-            }),
-        )),
-        1..=13 => {
-            let (rest, exponent) = take_var_int(input)?;
-            let (rest, coefficient) = match length - (input.len() - rest.len()) {
-                0 => (rest, BigInt::zero()),
-                residual_length => take_int(residual_length)(rest)?,
-            };
-            Ok((
-                rest,
+    let (exponent_index, length) = match length {
+        0 => {
+            return Ok((
+                input,
                 IonValue::IonDecimal(IonDecimal::Decimal {
-                    exponent,
-                    coefficient,
+                    coefficient: BigInt::zero(),
+                    exponent: BigInt::zero(),
                 }),
             ))
         }
-        14 => match take_usize_var_uint(input) {
-            Ok((after_length, length)) => {
-                let (after_exponent, exponent) = take_var_int(after_length)?;
-                let exponent_length = after_length.len() - after_exponent.len();
-                if exponent_length > length {
-                    return Err(Err::Failure((after_length, ErrorKind::TooLarge)));
-                }
-                let residual_length = length - exponent_length;
-                let (rest, coefficient) = match residual_length {
-                    0 => (after_exponent, BigInt::zero()),
-                    len => take_int(len)(after_exponent)?,
-                };
-                Ok((
-                    rest,
-                    IonValue::IonDecimal(IonDecimal::Decimal {
-                        exponent,
-                        coefficient,
-                    }),
-                ))
-            }
-            Err(e) => Err(e),
-        },
-        15 => Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
-    }
+        1..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
+    };
+    let (coefficient_index, exponent) = take_var_int(exponent_index)?;
+    let remaining_bytes = length - (exponent_index.len() - coefficient_index.len());
+    let (rest, coefficient) = match remaining_bytes {
+        0 => (coefficient_index, BigInt::zero()),
+        residual_length => take_int(residual_length)(coefficient_index)?,
+    };
+    Ok((
+        rest,
+        IonValue::IonDecimal(IonDecimal::Decimal {
+            exponent,
+            coefficient,
+        }),
+    ))
 }
 
 /// ### 6: timestamp
