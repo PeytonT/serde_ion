@@ -938,8 +938,15 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         15 => return Ok((input, IonValue::IonString(IonString::Null))),
         _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
     };
-    // FIXME
-    Ok((input, IonValue::IonString(IonString::Null)))
+    let (rest, representation) = take(length)(rest)?;
+    let representation = match std::str::from_utf8(representation) {
+        Ok(value) => value,
+        Err(err) => return Err(Err::Failure((rest, ErrorKind::ParseTo))),
+    };
+    Ok((
+        input,
+        IonValue::IonString(IonString::String(String::from(representation))),
+    ))
 }
 
 /// ### 9: clob

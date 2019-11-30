@@ -438,4 +438,14 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonSymbol(IonSymbol::Null)]);
     }
+
+    // Parse string tests
+
+    #[test]
+    fn test_parse_nullString() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullString.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonString(IonString::Null)]);
+    }
 }
