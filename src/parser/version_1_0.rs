@@ -394,6 +394,7 @@ pub struct TypeDescriptor {
     length: usize,
 }
 
+// TODO: Incorporate to streamline parsing(?)
 #[derive(Clone, Debug, PartialEq)]
 struct TypedValue<'a> {
     format: u8,
@@ -455,7 +456,7 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             Err(e) => Err(e),
         },
         15 => Ok((input, IonValue::IonNull(IonNull::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -475,7 +476,7 @@ pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         0 => Ok((input, IonValue::IonBoolean(IonBoolean::False))),
         1 => Ok((input, IonValue::IonBoolean(IonBoolean::True))),
         15 => Ok((input, IonValue::IonBoolean(IonBoolean::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -525,7 +526,7 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
             Err(e) => Err(e),
         },
         15 => Ok((input, IonValue::IonInteger(IonInteger::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -606,7 +607,7 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             Ok((rest, IonValue::IonFloat(IonFloat::Float { value })))
         }
         15 => Ok((input, IonValue::IonFloat(IonFloat::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -680,7 +681,7 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             Err(e) => Err(e),
         },
         15 => Ok((input, IonValue::IonDecimal(IonDecimal::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -754,7 +755,7 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
         15 => return Ok((input, IonValue::IonTimestamp(IonTimestamp::Null))),
-        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
     };
 
     let (rest, offset) = take_var_int(rest)?;
@@ -911,7 +912,7 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         1..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
         15 => return Ok((input, IonValue::IonSymbol(IonSymbol::Null))),
-        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
     };
     let (rest, symbol_id) = take_uint(length)(rest)?;
     // FIXME
@@ -936,7 +937,7 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
         15 => return Ok((input, IonValue::IonString(IonString::Null))),
-        _ => return Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
     };
     let (rest, representation) = take(length)(rest)?;
     let representation = match std::str::from_utf8(representation) {
@@ -969,7 +970,7 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonClob(IonClob::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -992,7 +993,7 @@ pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonBlob(IonBlob::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -1021,7 +1022,7 @@ pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonList(IonList::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -1047,7 +1048,7 @@ pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             input,
             IonValue::IonSymbolicExpression(IonSymbolicExpression::Null),
         )),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -1119,7 +1120,7 @@ pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonStructure(IonStructure::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
@@ -1167,7 +1168,7 @@ pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 pub fn parse_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         3..=14 => unimplemented!(),
-        _ => Err(Err::Failure((input, ErrorKind::NoneOf))),
+        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
 }
 
