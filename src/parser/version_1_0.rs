@@ -971,11 +971,19 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Zero-length blobs are legal, so L may be zero.
 /// ```
 pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
-    match length {
-        0..=14 => unimplemented!(),
-        15 => Ok((input, IonValue::IonBlob(IonBlob::Null))),
-        _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
-    }
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        15 => return Ok((input, IonValue::IonBlob(IonBlob::Null))),
+        _ => return Err(Err::Failure((input, ErrorKind::LengthValue))),
+    };
+    let (rest, data) = take(length)(rest)?;
+    Ok((
+        rest,
+        IonValue::IonBlob(IonBlob::Blob {
+            data: data.to_vec(),
+        }),
+    ))
 }
 
 /// ### 11: list

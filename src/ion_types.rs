@@ -287,14 +287,14 @@ impl IonClob {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonBlob {
     Null,
-    Blob(Vec<u8>),
+    Blob { data: Vec<u8> },
 }
 
 impl IonBlob {
     pub fn to_text(&self) -> String {
         match self {
             IonBlob::Null => String::from("null.blob"),
-            IonBlob::Blob(data) => format!("{{{{{}}}}}", encode(data)),
+            IonBlob::Blob { data } => format!("{{{{{}}}}}", encode(data)),
         }
     }
 }

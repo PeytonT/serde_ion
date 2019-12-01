@@ -510,4 +510,14 @@ mod tests {
             vec![IonValue::IonClob(IonClob::Clob { data: vec![0u8] })]
         );
     }
+
+    // Parse blob tests
+
+    #[test]
+    fn test_parse_nullBlob() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBlob.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonBlob(IonBlob::Null)]);
+    }
 }
