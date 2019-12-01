@@ -1,4 +1,4 @@
-use super::version_1_0::parse_value;
+use super::version_1_0::take_value;
 use crate::ion_types::{
     IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
     IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
@@ -519,5 +519,15 @@ mod tests {
         let (remaining_bytes, value) = parse(bytes).unwrap();
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonBlob(IonBlob::Null)]);
+    }
+
+    // Parse list tests
+
+    #[test]
+    fn test_parse_nullList() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullList.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonList(IonList::Null)]);
     }
 }

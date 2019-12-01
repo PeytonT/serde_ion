@@ -16,6 +16,7 @@ use nom::{
     Err, IResult,
 };
 use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
+use num_traits::cast::FromPrimitive;
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
 use num_traits::real::Real;
@@ -42,51 +43,56 @@ const SYSTEM_SYMBOL_TABLE: IonSystemSymbolTable = IonSystemSymbolTable {
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
-/// Parse a single IonValue from the head of an Ion byte stream
-pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
-    let descriptor = take_type_descriptor(i);
+/// Take a single IonValue from the head of an Ion byte stream
+pub fn take_value(i: &[u8]) -> IResult<&[u8], IonValue> {
+    let (rest, descriptor) = take_type_descriptor(i)?;
+    let length = descriptor.length as usize;
+    match descriptor.type_code {
+        TypeCode::Null => take_null(rest, length),
+        TypeCode::Bool => take_bool(rest, length),
+        TypeCode::PosInt => take_positive_int(rest, length),
+        TypeCode::NegInt => take_negative_int(rest, length),
+        TypeCode::Float => take_float(rest, length),
+        TypeCode::Decimal => take_decimal(rest, length),
+        TypeCode::Timestamp => take_timestamp(rest, length),
+        TypeCode::Symbol => take_symbol(rest, length),
+        TypeCode::String => take_string(rest, length),
+        TypeCode::Clob => take_clob(rest, length),
+        TypeCode::Blob => take_blob(rest, length),
+        TypeCode::List => take_list(rest, length),
+        TypeCode::Sexp => take_sexp(rest, length),
+        TypeCode::Struct => take_struct(rest, length),
+        TypeCode::Annotation => take_annotation(rest, length),
+        TypeCode::Reserved => Err(Err::Failure((i, ErrorKind::LengthValue))),
+    }
+}
 
-    match descriptor {
-        Ok((rest, info)) => {
-            match info.format {
-                // null
-                0 => parse_null(rest, info.length),
-                // bool,
-                1 => parse_bool(rest, info.length),
-                // 2 positive int
-                2 => parse_positive_int(rest, info.length),
-                // 3 negative int
-                3 => parse_negative_int(rest, info.length),
-                // float
-                4 => parse_float(rest, info.length),
-                // decimal
-                5 => parse_decimal(rest, info.length),
-                // timestamp
-                6 => parse_timestamp(rest, info.length),
-                // symbol
-                7 => parse_symbol(rest, info.length),
-                // string
-                8 => parse_string(rest, info.length),
-                // clob
-                9 => parse_clob(rest, info.length),
-                // blob
-                10 => parse_blob(rest, info.length),
-                // list
-                11 => parse_list(rest, info.length),
-                // sexp
-                12 => parse_sexp(rest, info.length),
-                // struct
-                13 => parse_struct(rest, info.length),
-                // Annotations
-                14 => parse_annotation(rest, info.length),
-                // reserved
-                15 => Err(Err::Failure((i, ErrorKind::LengthValue))),
-                _ => Err(Err::Failure((i, ErrorKind::NoneOf))),
-            }
-        }
-        Err(Err::Error(error)) => Err(Err::Error(error)),
-        Err(Err::Failure(failure)) => Err(Err::Failure(failure)),
-        Err(Err::Incomplete(needed)) => Err(Err::Incomplete(needed)),
+/// Take a single IonValue from the head of an Ion byte stream
+pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
+    let (rest, typed_value) = take_typed_value(i)?;
+    let (_, value) = parse_typed_value(typed_value)?;
+    Ok((rest, value))
+}
+
+/// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
+pub fn parse_typed_value(value: TypedValue) -> IResult<&[u8], IonValue> {
+    match value.type_code {
+        TypeCode::Null => parse_null(value),
+        TypeCode::Bool => parse_bool(value),
+        TypeCode::PosInt => parse_positive_int(value),
+        TypeCode::NegInt => parse_negative_int(value),
+        TypeCode::Float => parse_float(value),
+        TypeCode::Decimal => parse_decimal(value),
+        TypeCode::Timestamp => parse_timestamp(value),
+        TypeCode::Symbol => parse_symbol(value),
+        TypeCode::String => parse_string(value),
+        TypeCode::Clob => parse_clob(value),
+        TypeCode::Blob => parse_blob(value),
+        TypeCode::List => parse_list(value),
+        TypeCode::Sexp => parse_sexp(value),
+        TypeCode::Struct => parse_struct(value),
+        TypeCode::Annotation => parse_annotation(value),
+        TypeCode::Reserved => Err(Err::Failure((&[], ErrorKind::LengthValue))),
     }
 }
 
@@ -146,19 +152,20 @@ fn take_int(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigIn
     }
 }
 
-pub fn parse_int(digits: &[u8]) -> num_bigint::BigInt {
-    let sign = match digits.first() {
+pub fn parse_int(bytes: &[u8]) -> num_bigint::BigInt {
+    let sign = match bytes.first() {
         Some(v) if *v > 0b0111_1111 => Sign::Minus,
         Some(_) => Sign::Plus,
         None => return BigInt::zero(),
     };
 
     if sign == Sign::Minus {
-        let mut digits = Vec::from(digits);
-        digits[0] ^= 0b1000_0000; // clear the high bit to get the magnitude
-        BigInt::from_biguint(sign, BigUint::from_bytes_be(&*digits))
+        // TODO: Performance
+        let mut bytes = Vec::from(bytes);
+        bytes[0] ^= 0b1000_0000; // clear the high bit to get the magnitude
+        BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bytes))
     } else {
-        BigInt::from_biguint(sign, BigUint::from_bytes_be(digits))
+        BigInt::from_biguint(sign, BigUint::from_bytes_be(bytes))
     }
 }
 
@@ -167,6 +174,10 @@ fn take_uint(length: usize) -> impl Fn(&[u8]) -> IResult<&[u8], num_bigint::BigU
         let (input, bytes) = take(length)(i)?;
         Ok((input, BigUint::from_bytes_be(bytes)))
     }
+}
+
+pub fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
+    BigUint::from_bytes_be(bytes)
 }
 
 /// ## VarUInt and VarInt Fields
@@ -388,24 +399,188 @@ fn high_bit_unset(byte: u8) -> bool {
 /// If the representation is at least 14 bytes long, then L is set to 14,
 /// and the length field is set to the representation length, encoded as a VarUInt field.
 /// ```
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeDescriptor {
-    format: usize,
-    length: usize,
+    /// The type code T from the type descriptor
+    type_code: TypeCode,
+    /// The four-bit length L from the type descriptor.
+    /// Not to be confused with the length of the representation.
+    length: u8,
 }
 
-// TODO: Incorporate to streamline parsing(?)
+/// A partially-processed value from an Ion stream
+///
+/// Contains information required to complete processing or to skip over the value.
 #[derive(Clone, Debug, PartialEq)]
-struct TypedValue<'a> {
-    format: u8,
-    representation: Option<&'a [u8]>, // None for null
+pub struct TypedValue<'a> {
+    /// The type code T from the type descriptor
+    type_code: TypeCode,
+    /// The four-bit length L from the type descriptor.
+    /// Not to be confused with the length of the representation.
+    length_code: u8,
+    /// Slice of the Ion stream from the starting index of the value
+    index: &'a [u8],
+    /// The sequence of octets comprising the binary value.
+    value: &'a [u8],
+    /// The sequence of octets comprising the representation.
+    rep: &'a [u8],
+}
+
+/// The possible values of the type code of a Typed Value
+///
+/// # Panics
+///
+/// While TypeCode itself obviously does not have any mechanism to originate a panic, other code
+/// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
+#[derive(Clone, Debug, PartialEq, FromPrimitive)]
+pub enum TypeCode {
+    Null,
+    Bool,
+    PosInt,
+    NegInt,
+    Float,
+    Decimal,
+    Timestamp,
+    Symbol,
+    String,
+    Clob,
+    Blob,
+    List,
+    Sexp,
+    Struct,
+    Annotation,
+    Reserved,
 }
 
 pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
-    let (input, descriptor) = take(1usize)(input)?;
-    let format: usize = (descriptor[0] >> 4) as usize;
-    let length: usize = (descriptor[0] & 0b0000_1111) as usize;
-    Ok((input, TypeDescriptor { format, length }))
+    let (rest, descriptor) = take(1usize)(input)?;
+    let descriptor = descriptor[0];
+    // always less than 16 by construction, and always unwraps to one of 16 TypeCode variants
+    let type_code: TypeCode = TypeCode::from_u8(descriptor >> 4).unwrap();
+    let length: u8 = descriptor & 0b0000_1111;
+    Ok((rest, TypeDescriptor { type_code, length }))
+}
+
+fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
+    let (rest, descriptor_byte) = take(1usize)(input)?;
+    let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
+    let length_code: u8 = descriptor_byte[0] & 0b0000_1111;
+    let length: usize = length_code as usize;
+    match type_code {
+        TypeCode::Null => match length_code {
+            // Special cases: 1-byte NOP pad (L == 0) and null.null (L == 15) both have empty representation
+            0 | 15 => Ok((
+                rest,
+                TypedValue {
+                    type_code,
+                    length_code,
+                    index: input,
+                    value: descriptor_byte,
+                    rep: &[], // null.null has only a descriptor octet
+                },
+            )),
+            x => {
+                let (rest, length) = take_representation_length(rest, x)?;
+                let (end, rep) = take(length)(rest)?;
+                // TODO: remove unnecessary checks
+                let (end, value) = take(input.len() - end.len())(input)?;
+                Ok((
+                    end,
+                    TypedValue {
+                        type_code,
+                        length_code,
+                        index: input,
+                        value,
+                        rep,
+                    },
+                ))
+            }
+        },
+        TypeCode::Bool => Ok((
+            rest,
+            TypedValue {
+                type_code,
+                length_code,
+                index: input,
+                value: descriptor_byte,
+                rep: &[], // bools have only a descriptor octet
+            },
+        )),
+        TypeCode::Float => match length_code {
+            // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
+            0 | 15 => Ok((
+                rest,
+                TypedValue {
+                    type_code,
+                    length_code,
+                    index: input,
+                    value: descriptor_byte,
+                    rep: &[],
+                },
+            )),
+            4 => {
+                let (end, rep) = take(4usize)(rest)?;
+                // TODO: remove unnecessary checks
+                // we know these 5 bytes exist from the previous line
+                let (end, value) = take(5usize)(input)?;
+                Ok((
+                    end,
+                    TypedValue {
+                        type_code,
+                        length_code,
+                        index: input,
+                        value,
+                        rep,
+                    },
+                ))
+            }
+            8 => {
+                let (end, rep) = take(8usize)(rest)?;
+                // TODO: remove unnecessary checks
+                // we know these 9 bytes exist from the previous line
+                let (end, value) = take(9usize)(input)?;
+                Ok((
+                    end,
+                    TypedValue {
+                        type_code,
+                        length_code,
+                        index: input,
+                        value,
+                        rep,
+                    },
+                ))
+            }
+            _ => Err(Err::Failure((rest, ErrorKind::LengthValue))),
+        },
+        TypeCode::Reserved => Err(Err::Failure((rest, ErrorKind::LengthValue))),
+        // All remaining type codes behave in a standard way
+        _ => {
+            let (rest, length) = take_representation_length(rest, length_code)?;
+            let (end, rep) = take(length)(rest)?;
+            let (end, value) = take(input.len() - end.len())(input)?;
+            Ok((
+                end,
+                TypedValue {
+                    type_code,
+                    length_code,
+                    index: input,
+                    value,
+                    rep,
+                },
+            ))
+        }
+    }
+}
+
+fn take_representation_length(input: &[u8], length_code: u8) -> IResult<&[u8], usize> {
+    let length: usize = length_code as usize;
+    let (rest, length) = match length {
+        0..=13 => (input, length),
+        14 => take_usize_var_uint(input)?,
+        _ => (input, 0),
+    };
+    Ok((rest, length))
 }
 
 /// ### 0: null
@@ -447,8 +622,8 @@ pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
 /// 0x0E 0x8E 0x00 ... <12 arbitrary octets> ... 0x00
 /// NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
 /// NOP padding in struct requires additional encoding considerations.
-/// ``
-pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+/// ```
+fn take_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=13 => Ok((&input[length..], IonValue::IonNull(IonNull::Pad))),
         14 => match take_usize_var_uint(input) {
@@ -457,6 +632,14 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         },
         15 => Ok((input, IonValue::IonNull(IonNull::Null))),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
+    }
+}
+
+fn parse_null(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => Ok((&[], IonValue::IonNull(IonNull::Pad))),
+        15 => Ok((&[], IonValue::IonNull(IonNull::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
 
@@ -471,12 +654,21 @@ pub fn parse_null(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 /// means true; and a representation of 15 means null.bool.
 /// ```
-pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0 => Ok((input, IonValue::IonBoolean(IonBoolean::False))),
         1 => Ok((input, IonValue::IonBoolean(IonBoolean::True))),
         15 => Ok((input, IonValue::IonBoolean(IonBoolean::Null))),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
+    }
+}
+
+fn parse_bool(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0 => Ok((&[], IonValue::IonBoolean(IonBoolean::False))),
+        1 => Ok((&[], IonValue::IonBoolean(IonBoolean::True))),
+        15 => Ok((&[], IonValue::IonBoolean(IonBoolean::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
 
@@ -502,7 +694,7 @@ pub fn parse_bool(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
 /// ```
-pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
@@ -513,9 +705,25 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
     Ok((
         rest,
         IonValue::IonInteger(IonInteger::Integer {
-            value: magnitude.to_bigint().expect("Cannot convert to BigInt"),
+            value: BigInt::from_biguint(Sign::Plus, magnitude),
         }),
     ))
+}
+
+fn parse_positive_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => {
+            let magnitude = BigUint::from_bytes_be(typed_value.rep);
+            Ok((
+                &[],
+                IonValue::IonInteger(IonInteger::Integer {
+                    value: BigInt::from_biguint(Sign::Plus, magnitude),
+                }),
+            ))
+        }
+        15 => Ok((&[], IonValue::IonInteger(IonInteger::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 3: negative int
@@ -540,7 +748,7 @@ pub fn parse_positive_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
 /// ```
-pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
@@ -554,6 +762,22 @@ pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
             value: -1 * magnitude.to_bigint().expect("Cannot convert to BigInt"),
         }),
     ))
+}
+
+fn parse_negative_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => {
+            let magnitude = BigUint::from_bytes_be(typed_value.rep);
+            Ok((
+                &[],
+                IonValue::IonInteger(IonInteger::Integer {
+                    value: BigInt::from_biguint(Sign::Minus, magnitude),
+                }),
+            ))
+        }
+        15 => Ok((&[], IonValue::IonInteger(IonInteger::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 4: float
@@ -580,7 +804,7 @@ pub fn parse_negative_int(input: &[u8], length: usize) -> IResult<&[u8], IonValu
 /// Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 /// of the standard may support 16-bit and 128-bit float values.
 /// ```
-pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0 => Ok((input, IonValue::IonFloat(IonFloat::Float { value: 0e0 }))),
         4 => {
@@ -598,6 +822,27 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         }
         15 => Ok((input, IonValue::IonFloat(IonFloat::Null))),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
+    }
+}
+
+fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0 => Ok((&[], IonValue::IonFloat(IonFloat::Float { value: 0e0 }))),
+        4 => {
+            let (_, value) = float(typed_value.rep)?;
+            Ok((
+                &[],
+                IonValue::IonFloat(IonFloat::Float {
+                    value: f64::from(value),
+                }),
+            ))
+        }
+        8 => {
+            let (_, value) = double(typed_value.rep)?;
+            Ok((&[], IonValue::IonFloat(IonFloat::Float { value })))
+        }
+        15 => Ok((&[], IonValue::IonFloat(IonFloat::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
 
@@ -625,7 +870,7 @@ pub fn parse_float(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 /// entire value is encoded as the single byte 0x50.
 /// ```
-pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (exponent_index, length) = match length {
         0 => {
             return Ok((
@@ -654,6 +899,34 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             coefficient,
         }),
     ))
+}
+
+fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0 => Ok((
+            &[],
+            IonValue::IonDecimal(IonDecimal::Decimal {
+                coefficient: BigInt::zero(),
+                exponent: BigInt::zero(),
+            }),
+        )),
+        1..=14 => {
+            let (coefficient_index, exponent) = take_var_int(typed_value.rep)?;
+            let (_, coefficient) = match coefficient_index.len() {
+                0 => (coefficient_index, BigInt::zero()),
+                remaining_bytes => take_int(remaining_bytes)(coefficient_index)?,
+            };
+            Ok((
+                &[],
+                IonValue::IonDecimal(IonDecimal::Decimal {
+                    exponent,
+                    coefficient,
+                }),
+            ))
+        }
+        15 => Ok((&[], IonValue::IonDecimal(IonDecimal::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 6: timestamp
@@ -718,7 +991,7 @@ pub fn parse_decimal(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
 /// ```
-pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     // TODO: This is broadly pretty inefficient, particularly the many heap allocations done here
     // to handle the specification's use of infinite size integers for all fields.
 
@@ -821,7 +1094,7 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
     };
 
     // The fractional seconds’ value is (coefficient * 10 ^ exponent).
-    // It must be greater than or equal to zero and (TODO: less than 1).
+    // It must be greater than or equal to zero and (FIXME: less than 1).
     let fraction_coefficient = match fraction_coefficient.to_biguint() {
         Some(value) => value,
         None => return Err(Err::Failure((input, ErrorKind::Verify))),
@@ -860,6 +1133,137 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
     ))
 }
 
+fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => {
+            let (rest, offset) = take_var_int(typed_value.rep)?;
+            let (rest, year) = take_var_uint(rest)?;
+
+            // Parsing complete with precision of Year
+            if rest.is_empty() {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Year { offset, year }),
+                ));
+            }
+
+            let (rest, month) = take_var_uint(rest)?;
+
+            // Parsing complete with precision of Month
+            if rest.is_empty() {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Month {
+                        offset,
+                        year,
+                        month,
+                    }),
+                ));
+            }
+
+            let (rest, day) = take_var_uint(rest)?;
+
+            // Parsing complete with precision of Day
+            if rest.is_empty() {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Day {
+                        offset,
+                        year,
+                        month,
+                        day,
+                    }),
+                ));
+            }
+
+            let (rest, hour) = take_var_uint(rest)?;
+            let (rest, minute) = take_var_uint(rest)?;
+
+            // Parsing complete with precision of Minute
+            if rest.is_empty() {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Minute {
+                        offset,
+                        year,
+                        month,
+                        day,
+                        hour,
+                        minute,
+                    }),
+                ));
+            }
+
+            let (rest, second) = take_var_uint(rest)?;
+
+            // Parsing complete with precision of Second
+            if rest.is_empty() {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Second {
+                        offset,
+                        year,
+                        month,
+                        day,
+                        hour,
+                        minute,
+                        second,
+                    }),
+                ));
+            }
+
+            let (rest, fraction_exponent) = take_var_int_as_i32(rest)?;
+            let fraction_coefficient = if rest.is_empty() {
+                // A missing coefficient defaults to zero.
+                BigInt::zero()
+            } else {
+                parse_int(rest)
+            };
+
+            // The fractional seconds’ value is (coefficient * 10 ^ exponent).
+            // It must be greater than or equal to zero and (FIXME: less than 1).
+            let fraction_coefficient = match fraction_coefficient.to_biguint() {
+                Some(value) => value,
+                None => return Err(Err::Failure((typed_value.index, ErrorKind::Verify))),
+            };
+
+            // Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
+            if fraction_coefficient.is_zero() && fraction_exponent > -1 {
+                return Ok((
+                    rest,
+                    IonValue::IonTimestamp(IonTimestamp::Second {
+                        offset,
+                        year,
+                        month,
+                        day,
+                        hour,
+                        minute,
+                        second,
+                    }),
+                ));
+            }
+
+            // Parsing complete with precision of FractionalSecond
+            Ok((
+                rest,
+                IonValue::IonTimestamp(IonTimestamp::FractionalSecond {
+                    offset,
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute,
+                    second,
+                    fraction_coefficient,
+                    fraction_exponent,
+                }),
+            ))
+        }
+        15 => Ok((&[], IonValue::IonTimestamp(IonTimestamp::Null))),
+        _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
+    }
+}
+
 /// ### 7: symbol
 ///
 /// ```text
@@ -877,7 +1281,7 @@ pub fn parse_timestamp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> 
 ///
 /// See Ion Symbols for more details about symbol representations and symbol tables.
 /// ```
-pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0 => return Ok((input, IonValue::IonSymbol(IonSymbol::SidZero))),
         1..=13 => (input, length),
@@ -888,6 +1292,19 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, symbol_id) = take_uint(length)(rest)?;
     // FIXME
     Ok((rest, IonValue::IonSymbol(IonSymbol::Null)))
+}
+
+fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0 => Ok((&[], IonValue::IonSymbol(IonSymbol::SidZero))),
+        1..=14 => {
+            let symbol_id = parse_uint(typed_value.rep);
+            // FIXME
+            Ok((&[], IonValue::IonSymbol(IonSymbol::Null)))
+        }
+        15 => Ok((&[], IonValue::IonSymbol(IonSymbol::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 8: string
@@ -903,7 +1320,7 @@ pub fn parse_symbol(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///              +==========================+
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
 /// ```
-pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
@@ -923,6 +1340,25 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     ))
 }
 
+fn parse_string(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => {
+            let representation = match std::str::from_utf8(typed_value.rep) {
+                Ok(value) => value,
+                Err(err) => return Err(Err::Failure((&[], ErrorKind::ParseTo))),
+            };
+            Ok((
+                &[],
+                IonValue::IonString(IonString::String {
+                    value: String::from(representation),
+                }),
+            ))
+        }
+        15 => Ok((&[], IonValue::IonString(IonString::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
+}
+
 /// ### 9: clob
 ///
 /// ```text
@@ -939,7 +1375,7 @@ pub fn parse_string(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// Zero-length clobs are legal, so L may be zero.
 /// ```
-pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
@@ -953,6 +1389,19 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             data: data.to_vec(),
         }),
     ))
+}
+
+fn parse_clob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => Ok((
+            &[],
+            IonValue::IonClob(IonClob::Clob {
+                data: typed_value.rep.to_vec(),
+            }),
+        )),
+        15 => Ok((&[], IonValue::IonClob(IonClob::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 10: blob
@@ -970,7 +1419,7 @@ pub fn parse_clob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// Zero-length blobs are legal, so L may be zero.
 /// ```
-pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     let (rest, length) = match length {
         0..=13 => (input, length),
         14 => take_usize_var_uint(input)?,
@@ -984,6 +1433,19 @@ pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
             data: data.to_vec(),
         }),
     ))
+}
+
+fn parse_blob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => Ok((
+            &[],
+            IonValue::IonBlob(IonBlob::Blob {
+                data: typed_value.rep.to_vec(),
+            }),
+        )),
+        15 => Ok((&[], IonValue::IonBlob(IonBlob::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
 }
 
 /// ### 11: list
@@ -1007,11 +1469,53 @@ pub fn parse_blob(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Because values indicate their total lengths in octets, it is possible to locate the beginning of
 /// each successive value in constant time.
 /// ```
-pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonList(IonList::Null))),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
+    }
+}
+
+fn parse_list(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    match typed_value.length_code {
+        0..=14 => Ok((
+            &[],
+            IonValue::IonBlob(IonBlob::Blob {
+                data: typed_value.rep.to_vec(),
+            }),
+        )),
+        15 => Ok((&[], IonValue::IonList(IonList::Null))),
+        _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
+    }
+}
+
+struct BinaryListIterator<'a> {
+    cursor: u8,
+    list_bytes: &'a [u8],
+}
+
+impl<'a> BinaryListIterator<'a> {
+    fn new(list: &[u8]) -> BinaryListIterator {
+        BinaryListIterator {
+            cursor: 0,
+            list_bytes: list,
+        }
+    }
+}
+
+// Implement `Iterator` for `BinaryListIterator`.
+impl<'a> Iterator for BinaryListIterator<'a> {
+    type Item = IonValue;
+
+    // The return type is `Option<T>`:
+    //     * When the `Iterator` is finished, `None` is returned.
+    //     * Otherwise, the next value is wrapped in `Some` and returned.
+    fn next(&mut self) -> Option<IonValue> {
+        let cursor = self.cursor;
+        let list_bytes = self.list_bytes;
+
+        Some(IonValue::IonNull(IonNull::Null))
     }
 }
 
@@ -1030,7 +1534,7 @@ pub fn parse_list(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
 /// ```
-pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((
@@ -1039,6 +1543,10 @@ pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
         )),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
+}
+
+fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    unimplemented!()
 }
 
 /// ### 13: struct
@@ -1105,12 +1613,16 @@ pub fn parse_sexp(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// //  {$0:name::<NOP>}
 /// 0xD5 0x80 0xE3 0x81 0x84 0x00
 /// ```
-pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         0..=14 => unimplemented!(),
         15 => Ok((input, IonValue::IonStructure(IonStructure::Null))),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
+}
+
+fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    unimplemented!()
 }
 
 /// ### 14: Annotations
@@ -1154,11 +1666,15 @@ pub fn parse_struct(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
 /// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
 /// Instead, that octet signals the start of a binary version marker.
 /// ```
-pub fn parse_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
+pub fn take_annotation(input: &[u8], length: usize) -> IResult<&[u8], IonValue> {
     match length {
         3..=14 => unimplemented!(),
         _ => Err(Err::Failure((input, ErrorKind::LengthValue))),
     }
+}
+
+fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+    unimplemented!()
 }
 
 /// ### 15: reserved
@@ -1206,7 +1722,7 @@ mod tests {
             Ok((
                 &null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
                 TypeDescriptor {
-                    format: 0x0,
+                    type_code: TypeCode::from_u8(0x0).unwrap(),
                     length: 0xF,
                 }
             ))
@@ -1219,7 +1735,7 @@ mod tests {
             Ok((
                 &null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
                 TypeDescriptor {
-                    format: 0x1,
+                    type_code: TypeCode::from_u8(0x1).unwrap(),
                     length: 0xF,
                 }
             ))
@@ -1227,10 +1743,17 @@ mod tests {
     }
 
     #[test]
-    fn binary_version_marker_test() {
-        let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-        println!("bytes:\n{:?}", &data[0..4]);
-        // assert_eq!(, );
+    fn type_code_has_16_variants() {
+        let fifteen: u8 = 0b0000_1111;
+        let type_code: TypeCode = TypeCode::from_u8(fifteen).unwrap();
+        assert_eq!(type_code, TypeCode::Reserved);
+    }
+
+    #[test]
+    #[should_panic]
+    fn type_code_has_no_17th_variant() {
+        let sixteen: u8 = 0b0001_0000;
+        let type_code: TypeCode = TypeCode::from_u8(sixteen).unwrap();
     }
 
     #[test]
@@ -1240,7 +1763,7 @@ mod tests {
         let descriptor = take_type_descriptor(value.0).unwrap();
 
         assert_eq!(
-            parse_null(descriptor.0, descriptor.1.length),
+            take_null(descriptor.0, descriptor.1.length as usize),
             Ok((&[] as &[u8], IonValue::IonNull(IonNull::Null)))
         );
     }
@@ -1252,7 +1775,7 @@ mod tests {
         let descriptor = take_type_descriptor(value.0).unwrap();
 
         assert_eq!(
-            parse_null(descriptor.0, descriptor.1.length),
+            take_null(descriptor.0, descriptor.1.length as usize),
             Ok((&[] as &[u8], IonValue::IonNull(IonNull::Pad)))
         );
     }
@@ -1265,7 +1788,7 @@ mod tests {
         let parse = take_var_uint(descriptor.0);
 
         assert_eq!(
-            parse_null(descriptor.0, descriptor.1.length),
+            take_null(descriptor.0, descriptor.1.length as usize),
             Ok((&[] as &[u8], IonValue::IonNull(IonNull::Pad)))
         );
     }
