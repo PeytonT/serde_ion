@@ -16,39 +16,19 @@ Reference http://amzn.github.io/ion-docs/docs/spec.html
 */
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
-    Null(IonNull),
-    Bool(IonBool),
-    Int(IonInt),
-    Float(IonFloat),
-    Decimal(IonDecimal),
-    Timestamp(IonTimestamp),
-    String(IonString),
-    Symbol(IonSymbol),
-    Blob(IonBlob),
-    Clob(IonClob),
-    Struct(IonStruct),
-    List(IonList),
-    Sexp(IonSexp),
-}
-
-impl IonValue {
-    pub fn to_text(&self) -> String {
-        match self {
-            IonValue::Null(val) => val.to_text(),
-            IonValue::Bool(val) => val.to_text(),
-            IonValue::Int(val) => val.to_text(),
-            IonValue::Float(val) => val.to_text(),
-            IonValue::Decimal(val) => val.to_text(),
-            IonValue::Timestamp(val) => val.to_text(),
-            IonValue::String(val) => val.to_text(),
-            IonValue::Symbol(val) => val.to_text(),
-            IonValue::Blob(val) => val.to_text(),
-            IonValue::Clob(val) => val.to_text(),
-            IonValue::Struct(val) => val.to_text(),
-            IonValue::List(val) => val.to_text(),
-            IonValue::Sexp(val) => val.to_text(),
-        }
-    }
+    Null { value: IonNull },
+    Bool { value: IonBool },
+    Int { value: IonInt },
+    Float { value: IonFloat },
+    Decimal { value: IonDecimal },
+    Timestamp { value: IonTimestamp },
+    String { value: IonString },
+    Symbol { value: IonSymbol },
+    Blob { value: IonBlob },
+    Clob { value: IonClob },
+    Struct { value: IonStruct },
+    List { value: IonList },
+    Sexp { value: IonSexp },
 }
 
 // null - A generic null value
@@ -325,13 +305,7 @@ impl IonList {
     pub fn to_text(&self) -> String {
         match self {
             IonList::Null => String::from("null.list"),
-            IonList::List(val) => format!(
-                "[{}]",
-                val.iter()
-                    .map(|x| x.to_text())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
+            IonList::List(val) => unimplemented!(),
         }
     }
 }
