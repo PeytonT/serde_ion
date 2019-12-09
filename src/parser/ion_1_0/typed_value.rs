@@ -87,15 +87,6 @@ const TYPE_DESCRIPTOR_BYTES: usize = 1;
 /// 15	[0-15]	            The type code 15 is illegal in Ion 1.0 data.
 /// ```
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct TypeDescriptor {
-    /// The type code T from the type descriptor
-    pub type_code: TypeCode,
-    /// The four-bit length L from the type descriptor.
-    /// Not to be confused with the length of the representation.
-    pub length: u8,
-}
-
 /// A partially-processed value from an Ion stream
 ///
 /// Contains information required to complete processing or to skip over the value.
@@ -138,15 +129,6 @@ pub enum TypeCode {
     Struct,
     Annotation,
     Reserved,
-}
-
-pub fn take_type_descriptor(input: &[u8]) -> IResult<&[u8], TypeDescriptor> {
-    let (rest, descriptor) = take(1usize)(input)?;
-    let descriptor = descriptor[0];
-    // always less than 16 by construction, and always unwraps to one of 16 TypeCode variants
-    let type_code: TypeCode = TypeCode::from_u8(descriptor >> 4).unwrap();
-    let length: u8 = descriptor & 0b0000_1111;
-    Ok((rest, TypeDescriptor { type_code, length }))
 }
 
 pub fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
@@ -277,36 +259,6 @@ mod tests {
     use crate::parser::parse;
     use crate::parser::parse::BVM_BYTES;
     use pretty_assertions::{assert_eq, assert_ne};
-
-    #[test]
-    fn test_take_type_descriptor() {
-        // Constructed TypeDescriptor for null.null should contain {format: 0x0, length: 0xF}
-        let null_null = include_bytes!("../../../tests/ion-tests/iontestdata/good/null.10n");
-        let null_val = parse::take_ion_version(null_null).unwrap();
-        assert_eq!(
-            take_type_descriptor(null_val.0),
-            Ok((
-                &null_null[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
-                TypeDescriptor {
-                    type_code: TypeCode::from_u8(0x0).unwrap(),
-                    length: 0xF,
-                }
-            ))
-        );
-        // Constructed TypeDescriptor for null.bool should contain {format: 0x1, length: 0xF}
-        let null_bool = include_bytes!("../../../tests/ion-tests/iontestdata/good/nullBool.10n");
-        let bool_val = parse::take_ion_version(null_bool).unwrap();
-        assert_eq!(
-            take_type_descriptor(bool_val.0),
-            Ok((
-                &null_bool[(BVM_BYTES + TYPE_DESCRIPTOR_BYTES)..],
-                TypeDescriptor {
-                    type_code: TypeCode::from_u8(0x1).unwrap(),
-                    length: 0xF,
-                }
-            ))
-        );
-    }
 
     #[test]
     fn type_code_has_16_variants() {
