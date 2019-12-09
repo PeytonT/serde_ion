@@ -93,22 +93,22 @@ pub struct TypedValue<'a> {
 /// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
 #[derive(Clone, Debug, PartialEq, FromPrimitive)]
 pub enum TypeCode {
-    Null,
-    Bool,
-    PosInt,
-    NegInt,
-    Float,
-    Decimal,
-    Timestamp,
-    Symbol,
-    String,
-    Clob,
-    Blob,
-    List,
-    Sexp,
-    Struct,
-    Annotation,
-    Reserved,
+    Null = 0,
+    Bool = 1,
+    PosInt = 2,
+    NegInt = 3,
+    Float = 4,
+    Decimal = 5,
+    Timestamp = 6,
+    Symbol = 7,
+    String = 8,
+    Clob = 9,
+    Blob = 10,
+    List = 11,
+    Sexp = 12,
+    Struct = 13,
+    Annotation = 14,
+    Reserved = 15,
 }
 
 pub fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
