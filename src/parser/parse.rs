@@ -1,4 +1,4 @@
-use super::version_1_0::take_value;
+use super::ion_1_0;
 use crate::ion_types::{
     IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
     IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
@@ -69,7 +69,7 @@ pub fn take_ion_version(input: &[u8]) -> IResult<&[u8], IonVersion> {
 
 pub fn parse(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
     alt((
-        preceded(tag(BVM_1_0), many0(super::version_1_0::parse_value)),
+        preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse_value)),
         version_placeholder,
     ))(input)
 }
@@ -87,6 +87,7 @@ mod tests {
     use num_bigint::{BigInt, BigUint, Sign};
     use num_traits::identities::Zero;
     use num_traits::Num;
+    use pretty_assertions::{assert_eq, assert_ne};
     use std::str::FromStr;
 
     #[test]

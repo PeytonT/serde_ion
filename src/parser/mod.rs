@@ -1,2 +1,2 @@
+mod ion_1_0;
 pub mod parse;
-mod version_1_0;
