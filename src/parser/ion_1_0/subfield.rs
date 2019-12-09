@@ -1,26 +1,14 @@
-use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull,
-    IonSharedSymbolTable, IonString, IonStructure, IonSymbol, IonSymbolicExpression,
-    IonSystemSymbolTable, IonTimestamp, IonValue,
-};
+use std::iter;
+
 use bit_vec::BitVec;
-use nom::error::VerboseError;
-use nom::lib::std::ops::Mul;
-use nom::Err::Error;
 use nom::{
     bytes::complete::{take, take_while},
     error::ErrorKind,
-    number::complete::{double, float},
-    sequence::{pair, tuple},
     Err, IResult,
 };
-use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
-use num_traits::cast::FromPrimitive;
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
-use num_traits::real::Real;
-use num_traits::{One, Signed};
-use std::iter;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
@@ -280,11 +268,10 @@ fn high_bit_unset(byte: u8) -> bool {
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
+    use hex::decode;
+    use pretty_assertions::assert_eq;
+
     use super::*;
-    use crate::parser::parse;
-    use crate::parser::parse::BVM_BYTES;
-    use hex::FromHex;
-    use pretty_assertions::{assert_eq, assert_ne};
 
     /// Examples from tests/ion-tests/iontestdata/good/subfieldInt.ion
     #[test]
@@ -293,7 +280,7 @@ mod tests {
         // 7 bits
         // hex: 0x7f
         // dec: 127
-        let bytes: &[u8] = &hex::decode("7f").unwrap();
+        let bytes: &[u8] = &decode("7f").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(127));
 
@@ -301,7 +288,7 @@ mod tests {
         // 15 bits
         // hex: 0x7fff
         // dec: 32767
-        let bytes: &[u8] = &hex::decode("7fff").unwrap();
+        let bytes: &[u8] = &decode("7fff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(32767));
 
@@ -309,7 +296,7 @@ mod tests {
         // 23 bits
         // hex: 0x7fffff
         // dec: 8388607
-        let bytes: &[u8] = &hex::decode("7fffff").unwrap();
+        let bytes: &[u8] = &decode("7fffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(8388607));
 
@@ -317,7 +304,7 @@ mod tests {
         // 31 bits
         // hex: 0x7fffffff
         // dec: 2147483647
-        let bytes: &[u8] = &hex::decode("7fffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(2147483647));
 
@@ -325,7 +312,7 @@ mod tests {
         // 39 bits
         // hex: 0x7fffffffff
         // dec: 549755813887
-        let bytes: &[u8] = &hex::decode("7fffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(549755813887i64));
 
@@ -333,7 +320,7 @@ mod tests {
         // 47 bits
         // hex: 0x7fffffffffff
         // dec: 140737488355327
-        let bytes: &[u8] = &hex::decode("7fffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(140737488355327i64));
 
@@ -341,7 +328,7 @@ mod tests {
         // 55 bits
         // hex: 0x7fffffffffffff
         // dec: 36028797018963967
-        let bytes: &[u8] = &hex::decode("7fffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(36028797018963967i64));
 
@@ -349,7 +336,7 @@ mod tests {
         // 63 bits
         // hex: 0x7fffffffffffffff
         // dec: 9223372036854775807
-        let bytes: &[u8] = &hex::decode("7fffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(9223372036854775807i64));
 
@@ -357,7 +344,7 @@ mod tests {
         // 64 bits
         // hex: 0x00ffffffffffffffff
         // dec: 18446744073709551615
-        let bytes: &[u8] = &hex::decode("00ffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("00ffffffffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(18446744073709551615i128));
 
@@ -365,7 +352,7 @@ mod tests {
         // 71 bits
         // hex: 0xfffffffffffffff
         // dec: 2361183241434822606847
-        let bytes: &[u8] = &hex::decode("7fffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(2361183241434822606847i128));
 
@@ -373,7 +360,7 @@ mod tests {
         // 79 bits used
         // hex: 0x7fffffffffffffffffff
         // dec: 604462909807314587353087
-        let bytes: &[u8] = &hex::decode("7fffffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffffffffffff").unwrap();
         let int = parse_int(bytes);
         assert_eq!(int, BigInt::from(604462909807314587353087i128));
     }
@@ -385,7 +372,7 @@ mod tests {
         // 8 bits
         // hex: 0xff
         // dec: 255
-        let bytes: &[u8] = &hex::decode("ff").unwrap();
+        let bytes: &[u8] = &decode("ff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(255u32));
 
@@ -393,7 +380,7 @@ mod tests {
         // 16 bits
         // hex: 0xffff
         // dec: 65535
-        let bytes: &[u8] = &hex::decode("ffff").unwrap();
+        let bytes: &[u8] = &decode("ffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(65535u32));
 
@@ -401,7 +388,7 @@ mod tests {
         // 24 bits
         // hex: 0xffffff
         // dec: 16777215
-        let bytes: &[u8] = &hex::decode("ffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(16_777_215u32));
 
@@ -409,7 +396,7 @@ mod tests {
         // 31 bits
         // hex: 0x7fffffff
         // dec: 2147483647
-        let bytes: &[u8] = &hex::decode("7fffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(2_147_483_647u32));
 
@@ -417,7 +404,7 @@ mod tests {
         // 32 bits
         // hex: 0xffffffff
         // dec: 4294967295
-        let bytes: &[u8] = &hex::decode("ffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(4_294_967_295u32));
 
@@ -425,7 +412,7 @@ mod tests {
         // 40 bits
         // hex: 0xffffffffff
         // dec: 1099511627775
-        let bytes: &[u8] = &hex::decode("ffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(1_099_511_627_775u64));
 
@@ -433,7 +420,7 @@ mod tests {
         // 48 bits
         // hex: 0xffffffffffff
         // dec: 281474976710655
-        let bytes: &[u8] = &hex::decode("ffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(281_474_976_710_655u64));
 
@@ -441,7 +428,7 @@ mod tests {
         // 56 bits
         // hex: 0xffffffffffffff
         // dec: 72057594037927935
-        let bytes: &[u8] = &hex::decode("ffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(72_057_594_037_927_935u64));
 
@@ -449,7 +436,7 @@ mod tests {
         // 63 bits
         // hex: 0x7fffffffffffffff
         // dec: 9223372036854775807
-        let bytes: &[u8] = &hex::decode("7fffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("7fffffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(9_223_372_036_854_775_807u64));
 
@@ -457,7 +444,7 @@ mod tests {
         // 64 bits
         // hex: 0xffffffffffffffff
         // dec: 18446744073709551615
-        let bytes: &[u8] = &hex::decode("ffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(18_446_744_073_709_551_615u64));
 
@@ -465,7 +452,7 @@ mod tests {
         // 72 bits
         // hex: 0xffffffffffffffffff
         // dec: 4722366482869645213695
-        let bytes: &[u8] = &hex::decode("ffffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(4_722_366_482_869_645_213_695u128));
 
@@ -473,7 +460,7 @@ mod tests {
         // 80 bits
         // hex: 0xffffffffffffffffffff
         // dec: 1208925819614629174706175
-        let bytes: &[u8] = &hex::decode("ffffffffffffffffffff").unwrap();
+        let bytes: &[u8] = &decode("ffffffffffffffffffff").unwrap();
         let uint = parse_uint(bytes);
         assert_eq!(uint, BigUint::from(1_208_925_819_614_629_174_706_175u128));
     }
@@ -485,7 +472,7 @@ mod tests {
         // 6 bits
         // hex: 0xbf
         // dec: 63
-        let bytes: &[u8] = &hex::decode("bf").unwrap();
+        let bytes: &[u8] = &decode("bf").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varint = parse_var_int(sequence, terminator);
@@ -495,7 +482,7 @@ mod tests {
         // 13 bits
         // hex: 0x3fff
         // dec: 8191
-        let bytes: &[u8] = &hex::decode("3fff").unwrap();
+        let bytes: &[u8] = &decode("3fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varint = parse_var_int(sequence, terminator);
@@ -505,7 +492,7 @@ mod tests {
         // 20 bits
         // hex: 0x3f7fff
         // dec: 1048575
-        let bytes: &[u8] = &hex::decode("3f7fff").unwrap();
+        let bytes: &[u8] = &decode("3f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varint = parse_var_int(sequence, terminator);
@@ -515,7 +502,7 @@ mod tests {
         // 27 bits
         // hex: 0x3f7f7fff
         // dec: 134217727
-        let bytes: &[u8] = &hex::decode("3f7f7fff").unwrap();
+        let bytes: &[u8] = &decode("3f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varint = parse_var_int(sequence, terminator);
@@ -525,7 +512,7 @@ mod tests {
         // 31 bits
         // hex: 0x077f7f7fff
         // dec: 2147483647
-        let bytes: &[u8] = &hex::decode("077f7f7fff").unwrap();
+        let bytes: &[u8] = &decode("077f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varint = parse_var_int(sequence, terminator);
@@ -543,7 +530,7 @@ mod tests {
         // 7 bits
         // hex: 0xff
         // dec: 127
-        let bytes: &[u8] = &hex::decode("ff").unwrap();
+        let bytes: &[u8] = &decode("ff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -553,7 +540,7 @@ mod tests {
         // 14 bits
         // hex: 0x7fff
         // dec: 16383
-        let bytes: &[u8] = &hex::decode("7fff").unwrap();
+        let bytes: &[u8] = &decode("7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -563,7 +550,7 @@ mod tests {
         // 15 bits
         // hex: 0x017fff
         // dec: 32767
-        let bytes: &[u8] = &hex::decode("017fff").unwrap();
+        let bytes: &[u8] = &decode("017fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -573,7 +560,7 @@ mod tests {
         // 16 bits
         // hex: 0x037fff
         // dec: 65535
-        let bytes: &[u8] = &hex::decode("037fff").unwrap();
+        let bytes: &[u8] = &decode("037fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -583,7 +570,7 @@ mod tests {
         // 21 bits
         // hex: 0x7f7fff
         // dec: 2097151
-        let bytes: &[u8] = &hex::decode("7f7fff").unwrap();
+        let bytes: &[u8] = &decode("7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -593,7 +580,7 @@ mod tests {
         // 28 bits
         // hex: 0x7f7f7fff
         // dec: 268435455
-        let bytes: &[u8] = &hex::decode("7f7f7fff").unwrap();
+        let bytes: &[u8] = &decode("7f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);
@@ -603,7 +590,7 @@ mod tests {
         // 31 bits
         // hex: 0x077f7f7fff
         // dec: 2147483647
-        let bytes: &[u8] = &hex::decode("077f7f7fff").unwrap();
+        let bytes: &[u8] = &decode("077f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
         let varuint = parse_var_uint(sequence, terminator);

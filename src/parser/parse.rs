@@ -1,14 +1,11 @@
 use super::ion_1_0;
-use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
-    IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
-};
+use crate::ion_types::IonValue;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take},
     error::ErrorKind,
     multi::many0,
-    sequence::{pair, preceded, tuple},
+    sequence::{preceded, tuple},
     Err, IResult,
 };
 
@@ -84,10 +81,14 @@ fn version_placeholder(input: &[u8]) -> IResult<&[u8], Vec<IonValue>> {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
-    use num_bigint::{BigInt, BigUint, Sign};
+    use crate::ion_types::{
+        IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull,
+        IonString, IonStructure, IonSymbol, IonSymbolicExpression, IonTimestamp, IonValue,
+    };
+    use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
     use num_traits::Num;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
     use std::str::FromStr;
 
     #[test]
@@ -530,5 +531,28 @@ mod tests {
         let (remaining_bytes, value) = parse(bytes).unwrap();
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value, vec![IonValue::IonList(IonList::Null)]);
+    }
+
+    // Parse sexp tests
+
+    #[test]
+    fn test_parse_nullSexp() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSexp.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(
+            value,
+            vec![IonValue::IonSymbolicExpression(IonSymbolicExpression::Null)]
+        );
+    }
+
+    // Parse struct tests
+
+    #[test]
+    fn test_parse_nullStructure() {
+        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
+        let (remaining_bytes, value) = parse(bytes).unwrap();
+        assert_eq!(remaining_bytes, &[] as &[u8]);
+        assert_eq!(value, vec![IonValue::IonStructure(IonStructure::Null)]);
     }
 }

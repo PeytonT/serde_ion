@@ -1,28 +1,16 @@
 use super::subfield::*;
 use super::typed_value::*;
-use crate::ion_types::IonInteger::Integer;
 use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull,
-    IonSharedSymbolTable, IonString, IonStructure, IonSymbol, IonSymbolicExpression,
-    IonSystemSymbolTable, IonTimestamp, IonValue,
+    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
+    IonStructure, IonSymbol, IonSymbolicExpression, IonSystemSymbolTable, IonTimestamp, IonValue,
 };
-use bit_vec::BitVec;
-use nom::error::VerboseError;
-use nom::lib::std::ops::Mul;
-use nom::Err::Error;
 use nom::{
-    bytes::complete::{take, take_while},
     error::ErrorKind,
     number::complete::{double, float},
-    sequence::{pair, tuple},
     Err, IResult,
 };
-use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
-use num_traits::cast::FromPrimitive;
-use num_traits::cast::ToPrimitive;
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
-use num_traits::real::Real;
-use num_traits::{One, Signed};
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 

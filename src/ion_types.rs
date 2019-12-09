@@ -2,7 +2,6 @@ extern crate base64;
 extern crate num_bigint;
 extern crate serde_bytes;
 
-use std::option::Option;
 use std::str;
 use std::string::String;
 

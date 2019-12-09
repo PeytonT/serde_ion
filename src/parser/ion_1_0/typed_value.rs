@@ -1,26 +1,6 @@
 use super::subfield::*;
-use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull,
-    IonSharedSymbolTable, IonString, IonStructure, IonSymbol, IonSymbolicExpression,
-    IonSystemSymbolTable, IonTimestamp, IonValue,
-};
-use bit_vec::BitVec;
-use nom::error::VerboseError;
-use nom::lib::std::ops::Mul;
-use nom::Err::Error;
-use nom::{
-    bytes::complete::{take, take_while},
-    error::ErrorKind,
-    number::complete::{double, float},
-    sequence::{pair, tuple},
-    Err, IResult,
-};
-use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
+use nom::{bytes::complete::take, error::ErrorKind, Err, IResult};
 use num_traits::cast::FromPrimitive;
-use num_traits::cast::ToPrimitive;
-use num_traits::identities::Zero;
-use num_traits::real::Real;
-use num_traits::{One, Signed};
 
 const TYPE_DESCRIPTOR_BYTES: usize = 1;
 
@@ -256,9 +236,7 @@ fn take_representation_length(input: &[u8], length_code: u8) -> IResult<&[u8], u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse;
-    use crate::parser::parse::BVM_BYTES;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn type_code_has_16_variants() {
