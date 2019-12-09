@@ -16,37 +16,37 @@ Reference http://amzn.github.io/ion-docs/docs/spec.html
 */
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
-    IonNull(IonNull),
-    IonBoolean(IonBoolean),
-    IonInteger(IonInteger),
-    IonFloat(IonFloat),
-    IonDecimal(IonDecimal),
-    IonTimestamp(IonTimestamp),
-    IonString(IonString),
-    IonSymbol(IonSymbol),
-    IonBlob(IonBlob),
-    IonClob(IonClob),
-    IonStructure(IonStructure),
-    IonList(IonList),
-    IonSymbolicExpression(IonSymbolicExpression),
+    Null(IonNull),
+    Bool(IonBool),
+    Int(IonInt),
+    Float(IonFloat),
+    Decimal(IonDecimal),
+    Timestamp(IonTimestamp),
+    String(IonString),
+    Symbol(IonSymbol),
+    Blob(IonBlob),
+    Clob(IonClob),
+    Struct(IonStruct),
+    List(IonList),
+    Sexp(IonSexp),
 }
 
 impl IonValue {
     pub fn to_text(&self) -> String {
         match self {
-            IonValue::IonNull(val) => val.to_text(),
-            IonValue::IonBoolean(val) => val.to_text(),
-            IonValue::IonInteger(val) => val.to_text(),
-            IonValue::IonFloat(val) => val.to_text(),
-            IonValue::IonDecimal(val) => val.to_text(),
-            IonValue::IonTimestamp(val) => val.to_text(),
-            IonValue::IonString(val) => val.to_text(),
-            IonValue::IonSymbol(val) => val.to_text(),
-            IonValue::IonBlob(val) => val.to_text(),
-            IonValue::IonClob(val) => val.to_text(),
-            IonValue::IonStructure(val) => val.to_text(),
-            IonValue::IonList(val) => val.to_text(),
-            IonValue::IonSymbolicExpression(val) => val.to_text(),
+            IonValue::Null(val) => val.to_text(),
+            IonValue::Bool(val) => val.to_text(),
+            IonValue::Int(val) => val.to_text(),
+            IonValue::Float(val) => val.to_text(),
+            IonValue::Decimal(val) => val.to_text(),
+            IonValue::Timestamp(val) => val.to_text(),
+            IonValue::String(val) => val.to_text(),
+            IonValue::Symbol(val) => val.to_text(),
+            IonValue::Blob(val) => val.to_text(),
+            IonValue::Clob(val) => val.to_text(),
+            IonValue::Struct(val) => val.to_text(),
+            IonValue::List(val) => val.to_text(),
+            IonValue::Sexp(val) => val.to_text(),
         }
     }
 }
@@ -69,34 +69,34 @@ impl IonNull {
 
 // bool - Boolean values
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonBoolean {
+pub enum IonBool {
     Null,
     True,
     False,
 }
 
-impl IonBoolean {
+impl IonBool {
     pub fn to_text(&self) -> String {
         match self {
-            IonBoolean::Null => String::from("null.bool"),
-            IonBoolean::True => String::from("true"),
-            IonBoolean::False => String::from("false"),
+            IonBool::Null => String::from("null.bool"),
+            IonBool::True => String::from("true"),
+            IonBool::False => String::from("false"),
         }
     }
 }
 
 // int - Signed integers of arbitrary size
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonInteger {
+pub enum IonInt {
     Null,
     Integer { value: BigInt },
 }
 
-impl IonInteger {
+impl IonInt {
     pub fn to_text(&self) -> String {
         match self {
-            IonInteger::Null => String::from("null.int"),
-            IonInteger::Integer { value } => unimplemented!(),
+            IonInt::Null => String::from("null.int"),
+            IonInt::Integer { value } => unimplemented!(),
         }
     }
 }
@@ -300,16 +300,16 @@ impl IonBlob {
 
 // struct - Unordered collections of tagged values
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonStructure {
+pub enum IonStruct {
     Null,
     Structure(Vec<(IonSymbol, IonValue)>),
 }
 
-impl IonStructure {
+impl IonStruct {
     pub fn to_text(&self) -> String {
         match self {
-            IonStructure::Null => String::from("null.struct"),
-            IonStructure::Structure(entries) => unimplemented!(),
+            IonStruct::Null => String::from("null.struct"),
+            IonStruct::Structure(entries) => unimplemented!(),
         }
     }
 }
@@ -345,16 +345,16 @@ impl IonList {
 // nineteen ASCII characters: !#%&*+-./;<=>?@^`|~
 // Operators and identifiers can be juxtaposed without whitespace.
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonSymbolicExpression {
+pub enum IonSexp {
     Null,
     SymbolicExpression(Vec<(SymbolicExpressionSymbol)>),
 }
 
-impl IonSymbolicExpression {
+impl IonSexp {
     pub fn to_text(&self) -> String {
         match self {
-            IonSymbolicExpression::Null => String::from("null.sexp"),
-            IonSymbolicExpression::SymbolicExpression(sexp) => format!(
+            IonSexp::Null => String::from("null.sexp"),
+            IonSexp::SymbolicExpression(sexp) => format!(
                 "({})",
                 sexp.iter()
                     .map(|x| x.to_text())

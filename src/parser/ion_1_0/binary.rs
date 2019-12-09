@@ -1,8 +1,8 @@
 use super::subfield::*;
 use super::typed_value::*;
 use crate::ion_types::{
-    IonBlob, IonBoolean, IonClob, IonDecimal, IonFloat, IonInteger, IonList, IonNull, IonString,
-    IonStructure, IonSymbol, IonSymbolicExpression, IonSystemSymbolTable, IonTimestamp, IonValue,
+    IonBlob, IonBool, IonClob, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp, IonString,
+    IonStruct, IonSymbol, IonSystemSymbolTable, IonTimestamp, IonValue,
 };
 use nom::{
     error::ErrorKind,
@@ -102,8 +102,8 @@ pub fn parse_typed_value(value: TypedValue) -> IResult<&[u8], IonValue> {
 /// ```
 fn parse_null(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
-        0..=14 => Ok((&[], IonValue::IonNull(IonNull::Pad))),
-        15 => Ok((&[], IonValue::IonNull(IonNull::Null))),
+        0..=14 => Ok((&[], IonValue::Null(IonNull::Pad))),
+        15 => Ok((&[], IonValue::Null(IonNull::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -121,9 +121,9 @@ fn parse_null(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// ```
 fn parse_bool(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
-        0 => Ok((&[], IonValue::IonBoolean(IonBoolean::False))),
-        1 => Ok((&[], IonValue::IonBoolean(IonBoolean::True))),
-        15 => Ok((&[], IonValue::IonBoolean(IonBoolean::Null))),
+        0 => Ok((&[], IonValue::Bool(IonBool::False))),
+        1 => Ok((&[], IonValue::Bool(IonBool::True))),
+        15 => Ok((&[], IonValue::Bool(IonBool::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -156,12 +156,12 @@ fn parse_positive_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
             Ok((
                 &[],
-                IonValue::IonInteger(IonInteger::Integer {
+                IonValue::Int(IonInt::Integer {
                     value: BigInt::from_biguint(Sign::Plus, magnitude),
                 }),
             ))
         }
-        15 => Ok((&[], IonValue::IonInteger(IonInteger::Null))),
+        15 => Ok((&[], IonValue::Int(IonInt::Null))),
         _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
     }
 }
@@ -194,12 +194,12 @@ fn parse_negative_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
             Ok((
                 &[],
-                IonValue::IonInteger(IonInteger::Integer {
+                IonValue::Int(IonInt::Integer {
                     value: BigInt::from_biguint(Sign::Minus, magnitude),
                 }),
             ))
         }
-        15 => Ok((&[], IonValue::IonInteger(IonInteger::Null))),
+        15 => Ok((&[], IonValue::Int(IonInt::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -230,21 +230,21 @@ fn parse_negative_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// ```
 fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
-        0 => Ok((&[], IonValue::IonFloat(IonFloat::Float { value: 0e0 }))),
+        0 => Ok((&[], IonValue::Float(IonFloat::Float { value: 0e0 }))),
         4 => {
             let (_, value) = float(typed_value.rep)?;
             Ok((
                 &[],
-                IonValue::IonFloat(IonFloat::Float {
+                IonValue::Float(IonFloat::Float {
                     value: f64::from(value),
                 }),
             ))
         }
         8 => {
             let (_, value) = double(typed_value.rep)?;
-            Ok((&[], IonValue::IonFloat(IonFloat::Float { value })))
+            Ok((&[], IonValue::Float(IonFloat::Float { value })))
         }
-        15 => Ok((&[], IonValue::IonFloat(IonFloat::Null))),
+        15 => Ok((&[], IonValue::Float(IonFloat::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -277,7 +277,7 @@ fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0 => Ok((
             &[],
-            IonValue::IonDecimal(IonDecimal::Decimal {
+            IonValue::Decimal(IonDecimal::Decimal {
                 coefficient: BigInt::zero(),
                 exponent: BigInt::zero(),
             }),
@@ -290,13 +290,13 @@ fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             };
             Ok((
                 &[],
-                IonValue::IonDecimal(IonDecimal::Decimal {
+                IonValue::Decimal(IonDecimal::Decimal {
                     exponent,
                     coefficient,
                 }),
             ))
         }
-        15 => Ok((&[], IonValue::IonDecimal(IonDecimal::Null))),
+        15 => Ok((&[], IonValue::Decimal(IonDecimal::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -373,7 +373,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if rest.is_empty() {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Year { offset, year }),
+                    IonValue::Timestamp(IonTimestamp::Year { offset, year }),
                 ));
             }
 
@@ -383,7 +383,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if rest.is_empty() {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Month {
+                    IonValue::Timestamp(IonTimestamp::Month {
                         offset,
                         year,
                         month,
@@ -397,7 +397,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if rest.is_empty() {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Day {
+                    IonValue::Timestamp(IonTimestamp::Day {
                         offset,
                         year,
                         month,
@@ -413,7 +413,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if rest.is_empty() {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Minute {
+                    IonValue::Timestamp(IonTimestamp::Minute {
                         offset,
                         year,
                         month,
@@ -430,7 +430,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if rest.is_empty() {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Second {
+                    IonValue::Timestamp(IonTimestamp::Second {
                         offset,
                         year,
                         month,
@@ -461,7 +461,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if fraction_coefficient.is_zero() && fraction_exponent > -1 {
                 return Ok((
                     rest,
-                    IonValue::IonTimestamp(IonTimestamp::Second {
+                    IonValue::Timestamp(IonTimestamp::Second {
                         offset,
                         year,
                         month,
@@ -476,7 +476,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             // Parsing complete with precision of FractionalSecond
             Ok((
                 rest,
-                IonValue::IonTimestamp(IonTimestamp::FractionalSecond {
+                IonValue::Timestamp(IonTimestamp::FractionalSecond {
                     offset,
                     year,
                     month,
@@ -489,7 +489,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 }),
             ))
         }
-        15 => Ok((&[], IonValue::IonTimestamp(IonTimestamp::Null))),
+        15 => Ok((&[], IonValue::Timestamp(IonTimestamp::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -513,13 +513,13 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// ```
 fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
-        0 => Ok((&[], IonValue::IonSymbol(IonSymbol::SidZero))),
+        0 => Ok((&[], IonValue::Symbol(IonSymbol::SidZero))),
         1..=14 => {
             let symbol_id = parse_uint(typed_value.rep);
             // FIXME
-            Ok((&[], IonValue::IonSymbol(IonSymbol::Null)))
+            Ok((&[], IonValue::Symbol(IonSymbol::Null)))
         }
-        15 => Ok((&[], IonValue::IonSymbol(IonSymbol::Null))),
+        15 => Ok((&[], IonValue::Symbol(IonSymbol::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -546,12 +546,12 @@ fn parse_string(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             };
             Ok((
                 &[],
-                IonValue::IonString(IonString::String {
+                IonValue::String(IonString::String {
                     value: String::from(representation),
                 }),
             ))
         }
-        15 => Ok((&[], IonValue::IonString(IonString::Null))),
+        15 => Ok((&[], IonValue::String(IonString::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -576,11 +576,11 @@ fn parse_clob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => Ok((
             &[],
-            IonValue::IonClob(IonClob::Clob {
+            IonValue::Clob(IonClob::Clob {
                 data: typed_value.rep.to_vec(),
             }),
         )),
-        15 => Ok((&[], IonValue::IonClob(IonClob::Null))),
+        15 => Ok((&[], IonValue::Clob(IonClob::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -604,11 +604,11 @@ fn parse_blob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => Ok((
             &[],
-            IonValue::IonBlob(IonBlob::Blob {
+            IonValue::Blob(IonBlob::Blob {
                 data: typed_value.rep.to_vec(),
             }),
         )),
-        15 => Ok((&[], IonValue::IonBlob(IonBlob::Null))),
+        15 => Ok((&[], IonValue::Blob(IonBlob::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -637,7 +637,7 @@ fn parse_blob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 fn parse_list(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
-        15 => Ok((&[], IonValue::IonList(IonList::Null))),
+        15 => Ok((&[], IonValue::List(IonList::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -667,7 +667,7 @@ impl<'a> Iterator for BinaryListIterator<'a> {
         let cursor = self.cursor;
         let list_bytes = self.list_bytes;
 
-        Some(IonValue::IonNull(IonNull::Null))
+        Some(IonValue::Null(IonNull::Null))
     }
 }
 
@@ -689,10 +689,7 @@ impl<'a> Iterator for BinaryListIterator<'a> {
 fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
-        15 => Ok((
-            &[],
-            IonValue::IonSymbolicExpression(IonSymbolicExpression::Null),
-        )),
+        15 => Ok((&[], IonValue::Sexp(IonSexp::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -764,7 +761,7 @@ fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
-        15 => Ok((&[], IonValue::IonStructure(IonStructure::Null))),
+        15 => Ok((&[], IonValue::Struct(IonStruct::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
@@ -813,7 +810,7 @@ fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
-        15 => Ok((&[], IonValue::IonStructure(IonStructure::Null))),
+        15 => Ok((&[], IonValue::Struct(IonStruct::Null))),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
