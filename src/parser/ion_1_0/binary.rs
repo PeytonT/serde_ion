@@ -106,12 +106,14 @@ fn parse_null(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Null {
                 value: IonNull::Pad,
+                annotations: None,
             },
         )),
         15 => Ok((
             &[],
             IonValue::Null {
                 value: IonNull::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -135,18 +137,21 @@ fn parse_bool(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Bool {
                 value: IonBool::False,
+                annotations: None,
             },
         )),
         1 => Ok((
             &[],
             IonValue::Bool {
                 value: IonBool::True,
+                annotations: None,
             },
         )),
         15 => Ok((
             &[],
             IonValue::Bool {
                 value: IonBool::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -185,6 +190,7 @@ fn parse_positive_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     value: IonInt::Integer {
                         value: BigInt::from_biguint(Sign::Plus, magnitude),
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -192,6 +198,7 @@ fn parse_positive_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Int {
                 value: IonInt::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((&[], ErrorKind::LengthValue))),
@@ -230,6 +237,7 @@ fn parse_negative_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     value: IonInt::Integer {
                         value: BigInt::from_biguint(Sign::Minus, magnitude),
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -237,6 +245,7 @@ fn parse_negative_int(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Int {
                 value: IonInt::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -273,6 +282,7 @@ fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Float {
                 value: IonFloat::Float { value: 0e0 },
+                annotations: None,
             },
         )),
         4 => {
@@ -283,6 +293,7 @@ fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     value: IonFloat::Float {
                         value: f64::from(value),
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -292,6 +303,7 @@ fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 &[],
                 IonValue::Float {
                     value: IonFloat::Float { value },
+                    annotations: None,
                 },
             ))
         }
@@ -299,6 +311,7 @@ fn parse_float(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Float {
                 value: IonFloat::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -338,6 +351,7 @@ fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::zero(),
                 },
+                annotations: None,
             },
         )),
         1..=14 => {
@@ -353,6 +367,7 @@ fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                         exponent,
                         coefficient,
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -360,6 +375,7 @@ fn parse_decimal(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Decimal {
                 value: IonDecimal::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -440,6 +456,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     rest,
                     IonValue::Timestamp {
                         value: IonTimestamp::Year { offset, year },
+                        annotations: None,
                     },
                 ));
             }
@@ -456,6 +473,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                             year,
                             month,
                         },
+                        annotations: None,
                     },
                 ));
             }
@@ -473,6 +491,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                             month,
                             day,
                         },
+                        annotations: None,
                     },
                 ));
             }
@@ -493,6 +512,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                             hour,
                             minute,
                         },
+                        annotations: None,
                     },
                 ));
             }
@@ -513,6 +533,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                             minute,
                             second,
                         },
+                        annotations: None,
                     },
                 ));
             }
@@ -546,6 +567,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                             minute,
                             second,
                         },
+                        annotations: None,
                     },
                 ));
             }
@@ -565,6 +587,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                         fraction_coefficient,
                         fraction_exponent,
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -572,6 +595,7 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Timestamp {
                 value: IonTimestamp::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -601,6 +625,7 @@ fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Symbol {
                 value: IonSymbol::SidZero,
+                annotations: None,
             },
         )),
         1..=14 => {
@@ -610,6 +635,7 @@ fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 &[],
                 IonValue::Symbol {
                     value: IonSymbol::Null,
+                    annotations: None,
                 },
             ))
         }
@@ -617,6 +643,7 @@ fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Symbol {
                 value: IonSymbol::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -649,6 +676,7 @@ fn parse_string(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                     value: IonString::String {
                         value: String::from(representation),
                     },
+                    annotations: None,
                 },
             ))
         }
@@ -656,6 +684,7 @@ fn parse_string(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::String {
                 value: IonString::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -686,12 +715,14 @@ fn parse_clob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 value: IonClob::Clob {
                     data: typed_value.rep.to_vec(),
                 },
+                annotations: None,
             },
         )),
         15 => Ok((
             &[],
             IonValue::Clob {
                 value: IonClob::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -721,12 +752,14 @@ fn parse_blob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 value: IonBlob::Blob {
                     data: typed_value.rep.to_vec(),
                 },
+                annotations: None,
             },
         )),
         15 => Ok((
             &[],
             IonValue::Blob {
                 value: IonBlob::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -761,6 +794,7 @@ fn parse_list(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::List {
                 value: IonList::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -794,6 +828,7 @@ impl<'a> Iterator for BinaryListIterator<'a> {
 
         Some(IonValue::Null {
             value: IonNull::Null,
+            annotations: None,
         })
     }
 }
@@ -820,6 +855,7 @@ fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Sexp {
                 value: IonSexp::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
@@ -897,6 +933,7 @@ fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             &[],
             IonValue::Struct {
                 value: IonStruct::Null,
+                annotations: None,
             },
         )),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),

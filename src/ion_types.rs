@@ -16,19 +16,58 @@ Reference http://amzn.github.io/ion-docs/docs/spec.html
 */
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonValue {
-    Null { value: IonNull },
-    Bool { value: IonBool },
-    Int { value: IonInt },
-    Float { value: IonFloat },
-    Decimal { value: IonDecimal },
-    Timestamp { value: IonTimestamp },
-    String { value: IonString },
-    Symbol { value: IonSymbol },
-    Blob { value: IonBlob },
-    Clob { value: IonClob },
-    Struct { value: IonStruct },
-    List { value: IonList },
-    Sexp { value: IonSexp },
+    Null {
+        value: IonNull,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Bool {
+        value: IonBool,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Int {
+        value: IonInt,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Float {
+        value: IonFloat,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Decimal {
+        value: IonDecimal,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Timestamp {
+        value: IonTimestamp,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    String {
+        value: IonString,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Symbol {
+        value: IonSymbol,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Blob {
+        value: IonBlob,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Clob {
+        value: IonClob,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Struct {
+        value: IonStruct,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    List {
+        value: IonList,
+        annotations: Option<Vec<IonSymbol>>,
+    },
+    Sexp {
+        value: IonSexp,
+        annotations: Option<Vec<IonSymbol>>,
+    },
 }
 
 // null - A generic null value

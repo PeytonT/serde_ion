@@ -116,7 +116,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Null {
-                value: IonNull::Null
+                value: IonNull::Null,
+                annotations: None,
             }]
         );
     }
@@ -129,7 +130,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Null {
-                value: IonNull::Pad
+                value: IonNull::Pad,
+                annotations: None,
             }]
         );
     }
@@ -143,7 +145,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Null {
-                value: IonNull::Pad
+                value: IonNull::Pad,
+                annotations: None,
             }]
         );
     }
@@ -156,7 +159,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Null {
-                value: IonNull::Pad
+                value: IonNull::Pad,
+                annotations: None,
             }]
         );
     }
@@ -171,7 +175,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Bool {
-                value: IonBool::Null
+                value: IonBool::Null,
+                annotations: None,
             }]
         );
     }
@@ -186,7 +191,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Int {
-                value: IonInt::Null
+                value: IonInt::Null,
+                annotations: None,
             }]
         );
     }
@@ -199,7 +205,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Int {
-                value: IonInt::Null
+                value: IonInt::Null,
+                annotations: None,
             }]
         );
     }
@@ -213,6 +220,7 @@ mod tests {
         match value[0].clone() {
             IonValue::Int {
                 value: IonInt::Integer { value: x },
+                annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
         }
@@ -227,6 +235,7 @@ mod tests {
         match value[0].clone() {
             IonValue::Int {
                 value: IonInt::Integer { value: x },
+                annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
         }
@@ -241,6 +250,7 @@ mod tests {
         match value[0].clone() {
             IonValue::Int {
                 value: IonInt::Integer { value: x },
+                annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
         }
@@ -255,6 +265,7 @@ mod tests {
         match value[0].clone() {
             IonValue::Int {
                 value: IonInt::Integer { value: x },
+                annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
         }
@@ -269,6 +280,7 @@ mod tests {
         match value[0].clone() {
             IonValue::Int {
                 value: IonInt::Integer { value: x },
+                annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
         }
@@ -285,7 +297,8 @@ mod tests {
             vec![IonValue::Int {
                 value: IonInt::Integer {
                     value: BigInt::from_str("9223372036854775808").unwrap()
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -300,7 +313,8 @@ mod tests {
             vec![IonValue::Int {
                 value: IonInt::Integer {
                     value: BigInt::from_str("-9223372036854775808").unwrap()
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -315,7 +329,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Float {
-                value: IonFloat::Null
+                value: IonFloat::Null,
+                annotations: None,
             }]
         );
     }
@@ -330,7 +345,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Decimal {
-                value: IonDecimal::Null
+                value: IonDecimal::Null,
+                annotations: None,
             }]
         );
     }
@@ -347,7 +363,8 @@ mod tests {
                 value: IonDecimal::Decimal {
                     coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -364,7 +381,8 @@ mod tests {
                 value: IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::zero(),
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -381,7 +399,8 @@ mod tests {
                 value: IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -397,7 +416,8 @@ mod tests {
                 value: IonDecimal::Decimal {
                     coefficient: BigInt::from_str_radix("10", 10).unwrap(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -413,7 +433,8 @@ mod tests {
                 value: IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::zero(),
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -428,7 +449,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Timestamp {
-                value: IonTimestamp::Null
+                value: IonTimestamp::Null,
+                annotations: None,
             }]
         );
     }
@@ -445,7 +467,8 @@ mod tests {
                 value: IonTimestamp::Year {
                     offset: BigInt::zero(),
                     year: BigUint::from(2011u32)
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -463,7 +486,8 @@ mod tests {
                     offset: BigInt::zero(),
                     year: BigUint::from(2011u32),
                     month: BigUint::from(2u32)
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -483,7 +507,8 @@ mod tests {
                     year: BigUint::from(2011u32),
                     month: BigUint::from(2u32),
                     day: BigUint::from(20u32)
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -508,7 +533,8 @@ mod tests {
                     second: BigUint::from(59u32),
                     fraction_coefficient: BigUint::from(100u32),
                     fraction_exponent: -3,
-                }
+                },
+                annotations: None,
             }]
         );
     }
@@ -523,7 +549,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Symbol {
-                value: IonSymbol::Null
+                value: IonSymbol::Null,
+                annotations: None,
             }]
         );
     }
@@ -537,7 +564,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Symbol {
-                value: IonSymbol::SidZero
+                value: IonSymbol::SidZero,
+                annotations: None,
             }]
         );
     }
@@ -550,7 +578,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Symbol {
-                value: IonSymbol::SidZero
+                value: IonSymbol::SidZero,
+                annotations: None,
             }]
         );
     }
@@ -565,7 +594,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::String {
-                value: IonString::Null
+                value: IonString::Null,
+                annotations: None,
             }]
         );
     }
@@ -580,7 +610,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Clob {
-                value: IonClob::Null
+                value: IonClob::Null,
+                annotations: None,
             }]
         );
     }
@@ -593,7 +624,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![127u8] }
+                value: IonClob::Clob { data: vec![127u8] },
+                annotations: None,
             }]
         );
     }
@@ -607,7 +639,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![128u8] }
+                value: IonClob::Clob { data: vec![128u8] },
+                annotations: None,
             }]
         );
     }
@@ -621,7 +654,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![0u8] }
+                value: IonClob::Clob { data: vec![0u8] },
+                annotations: None,
             }]
         );
     }
@@ -636,7 +670,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Blob {
-                value: IonBlob::Null
+                value: IonBlob::Null,
+                annotations: None,
             }]
         );
     }
@@ -651,7 +686,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::List {
-                value: IonList::Null
+                value: IonList::Null,
+                annotations: None,
             }]
         );
     }
@@ -666,7 +702,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Sexp {
-                value: IonSexp::Null
+                value: IonSexp::Null,
+                annotations: None,
             }]
         );
     }
@@ -681,7 +718,8 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue::Struct {
-                value: IonStruct::Null
+                value: IonStruct::Null,
+                annotations: None,
             }]
         );
     }
