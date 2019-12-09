@@ -809,8 +809,7 @@ fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// ```
 fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
     match typed_value.length_code {
-        0..=14 => unimplemented!(),
-        15 => Ok((&[], IonValue::Struct(IonStruct::Null))),
+        3..=14 => unimplemented!(),
         _ => Err(Err::Failure((typed_value.index, ErrorKind::LengthValue))),
     }
 }
