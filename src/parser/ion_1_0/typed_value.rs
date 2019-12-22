@@ -2,8 +2,6 @@ use super::subfield::*;
 use nom::{bytes::complete::take, error::ErrorKind, Err, IResult};
 use num_traits::cast::FromPrimitive;
 
-const TYPE_DESCRIPTOR_BYTES: usize = 1;
-
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
 /// ## Typed Value Formats
