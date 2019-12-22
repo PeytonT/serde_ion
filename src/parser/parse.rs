@@ -82,8 +82,8 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use crate::ion_types::{
-        IonBlob, IonBool, IonClob, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
-        IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
+        IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,
+        IonSexp, IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
     };
     use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
@@ -115,8 +115,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Null {
-                value: IonNull::Null,
+            vec![IonValue {
+                content: IonData::Null(IonNull::Null),
                 annotations: None,
             }]
         );
@@ -129,8 +129,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Null {
-                value: IonNull::Pad,
+            vec![IonValue {
+                content: IonData::Null(IonNull::Pad),
                 annotations: None,
             }]
         );
@@ -144,8 +144,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Null {
-                value: IonNull::Pad,
+            vec![IonValue {
+                content: IonData::Null(IonNull::Pad),
                 annotations: None,
             }]
         );
@@ -158,8 +158,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Null {
-                value: IonNull::Pad,
+            vec![IonValue {
+                content: IonData::Null(IonNull::Pad),
                 annotations: None,
             }]
         );
@@ -174,8 +174,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Bool {
-                value: IonBool::Null,
+            vec![IonValue {
+                content: IonData::Bool(IonBool::Null),
                 annotations: None,
             }]
         );
@@ -190,8 +190,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Int {
-                value: IonInt::Null,
+            vec![IonValue {
+                content: IonData::Int(IonInt::Null),
                 annotations: None,
             }]
         );
@@ -204,8 +204,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Int {
-                value: IonInt::Null,
+            vec![IonValue {
+                content: IonData::Int(IonInt::Null),
                 annotations: None,
             }]
         );
@@ -218,8 +218,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value.len(), 1usize);
         match value[0].clone() {
-            IonValue::Int {
-                value: IonInt::Integer { value: x },
+            IonValue {
+                content: IonData::Int(IonInt::Integer { value: x }),
                 annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
@@ -233,8 +233,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value.len(), 1usize);
         match value[0].clone() {
-            IonValue::Int {
-                value: IonInt::Integer { value: x },
+            IonValue {
+                content: IonData::Int(IonInt::Integer { value: x }),
                 annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
@@ -248,8 +248,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value.len(), 1usize);
         match value[0].clone() {
-            IonValue::Int {
-                value: IonInt::Integer { value: x },
+            IonValue {
+                content: IonData::Int(IonInt::Integer { value: x }),
                 annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
@@ -263,8 +263,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value.len(), 1usize);
         match value[0].clone() {
-            IonValue::Int {
-                value: IonInt::Integer { value: x },
+            IonValue {
+                content: IonData::Int(IonInt::Integer { value: x }),
                 annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
@@ -278,8 +278,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(value.len(), 1usize);
         match value[0].clone() {
-            IonValue::Int {
-                value: IonInt::Integer { value: x },
+            IonValue {
+                content: IonData::Int(IonInt::Integer { value: x }),
                 annotations: None,
             } => {}
             _ => panic!("expected IonInteger"),
@@ -294,10 +294,10 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Int {
-                value: IonInt::Integer {
+            vec![IonValue {
+                content: IonData::Int(IonInt::Integer {
                     value: BigInt::from_str("9223372036854775808").unwrap()
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -310,10 +310,10 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Int {
-                value: IonInt::Integer {
+            vec![IonValue {
+                content: IonData::Int(IonInt::Integer {
                     value: BigInt::from_str("-9223372036854775808").unwrap()
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -328,8 +328,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Float {
-                value: IonFloat::Null,
+            vec![IonValue {
+                content: IonData::Float(IonFloat::Null),
                 annotations: None,
             }]
         );
@@ -344,8 +344,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Null,
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Null),
                 annotations: None,
             }]
         );
@@ -359,11 +359,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Decimal {
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Decimal {
                     coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -377,11 +377,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Decimal {
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::zero(),
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -395,11 +395,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Decimal {
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -412,11 +412,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Decimal {
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Decimal {
                     coefficient: BigInt::from_str_radix("10", 10).unwrap(),
                     exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -429,11 +429,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Decimal {
-                value: IonDecimal::Decimal {
+            vec![IonValue {
+                content: IonData::Decimal(IonDecimal::Decimal {
                     coefficient: BigInt::zero(),
                     exponent: BigInt::zero(),
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -448,8 +448,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Timestamp {
-                value: IonTimestamp::Null,
+            vec![IonValue {
+                content: IonData::Timestamp(IonTimestamp::Null),
                 annotations: None,
             }]
         );
@@ -463,11 +463,11 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Timestamp {
-                value: IonTimestamp::Year {
+            vec![IonValue {
+                content: IonData::Timestamp(IonTimestamp::Year {
                     offset: BigInt::zero(),
                     year: BigUint::from(2011u32)
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -481,12 +481,12 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Timestamp {
-                value: IonTimestamp::Month {
+            vec![IonValue {
+                content: IonData::Timestamp(IonTimestamp::Month {
                     offset: BigInt::zero(),
                     year: BigUint::from(2011u32),
                     month: BigUint::from(2u32)
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -501,13 +501,13 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Timestamp {
-                value: IonTimestamp::Day {
+            vec![IonValue {
+                content: IonData::Timestamp(IonTimestamp::Day {
                     offset: BigInt::zero(),
                     year: BigUint::from(2011u32),
                     month: BigUint::from(2u32),
                     day: BigUint::from(20u32)
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -522,8 +522,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Timestamp {
-                value: IonTimestamp::FractionalSecond {
+            vec![IonValue {
+                content: IonData::Timestamp(IonTimestamp::FractionalSecond {
                     offset: BigInt::from(-480i32),
                     year: BigUint::from(2011u32),
                     month: BigUint::from(2u32),
@@ -533,7 +533,7 @@ mod tests {
                     second: BigUint::from(59u32),
                     fraction_coefficient: BigUint::from(100u32),
                     fraction_exponent: -3,
-                },
+                }),
                 annotations: None,
             }]
         );
@@ -548,8 +548,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Symbol {
-                value: IonSymbol::Null,
+            vec![IonValue {
+                content: IonData::Symbol(IonSymbol::Null),
                 annotations: None,
             }]
         );
@@ -563,8 +563,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Symbol {
-                value: IonSymbol::SidZero,
+            vec![IonValue {
+                content: IonData::Symbol(IonSymbol::SidZero),
                 annotations: None,
             }]
         );
@@ -577,8 +577,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Symbol {
-                value: IonSymbol::SidZero,
+            vec![IonValue {
+                content: IonData::Symbol(IonSymbol::SidZero),
                 annotations: None,
             }]
         );
@@ -593,8 +593,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::String {
-                value: IonString::Null,
+            vec![IonValue {
+                content: IonData::String(IonString::Null),
                 annotations: None,
             }]
         );
@@ -609,8 +609,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Clob {
-                value: IonClob::Null,
+            vec![IonValue {
+                content: IonData::Clob(IonClob::Null),
                 annotations: None,
             }]
         );
@@ -623,8 +623,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![127u8] },
+            vec![IonValue {
+                content: IonData::Clob(IonClob::Clob { data: vec![127u8] }),
                 annotations: None,
             }]
         );
@@ -638,8 +638,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![128u8] },
+            vec![IonValue {
+                content: IonData::Clob(IonClob::Clob { data: vec![128u8] }),
                 annotations: None,
             }]
         );
@@ -653,8 +653,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Clob {
-                value: IonClob::Clob { data: vec![0u8] },
+            vec![IonValue {
+                content: IonData::Clob(IonClob::Clob { data: vec![0u8] }),
                 annotations: None,
             }]
         );
@@ -669,8 +669,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Blob {
-                value: IonBlob::Null,
+            vec![IonValue {
+                content: IonData::Blob(IonBlob::Null),
                 annotations: None,
             }]
         );
@@ -685,8 +685,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::List {
-                value: IonList::Null,
+            vec![IonValue {
+                content: IonData::List(IonList::Null),
                 annotations: None,
             }]
         );
@@ -701,8 +701,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Sexp {
-                value: IonSexp::Null,
+            vec![IonValue {
+                content: IonData::Sexp(IonSexp::Null),
                 annotations: None,
             }]
         );
@@ -717,8 +717,8 @@ mod tests {
         assert_eq!(remaining_bytes, &[] as &[u8]);
         assert_eq!(
             value,
-            vec![IonValue::Struct {
-                value: IonStruct::Null,
+            vec![IonValue {
+                content: IonData::Struct(IonStruct::Null),
                 annotations: None,
             }]
         );

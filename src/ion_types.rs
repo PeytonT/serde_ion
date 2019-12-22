@@ -9,65 +9,28 @@ use base64::encode;
 use num_bigint::BigInt;
 use num_bigint::BigUint;
 
-/**
-No promises of round-trip for optional representation details.
-There are too many and they are too absurd.
-Reference http://amzn.github.io/ion-docs/docs/spec.html
-*/
+/** Reference http://amzn.github.io/ion-docs/docs/spec.html */
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonValue {
-    Null {
-        value: IonNull,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Bool {
-        value: IonBool,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Int {
-        value: IonInt,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Float {
-        value: IonFloat,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Decimal {
-        value: IonDecimal,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Timestamp {
-        value: IonTimestamp,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    String {
-        value: IonString,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Symbol {
-        value: IonSymbol,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Blob {
-        value: IonBlob,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Clob {
-        value: IonClob,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Struct {
-        value: IonStruct,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    List {
-        value: IonList,
-        annotations: Option<Vec<IonSymbol>>,
-    },
-    Sexp {
-        value: IonSexp,
-        annotations: Option<Vec<IonSymbol>>,
-    },
+pub struct IonValue {
+    pub content: IonData,
+    pub annotations: Option<Vec<IonSymbol>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IonData {
+    Null(IonNull),
+    Bool(IonBool),
+    Int(IonInt),
+    Float(IonFloat),
+    Decimal(IonDecimal),
+    Timestamp(IonTimestamp),
+    String(IonString),
+    Symbol(IonSymbol),
+    Blob(IonBlob),
+    Clob(IonClob),
+    Struct(IonStruct),
+    List(IonList),
+    Sexp(IonSexp),
 }
 
 // null - A generic null value
