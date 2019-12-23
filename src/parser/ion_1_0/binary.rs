@@ -993,7 +993,7 @@ fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
                 return Err(Err::Failure((typed_value.index, ErrorKind::Verify)));
             }
             let (_, value) = parse_typed_value(value)?;
-            // Furthermore, it is illegal for an annotation to wrap a NOP Pad since this encoding is not an Ion value.
+            // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
             if let IonValue {
                 content: IonData::Null(IonNull::Pad),
                 ..
