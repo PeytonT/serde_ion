@@ -4,8 +4,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 #![allow(dead_code, unused_variables)]
+pub mod error;
 pub mod ion_types;
 pub mod parser;
+pub mod symbols;
 
 extern crate bit_vec;
 extern crate serde;

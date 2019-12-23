@@ -2,7 +2,7 @@ use super::subfield::*;
 use super::typed_value::*;
 use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
-    IonString, IonStruct, IonSymbol, IonSystemSymbolTable, IonTimestamp, IonValue,
+    IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
 use nom::{
     error::ErrorKind,
@@ -14,23 +14,6 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
-
-const SYSTEM_SYMBOL_TABLE: IonSystemSymbolTable = IonSystemSymbolTable {
-    name: &"$ion",
-    version: 1,
-    symbols: [
-        "$0",
-        "$ion",
-        "$ion_1_0",
-        "$ion_symbol_table",
-        "name",
-        "version",
-        "imports",
-        "symbols",
-        "max_id",
-        "$ion_shared_symbol_table",
-    ],
-};
 
 /// Take a single IonValue from the head of an Ion byte stream
 pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
