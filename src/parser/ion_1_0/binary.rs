@@ -4,6 +4,7 @@ use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
+use crate::symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE};
 use nom::{
     error::ErrorKind,
     multi::many0,
@@ -12,18 +13,23 @@ use nom::{
 };
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
+use num_traits::ToPrimitive;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
 /// Take a single IonValue from the head of an Ion byte stream
 pub fn parse_value(i: &[u8]) -> IResult<&[u8], IonValue> {
     let (rest, typed_value) = take_typed_value(i)?;
-    let (_, value) = parse_typed_value(typed_value)?;
+    let symbol_table = SymbolTable::System(SYSTEM_SYMBOL_TABLE);
+    let (_, value) = parse_typed_value(typed_value, &symbol_table)?;
     Ok((rest, value))
 }
 
 /// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
-pub fn parse_typed_value(value: TypedValue) -> IResult<&[u8], IonValue> {
+pub fn parse_typed_value<'a, 'b>(
+    value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match value.type_code {
         TypeCode::Null => parse_null(value),
         TypeCode::Bool => parse_bool(value),
@@ -32,14 +38,14 @@ pub fn parse_typed_value(value: TypedValue) -> IResult<&[u8], IonValue> {
         TypeCode::Float => parse_float(value),
         TypeCode::Decimal => parse_decimal(value),
         TypeCode::Timestamp => parse_timestamp(value),
-        TypeCode::Symbol => parse_symbol(value),
+        TypeCode::Symbol => parse_symbol(value, symbol_table),
         TypeCode::String => parse_string(value),
         TypeCode::Clob => parse_clob(value),
         TypeCode::Blob => parse_blob(value),
-        TypeCode::List => parse_list(value),
-        TypeCode::Sexp => parse_sexp(value),
-        TypeCode::Struct => parse_struct(value),
-        TypeCode::Annotation => parse_annotation(value),
+        TypeCode::List => parse_list(value, symbol_table),
+        TypeCode::Sexp => parse_sexp(value, symbol_table),
+        TypeCode::Struct => parse_struct(value, symbol_table),
+        TypeCode::Annotation => parse_annotation(value, symbol_table),
         TypeCode::Reserved => error_reserved(value),
     }
 }
@@ -603,7 +609,10 @@ fn parse_timestamp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 ///
 /// See Ion Symbols for more details about symbol representations and symbol tables.
 /// ```
-fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+fn parse_symbol<'a, 'b>(
+    typed_value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         0 => Ok((
             &[],
@@ -614,7 +623,15 @@ fn parse_symbol(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
         )),
         1..=14 => {
             let symbol_id = parse_uint(typed_value.rep);
-            // FIXME
+            // FIXME: This constraint on symbol_id size should probably be made uniform
+            let symbol_id = symbol_id
+                .to_u32()
+                .ok_or(Err::Failure((typed_value.index, ErrorKind::TooLarge)))?;
+            let text = match symbol_table.lookup_sid(symbol_id) {
+                Ok(token) => token,
+                // FIXME: This error handling doesn't make sense
+                Err(err) => return Err(Err::Failure((typed_value.index, ErrorKind::TooLarge))),
+            };
             Ok((
                 &[],
                 IonValue {
@@ -771,7 +788,10 @@ fn parse_blob(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// Because values indicate their total lengths in octets, it is possible to locate the beginning of
 /// each successive value in constant time.
 /// ```
-fn parse_list(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+fn parse_list<'a, 'b>(
+    typed_value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
         15 => Ok((
@@ -832,7 +852,10 @@ impl<'a> Iterator for BinaryListIterator<'a> {
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
 /// ```
-fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+fn parse_sexp<'a, 'b>(
+    typed_value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
         15 => Ok((
@@ -910,7 +933,10 @@ fn parse_sexp(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// //  {$0:name::<NOP>}
 /// 0xD5 0x80 0xE3 0x81 0x84 0x00
 /// ```
-fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+fn parse_struct<'a, 'b>(
+    typed_value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         0..=14 => unimplemented!(),
         15 => Ok((
@@ -965,7 +991,10 @@ fn parse_struct(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
 /// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
 /// Instead, that octet signals the start of a binary version marker.
 /// ```
-fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
+fn parse_annotation<'a, 'b>(
+    typed_value: TypedValue<'a>,
+    symbol_table: &SymbolTable<'b>,
+) -> IResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         3..=14 => {
             let (rest, annot_length) = take_usize_var_uint(typed_value.rep)?;
@@ -975,7 +1004,7 @@ fn parse_annotation(typed_value: TypedValue) -> IResult<&[u8], IonValue> {
             if value.type_code == TypeCode::Annotation {
                 return Err(Err::Failure((typed_value.index, ErrorKind::Verify)));
             }
-            let (_, value) = parse_typed_value(value)?;
+            let (_, value) = parse_typed_value(value, symbol_table)?;
             // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
             if let IonValue {
                 content: IonData::Null(IonNull::Pad),

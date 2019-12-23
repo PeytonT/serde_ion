@@ -118,7 +118,7 @@ pub enum SymbolTable<'a> {
 }
 
 impl<'a> SymbolTable<'a> {
-    fn lookup_text(&self, text: &str) -> Result<SymbolToken, SymbolError> {
+    pub fn lookup_text(&self, text: &str) -> Result<SymbolToken, SymbolError> {
         match self {
             SymbolTable::Local(table) => unimplemented!(),
             SymbolTable::Shared(table) => unimplemented!(),
@@ -126,7 +126,7 @@ impl<'a> SymbolTable<'a> {
         }
     }
 
-    fn lookup_sid(&self, sid: u32) -> Result<SymbolToken, SymbolError> {
+    pub fn lookup_sid(&self, sid: u32) -> Result<SymbolToken, SymbolError> {
         match self {
             SymbolTable::Local(table) => unimplemented!(),
             SymbolTable::Shared(table) => unimplemented!(),
@@ -198,7 +198,7 @@ pub struct SystemSymbolTable<'a> {
     pub symbols: [&'a str; 10],
 }
 
-const SYSTEM_SYMBOL_TABLE: SystemSymbolTable = SystemSymbolTable {
+pub const SYSTEM_SYMBOL_TABLE: SystemSymbolTable = SystemSymbolTable {
     name: "$ion",
     version: 1,
     symbols: [
