@@ -16,6 +16,7 @@ pub struct IonValue {
     pub annotations: Option<Vec<IonSymbol>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonData {
     Null(IonNull),
@@ -132,6 +133,7 @@ impl IonDecimal {
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonTimestamp {
     Null,

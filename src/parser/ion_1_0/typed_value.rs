@@ -1,5 +1,7 @@
 use super::subfield::*;
-use nom::{bytes::complete::take, error::ErrorKind, Err, IResult};
+use crate::error::{IonError, IonIResult};
+use nom::error::ParseError;
+use nom::{bytes::complete::take, error::ErrorKind, Err};
 use num_traits::cast::FromPrimitive;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
@@ -109,7 +111,7 @@ pub enum TypeCode {
     Reserved = 15,
 }
 
-pub fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
+pub fn take_typed_value(input: &[u8]) -> IonIResult<&[u8], TypedValue> {
     let (rest, descriptor_byte) = take(1usize)(input)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
     let length_code: u8 = descriptor_byte[0] & 0b0000_1111;
@@ -198,9 +200,15 @@ pub fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
                     },
                 ))
             }
-            _ => Err(Err::Failure((rest, ErrorKind::LengthValue))),
+            _ => Err(Err::Failure(IonError::from_error_kind(
+                rest,
+                ErrorKind::LengthValue,
+            ))),
         },
-        TypeCode::Reserved => Err(Err::Failure((rest, ErrorKind::LengthValue))),
+        TypeCode::Reserved => Err(Err::Failure(IonError::from_error_kind(
+            rest,
+            ErrorKind::LengthValue,
+        ))),
         // All remaining type codes behave in a standard way
         _ => {
             let (rest, length) = take_representation_length(rest, length_code)?;
@@ -220,7 +228,7 @@ pub fn take_typed_value(input: &[u8]) -> IResult<&[u8], TypedValue> {
     }
 }
 
-fn take_representation_length(input: &[u8], length_code: u8) -> IResult<&[u8], usize> {
+fn take_representation_length(input: &[u8], length_code: u8) -> IonIResult<&[u8], usize> {
     let length: usize = length_code as usize;
     let (rest, length) = match length {
         0..=13 => (input, length),
