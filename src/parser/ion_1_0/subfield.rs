@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::error::{convert_result, IonError, IonIResult};
+use crate::error::{IonError, IonIResult};
 use bit_vec::BitVec;
 use nom::error::ParseError;
 use nom::{
@@ -65,7 +65,7 @@ use num_traits::identities::Zero;
 
 pub fn take_int(length: usize) -> impl Fn(&[u8]) -> IonIResult<&[u8], num_bigint::BigInt> {
     move |i: &[u8]| {
-        let (rest, bytes) = convert_result(take(length)(i))?;
+        let (rest, bytes) = take(length)(i)?;
         Ok((rest, parse_int(bytes)))
     }
 }
@@ -306,7 +306,7 @@ mod tests {
         // dec: 8388607
         let bytes: &[u8] = &decode("7fffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(8388607));
+        assert_eq!(int, BigInt::from(8_388_607));
 
         // 4 bytes
         // 31 bits
@@ -314,7 +314,7 @@ mod tests {
         // dec: 2147483647
         let bytes: &[u8] = &decode("7fffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(2147483647));
+        assert_eq!(int, BigInt::from(2_147_483_647));
 
         // 5 bytes
         // 39 bits
@@ -322,7 +322,7 @@ mod tests {
         // dec: 549755813887
         let bytes: &[u8] = &decode("7fffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(549755813887i64));
+        assert_eq!(int, BigInt::from(549_755_813_887i64));
 
         // 6 bytes
         // 47 bits
@@ -330,7 +330,7 @@ mod tests {
         // dec: 140737488355327
         let bytes: &[u8] = &decode("7fffffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(140737488355327i64));
+        assert_eq!(int, BigInt::from(140_737_488_355_327i64));
 
         // 7 bytes
         // 55 bits
@@ -346,7 +346,7 @@ mod tests {
         // dec: 9223372036854775807
         let bytes: &[u8] = &decode("7fffffffffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(9223372036854775807i64));
+        assert_eq!(int, BigInt::from(9_223_372_036_854_775_807i64));
 
         // 9 bytes
         // 64 bits
@@ -354,7 +354,7 @@ mod tests {
         // dec: 18446744073709551615
         let bytes: &[u8] = &decode("00ffffffffffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(18446744073709551615i128));
+        assert_eq!(int, BigInt::from(18_446_744_073_709_551_615i128));
 
         // 9 bytes
         // 71 bits
@@ -362,7 +362,7 @@ mod tests {
         // dec: 2361183241434822606847
         let bytes: &[u8] = &decode("7fffffffffffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(2361183241434822606847i128));
+        assert_eq!(int, BigInt::from(2_361_183_241_434_822_606_847i128));
 
         // 10 bytes
         // 79 bits used
@@ -370,7 +370,7 @@ mod tests {
         // dec: 604462909807314587353087
         let bytes: &[u8] = &decode("7fffffffffffffffffff").unwrap();
         let int = parse_int(bytes);
-        assert_eq!(int, BigInt::from(604462909807314587353087i128));
+        assert_eq!(int, BigInt::from(604_462_909_807_314_587_353_087i128));
     }
 
     /// Examples from tests/ion-tests/iontestdata/good/subfieldUint.ion

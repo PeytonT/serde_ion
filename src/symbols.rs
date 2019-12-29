@@ -1,5 +1,4 @@
 use crate::error::SymbolError;
-use indexmap::IndexMap;
 
 /// # Structures
 /// Where Int may be any integer and String may be any string.

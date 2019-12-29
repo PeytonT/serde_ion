@@ -1,8 +1,7 @@
-use nom::{error::ParseError, Err, IResult};
+use nom::{error::ParseError, Err};
 use thiserror::Error;
 
 pub type IonIResult<I, T> = Result<(I, T), Err<IonError<I>>>;
-//pub type IonIResult<I, T> = IResult<I, T, IonError<I>>;
 
 #[derive(Debug, PartialEq)]
 pub struct IonError<I> {
@@ -54,17 +53,6 @@ impl<I> ParseError<I> for IonError<I> {
 impl<I> From<(I, nom::error::ErrorKind)> for IonError<I> {
     fn from(err: (I, nom::error::ErrorKind)) -> Self {
         Self::from_error_kind(err.0, err.1)
-    }
-}
-
-pub fn convert_error<I>(err: Err<(I, nom::error::ErrorKind)>) -> Err<IonError<I>> {
-    Err::convert(err)
-}
-
-pub fn convert_result<I, O>(result: IResult<I, O>) -> IonIResult<I, O> {
-    match result {
-        Ok(ok) => Ok(ok),
-        Result::Err(err) => Err(Err::convert(err)),
     }
 }
 

@@ -656,12 +656,12 @@ fn parse_symbol<'a, 'b>(
         1..=14 => {
             let symbol_id = parse_uint(typed_value.rep);
             // FIXME: This constraint on symbol_id size should probably be made uniform
-            let symbol_id = symbol_id
-                .to_u32()
-                .ok_or(Err::Failure(IonError::from_error_kind(
+            let symbol_id = symbol_id.to_u32().ok_or_else(|| {
+                Err::Failure(IonError::from_error_kind(
                     typed_value.index,
                     ErrorKind::LengthValue,
-                )))?;
+                ))
+            })?;
             let text = match symbol_table.lookup_sid(symbol_id) {
                 Ok(token) => token,
                 Err(err) => {
