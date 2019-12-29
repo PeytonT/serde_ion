@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::error::{IonError, IonIResult};
+use crate::error::{IonError, IonResult};
 use bit_vec::BitVec;
 use nom::error::ParseError;
 use nom::{
@@ -63,7 +63,7 @@ use num_traits::identities::Zero;
 /// 123456 and -123456 should only differ in their sign bit.
 /// ```
 
-pub fn take_int(length: usize) -> impl Fn(&[u8]) -> IonIResult<&[u8], num_bigint::BigInt> {
+pub fn take_int(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     move |i: &[u8]| {
         let (rest, bytes) = take(length)(i)?;
         Ok((rest, parse_int(bytes)))
@@ -87,7 +87,7 @@ pub fn parse_int(bytes: &[u8]) -> num_bigint::BigInt {
     }
 }
 
-pub fn take_uint(length: usize) -> impl Fn(&[u8]) -> IonIResult<&[u8], num_bigint::BigUint> {
+pub fn take_uint(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
     move |i: &[u8]| {
         let (input, bytes) = take(length)(i)?;
         Ok((input, BigUint::from_bytes_be(bytes)))
@@ -144,7 +144,7 @@ pub fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
 ///                                 +--sign
 /// ```
 
-pub fn take_var_int(i: &[u8]) -> IonIResult<&[u8], num_bigint::BigInt> {
+pub fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_int(sequence, terminator[0])))
@@ -153,7 +153,7 @@ pub fn take_var_int(i: &[u8]) -> IonIResult<&[u8], num_bigint::BigInt> {
 // There are scenarios (ex. timestamp exponent values) where allowing a VarInt that cannot fit in i32 is unreasonable.
 // This should not pose an issue for non-pathological use cases.
 // TODO: obvious room for performance improvement
-pub fn take_var_int_as_i32(i: &[u8]) -> IonIResult<&[u8], i32> {
+pub fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
     let value = parse_var_int(sequence, terminator[0]);
@@ -218,7 +218,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
     BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
 }
 
-pub fn take_var_uint(i: &[u8]) -> IonIResult<&[u8], num_bigint::BigUint> {
+pub fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_uint(sequence, terminator[0])))
@@ -226,7 +226,7 @@ pub fn take_var_uint(i: &[u8]) -> IonIResult<&[u8], num_bigint::BigUint> {
 
 // There are scenarios (ex.  byte-length tags) where allowing a VarUint that cannot fit in usize is unreasonable.
 // TODO: obvious room for performance improvement
-pub fn take_usize_var_uint(i: &[u8]) -> IonIResult<&[u8], usize> {
+pub fn take_usize_var_uint(i: &[u8]) -> IonResult<&[u8], usize> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
     let value = parse_var_uint(sequence, terminator[0]);

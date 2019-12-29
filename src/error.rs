@@ -1,7 +1,8 @@
 use nom::{error::ParseError, Err};
 use thiserror::Error;
 
-pub type IonIResult<I, T> = Result<(I, T), Err<IonError<I>>>;
+/// Analogous to nom's IResult.
+pub type IonResult<I, T> = Result<(I, T), Err<IonError<I>>>;
 
 #[derive(Debug, PartialEq)]
 pub struct IonError<I> {

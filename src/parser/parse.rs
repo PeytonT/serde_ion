@@ -1,5 +1,5 @@
 use super::ion_1_0;
-use crate::error::{IonError, IonIResult};
+use crate::error::{IonError, IonResult};
 use crate::ion_types::IonValue;
 use nom::error::ParseError;
 use nom::{
@@ -54,7 +54,7 @@ impl BinaryVersionMarker {
     }
 }
 
-pub fn take_ion_version(input: &[u8]) -> IonIResult<&[u8], IonVersion> {
+pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
     let (input, (start, major, minor, end)) =
         tuple((tag(BVM_START), take(1usize), take(1usize), tag(BVM_END)))(input)?;
     Ok((
@@ -66,7 +66,7 @@ pub fn take_ion_version(input: &[u8]) -> IonIResult<&[u8], IonVersion> {
     ))
 }
 
-pub fn parse(input: &[u8]) -> IonIResult<&[u8], Vec<IonValue>> {
+pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
     alt((
         preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse_value)),
         version_placeholder,
@@ -74,7 +74,7 @@ pub fn parse(input: &[u8]) -> IonIResult<&[u8], Vec<IonValue>> {
 }
 
 // Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached.
-fn version_placeholder(input: &[u8]) -> IonIResult<&[u8], Vec<IonValue>> {
+fn version_placeholder(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
     Err(Err::Error(IonError::from_error_kind(
         input,
         ErrorKind::NoneOf,
