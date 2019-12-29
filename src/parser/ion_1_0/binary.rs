@@ -5,7 +5,7 @@ use crate::ion_types::{
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
 use crate::{
-    error::{IonError, IonResult},
+    error::{BinaryFormatError, FormatError, IonError, IonResult},
     symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE},
 };
 use nom::{
@@ -1099,8 +1099,8 @@ fn parse_annotation<'a, 'b>(
 /// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
 
 pub fn error_reserved(typed_value: TypedValue) -> IonResult<&[u8], IonValue> {
-    Err(Err::Failure(IonError::from_error_kind(
+    Err(Err::Failure(IonError::from_format_error(
         typed_value.index,
-        ErrorKind::LengthValue,
+        FormatError::Binary(BinaryFormatError::ReservedTypeCode),
     )))
 }

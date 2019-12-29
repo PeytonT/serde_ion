@@ -15,12 +15,20 @@ pub enum ErrorKind<I> {
     Nom(I, nom::error::ErrorKind),
     // your error types as the rest of the variants
     Symbol(I, SymbolError),
+    Format(I, FormatError),
 }
 
 impl<I> IonError<I> {
     pub(crate) fn from_symbol_error(input: I, error: SymbolError) -> Self {
         Self {
             kind: ErrorKind::Symbol(input, error),
+            backtrace: Vec::new(),
+        }
+    }
+
+    pub(crate) fn from_format_error(input: I, error: FormatError) -> Self {
+        Self {
+            kind: ErrorKind::Format(input, error),
             backtrace: Vec::new(),
         }
     }
@@ -65,4 +73,24 @@ pub enum SymbolError {
     BelowMinId { min_local_id: u32, symbol_id: u32 },
     #[error("the text for SID `{0}` is unknown")]
     UnknownSymbolText(u32),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum FormatError {
+    #[error("format error in binary data")]
+    Binary(BinaryFormatError),
+    #[error("format error in text data")]
+    Text(TextFormatError),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum BinaryFormatError {
+    #[error("the type code 15 is reserved")]
+    ReservedTypeCode,
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum TextFormatError {
+    #[error("TODO")]
+    TODO,
 }
