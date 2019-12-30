@@ -87,6 +87,16 @@ pub enum FormatError {
 pub enum BinaryFormatError {
     #[error("the type code 15 is reserved")]
     ReservedTypeCode,
+    #[error("it is illegal for an annotation to wrap another annotation atomically")]
+    AnnotatedAnnotation,
+    #[error("it is illegal for an annotation to wrap a no-op pad since they are not Ion values")]
+    AnnotatedPadding,
+    #[error("bool value `{0}` is not allowed")]
+    BoolValue(u8),
+    #[error("float size `{0}` is not allowed")]
+    FloatSize(u8),
+    #[error("string encoding must be utf8")]
+    StringEncoding,
 }
 
 #[derive(Error, Debug, PartialEq)]

@@ -1,5 +1,5 @@
 use super::subfield::*;
-use crate::error::{IonError, IonResult};
+use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
 use nom::error::ParseError;
 use nom::{bytes::complete::take, error::ErrorKind, Err};
 use num_traits::cast::FromPrimitive;
@@ -76,7 +76,7 @@ pub struct TypedValue<'a> {
     pub type_code: TypeCode,
     /// The four-bit length L from the type descriptor.
     /// Not to be confused with the length of the representation.
-    pub length_code: u8,
+    pub length_code: LengthCode,
     /// Slice of the Ion stream from the starting index of the value
     pub index: &'a [u8],
     /// The sequence of octets comprising the binary value.
@@ -91,7 +91,7 @@ pub struct TypedValue<'a> {
 ///
 /// While TypeCode itself obviously does not have any mechanism to originate a panic, other code
 /// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
-#[derive(Clone, Debug, PartialEq, FromPrimitive)]
+#[derive(Clone, Debug, PartialEq, FromPrimitive, Copy)]
 pub enum TypeCode {
     Null = 0,
     Bool = 1,
@@ -111,15 +111,41 @@ pub enum TypeCode {
     Reserved = 15,
 }
 
+/// The possible values of the length field of a Typed Value
+///
+/// # Panics
+///
+/// While LengthCode itself obviously does not have any mechanism to originate a panic, other code
+/// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
+#[derive(Clone, Debug, PartialEq, FromPrimitive, Copy)]
+pub enum LengthCode {
+    L0 = 0,
+    L1 = 1,
+    L2 = 2,
+    L3 = 3,
+    L4 = 4,
+    L5 = 5,
+    L6 = 6,
+    L7 = 7,
+    L8 = 8,
+    L9 = 9,
+    L10 = 10,
+    L11 = 11,
+    L12 = 12,
+    L13 = 13,
+    L14 = 14,
+    L15 = 15,
+}
+
 pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
     let (rest, descriptor_byte) = take(1usize)(input)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
-    let length_code: u8 = descriptor_byte[0] & 0b0000_1111;
+    let length_code: LengthCode = LengthCode::from_u8(descriptor_byte[0] & 0b0000_1111).unwrap();
     let length: usize = length_code as usize;
     match type_code {
         TypeCode::Null => match length_code {
             // Special cases: 1-byte NOP pad (L == 0) and null.null (L == 15) both have empty representation
-            0 | 15 => Ok((
+            LengthCode::L0 | LengthCode::L15 => Ok((
                 rest,
                 TypedValue {
                     type_code,
@@ -158,7 +184,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
         )),
         TypeCode::Float => match length_code {
             // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
-            0 | 15 => Ok((
+            LengthCode::L0 | LengthCode::L15 => Ok((
                 rest,
                 TypedValue {
                     type_code,
@@ -168,7 +194,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
                     rep: &[],
                 },
             )),
-            4 => {
+            LengthCode::L4 => {
                 let (end, rep) = take(4usize)(rest)?;
                 // TODO: remove unnecessary checks
                 // we know these 5 bytes exist from the previous line
@@ -184,7 +210,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
                     },
                 ))
             }
-            8 => {
+            LengthCode::L8 => {
                 let (end, rep) = take(8usize)(rest)?;
                 // TODO: remove unnecessary checks
                 // we know these 9 bytes exist from the previous line
@@ -205,9 +231,9 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
                 ErrorKind::LengthValue,
             ))),
         },
-        TypeCode::Reserved => Err(Err::Failure(IonError::from_error_kind(
+        TypeCode::Reserved => Err(Err::Failure(IonError::from_format_error(
             rest,
-            ErrorKind::LengthValue,
+            FormatError::Binary(BinaryFormatError::ReservedTypeCode),
         ))),
         // All remaining type codes behave in a standard way
         _ => {
@@ -228,7 +254,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
     }
 }
 
-fn take_representation_length(input: &[u8], length_code: u8) -> IonResult<&[u8], usize> {
+fn take_representation_length(input: &[u8], length_code: LengthCode) -> IonResult<&[u8], usize> {
     let length: usize = length_code as usize;
     let (rest, length) = match length {
         0..=13 => (input, length),
@@ -256,5 +282,19 @@ mod tests {
     fn type_code_has_no_17th_variant() {
         let sixteen: u8 = 0b0001_0000;
         let type_code: TypeCode = TypeCode::from_u8(sixteen).unwrap();
+    }
+
+    #[test]
+    fn length_code_has_16_variants() {
+        let fifteen: u8 = 0b0000_1111;
+        let length_code: LengthCode = LengthCode::from_u8(fifteen).unwrap();
+        assert_eq!(length_code, LengthCode::L15);
+    }
+
+    #[test]
+    #[should_panic]
+    fn length_code_has_no_17th_variant() {
+        let sixteen: u8 = 0b0001_0000;
+        let length_code: LengthCode = LengthCode::from_u8(sixteen).unwrap();
     }
 }
