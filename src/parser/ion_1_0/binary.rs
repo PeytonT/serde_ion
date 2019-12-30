@@ -31,10 +31,7 @@ fn parse_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b SymbolTable<'b>,
 ) -> IonResult<&'a [u8], IonValue> {
-    let (rest, typed_value) = match take_typed_value(i) {
-        Ok(val) => val,
-        Err(err) => return Err(Err::convert(err)),
-    };
+    let (rest, typed_value) = take_typed_value(i)?;
     let (_, value) = parse_typed_value(typed_value, symbol_table)?;
     Ok((rest, value))
 }
