@@ -1,6 +1,7 @@
 use super::ion_1_0;
 use crate::error::{IonError, IonResult};
 use crate::ion_types::IonValue;
+use crate::symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE};
 use nom::error::ParseError;
 use nom::{
     branch::alt,
@@ -67,8 +68,9 @@ pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
 }
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
+    let symbol_table = SymbolTable::System(SYSTEM_SYMBOL_TABLE);
     alt((
-        preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse_value)),
+        preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse(symbol_table))),
         version_placeholder,
     ))(input)
 }

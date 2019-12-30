@@ -6,7 +6,7 @@ use crate::ion_types::{
 };
 use crate::{
     error::{BinaryFormatError, FormatError, IonError, IonResult},
-    symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE},
+    symbols::SymbolTable,
 };
 use nom::{
     error::{ErrorKind, ParseError},
@@ -20,19 +20,27 @@ use num_traits::ToPrimitive;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
 
+pub fn parse<'a: 'b, 'b>(
+    symbol_table: SymbolTable<'a>,
+) -> impl Fn(&'b [u8]) -> IonResult<&'b [u8], IonValue> {
+    move |i: &'b [u8]| parse_value(i, &symbol_table)
+}
+
 /// Take a single IonValue from the head of an Ion byte stream
-pub fn parse_value(i: &[u8]) -> IonResult<&[u8], IonValue> {
+fn parse_value<'a, 'b>(
+    i: &'a [u8],
+    symbol_table: &'b SymbolTable<'b>,
+) -> IonResult<&'a [u8], IonValue> {
     let (rest, typed_value) = match take_typed_value(i) {
         Ok(val) => val,
         Err(err) => return Err(Err::convert(err)),
     };
-    let symbol_table = SymbolTable::System(SYSTEM_SYMBOL_TABLE);
-    let (_, value) = parse_typed_value(typed_value, &symbol_table)?;
+    let (_, value) = parse_typed_value(typed_value, symbol_table)?;
     Ok((rest, value))
 }
 
 /// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
-pub fn parse_typed_value<'a, 'b>(
+fn parse_typed_value<'a, 'b>(
     value: TypedValue<'a>,
     symbol_table: &SymbolTable<'b>,
 ) -> IonResult<&'a [u8], IonValue> {
@@ -1050,7 +1058,7 @@ fn parse_annotation<'a, 'b>(
 ///
 /// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
 
-pub fn error_reserved(typed_value: TypedValue) -> IonResult<&[u8], IonValue> {
+fn error_reserved(typed_value: TypedValue) -> IonResult<&[u8], IonValue> {
     Err(Err::Failure(IonError::from_format_error(
         typed_value.index,
         FormatError::Binary(BinaryFormatError::ReservedTypeCode),
