@@ -1,7 +1,6 @@
 use super::subfield::*;
 use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
-use nom::error::ParseError;
-use nom::{bytes::complete::take, error::ErrorKind, Err};
+use nom::{bytes::complete::take, Err};
 use num_traits::cast::FromPrimitive;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
@@ -137,136 +136,112 @@ pub enum LengthCode {
     L15 = 15,
 }
 
+/// Exists to support skip-searching over a value stream.
 pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
     let (rest, descriptor_byte) = take(1usize)(input)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
     let length_code: LengthCode = LengthCode::from_u8(descriptor_byte[0] & 0b0000_1111).unwrap();
-    match type_code {
-        TypeCode::Null => match length_code {
-            // Special cases: 1-byte NOP pad (L == 0) and null.null (L == 15) both have empty representation
-            LengthCode::L0 | LengthCode::L15 => Ok((
-                rest,
-                TypedValue {
-                    type_code,
-                    length_code,
-                    index: input,
-                    value: descriptor_byte,
-                    rep: &[], // null.null has only a descriptor octet
-                },
-            )),
-            x => {
-                let (rest, length) = take_representation_length(rest, x)?;
-                let (end, rep) = take(length)(rest)?;
-                // TODO: remove unnecessary checks
-                let (end, value) = take(input.len() - end.len())(input)?;
-                Ok((
-                    end,
-                    TypedValue {
-                        type_code,
-                        length_code,
-                        index: input,
-                        value,
-                        rep,
-                    },
-                ))
-            }
-        },
-        TypeCode::Bool => Ok((
+    match (type_code, length_code) {
+        // 1-byte NOP pad (L == 0) and null.null (L == 15) both have empty representation
+        (TypeCode::Null, LengthCode::L0) | (TypeCode::Null, LengthCode::L15) => Ok((
             rest,
             TypedValue {
                 type_code,
                 length_code,
                 index: input,
                 value: descriptor_byte,
-                rep: &[], // bools have only a descriptor octet
+                rep: &[],
             },
         )),
-        TypeCode::Float => match length_code {
-            // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
-            LengthCode::L0 | LengthCode::L15 => Ok((
-                rest,
+        // bools have only a descriptor octet and store their value in length_code
+        (TypeCode::Bool, LengthCode::L0)
+        | (TypeCode::Bool, LengthCode::L1)
+        | (TypeCode::Bool, LengthCode::L15) => Ok((
+            rest,
+            TypedValue {
+                type_code,
+                length_code,
+                index: input,
+                value: descriptor_byte,
+                rep: &[],
+            },
+        )),
+        // bool length_codes other than 0, 1, and 15 are invalid
+        (TypeCode::Bool, invalid) => Err(Err::Failure(IonError::from_format_error(
+            input,
+            FormatError::Binary(BinaryFormatError::BoolValue(invalid as u8)),
+        ))),
+        // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
+        (TypeCode::Float, LengthCode::L0) | (TypeCode::Float, LengthCode::L15) => Ok((
+            rest,
+            TypedValue {
+                type_code,
+                length_code,
+                index: input,
+                value: descriptor_byte,
+                rep: &[],
+            },
+        )),
+        (TypeCode::Float, LengthCode::L4) => {
+            let (end, rep) = take(4usize)(rest)?;
+            // TODO: remove unnecessary checks
+            // we know these 5 bytes exist from the previous line
+            let (end, value) = take(5usize)(input)?;
+            Ok((
+                end,
                 TypedValue {
                     type_code,
                     length_code,
                     index: input,
-                    value: descriptor_byte,
-                    rep: &[],
+                    value,
+                    rep,
                 },
-            )),
-            LengthCode::L4 => {
-                let (end, rep) = take(4usize)(rest)?;
-                // TODO: remove unnecessary checks
-                // we know these 5 bytes exist from the previous line
-                let (end, value) = take(5usize)(input)?;
-                Ok((
-                    end,
-                    TypedValue {
-                        type_code,
-                        length_code,
-                        index: input,
-                        value,
-                        rep,
-                    },
-                ))
-            }
-            LengthCode::L8 => {
-                let (end, rep) = take(8usize)(rest)?;
-                // TODO: remove unnecessary checks
-                // we know these 9 bytes exist from the previous line
-                let (end, value) = take(9usize)(input)?;
-                Ok((
-                    end,
-                    TypedValue {
-                        type_code,
-                        length_code,
-                        index: input,
-                        value,
-                        rep,
-                    },
-                ))
-            }
-            catch_invalid => Err(Err::Failure(IonError::from_format_error(
-                input,
-                FormatError::Binary(BinaryFormatError::FloatSize(catch_invalid as u8)),
-            ))),
-        },
-        TypeCode::Annotation => match length_code {
-            // Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
-            // Instead, that octet signals the start of a binary version marker.
-            // Consequentially, this particular invalid representation should be passed back
-            // up as an error instead of a failure, so that the parser will parse an alternative.
-            LengthCode::L0 => Err(Err::Error(IonError::from_format_error(
+            ))
+        }
+        (TypeCode::Float, LengthCode::L8) => {
+            let (end, rep) = take(8usize)(rest)?;
+            // TODO: remove unnecessary checks
+            // we know these 9 bytes exist from the previous line
+            let (end, value) = take(9usize)(input)?;
+            Ok((
+                end,
+                TypedValue {
+                    type_code,
+                    length_code,
+                    index: input,
+                    value,
+                    rep,
+                },
+            ))
+        }
+        (TypeCode::Float, invalid) => Err(Err::Failure(IonError::from_format_error(
+            input,
+            FormatError::Binary(BinaryFormatError::FloatSize(invalid as u8)),
+        ))),
+        // Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
+        // Instead, that octet signals the start of a binary version marker.
+        // This particular invalid representation should be passed back up as an error
+        // so that an alternative parse can be attempted.
+        (TypeCode::Annotation, LengthCode::L0) => Err(Err::Error(IonError::from_format_error(
+            input,
+            FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+        ))),
+        // Because at least one annotation and exactly one content field must exist,
+        // L is at least 3 and is never 15.
+        (TypeCode::Annotation, LengthCode::L1)
+        | (TypeCode::Annotation, LengthCode::L2)
+        | (TypeCode::Annotation, LengthCode::L15) => {
+            Err(Err::Failure(IonError::from_format_error(
                 input,
                 FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
-            ))),
-            LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {
-                Err(Err::Failure(IonError::from_format_error(
-                    input,
-                    FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
-                )))
-            }
-            _ => {
-                let (rest, length) = take_representation_length(rest, length_code)?;
-                let (end, rep) = take(length)(rest)?;
-                let (end, value) = take(input.len() - end.len())(input)?;
-                Ok((
-                    end,
-                    TypedValue {
-                        type_code,
-                        length_code,
-                        index: input,
-                        value,
-                        rep,
-                    },
-                ))
-            }
-        },
-        TypeCode::Reserved => Err(Err::Failure(IonError::from_format_error(
-            rest,
+            )))
+        }
+        (TypeCode::Reserved, _) => Err(Err::Failure(IonError::from_format_error(
+            input,
             FormatError::Binary(BinaryFormatError::ReservedTypeCode),
         ))),
-        // All remaining type codes behave in a standard way
-        _ => {
+        // All remaining type_codes behave in a standard way
+        (type_code, length_code) => {
             let (rest, length) = take_representation_length(rest, length_code)?;
             let (end, rep) = take(length)(rest)?;
             let (end, value) = take(input.len() - end.len())(input)?;
