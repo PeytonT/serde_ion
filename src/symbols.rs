@@ -110,13 +110,13 @@ pub enum SymbolToken {
 /// Each imported table is consulted in the order of import.
 /// Local symbols are last.
 #[derive(Clone, Debug, PartialEq)]
-pub enum SymbolTable<'a> {
+pub enum SymbolTable {
     Local(LocalSymbolTable),
     Shared(SharedSymbolTable),
-    System(SystemSymbolTable<'a>),
+    System(SystemSymbolTable),
 }
 
-impl<'a> SymbolTable<'a> {
+impl SymbolTable {
     pub fn lookup_text(&self, text: &str) -> Result<SymbolToken, SymbolError> {
         match self {
             SymbolTable::Local(table) => unimplemented!(),
@@ -190,11 +190,11 @@ pub struct SharedImport {
     version: u32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct SystemSymbolTable<'a> {
-    pub name: &'a str,
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct SystemSymbolTable {
+    pub name: &'static str,
     pub version: u32,
-    pub symbols: [&'a str; 10],
+    pub symbols: [&'static str; 10],
 }
 
 pub const SYSTEM_SYMBOL_TABLE: SystemSymbolTable = SystemSymbolTable {

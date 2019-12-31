@@ -4,6 +4,7 @@ use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
+use crate::symbols::SYSTEM_SYMBOL_TABLE;
 use crate::{
     error::{BinaryFormatError, FormatError, IonError, IonResult},
     symbols::SymbolTable,
@@ -19,17 +20,52 @@ use num_traits::identities::Zero;
 use num_traits::ToPrimitive;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
+pub fn parse(mut table: SymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], IonValue> {
+    move |i: &[u8]| parse_top_level_value(i, &mut table)
+}
 
-pub fn parse<'a: 'b, 'b>(
-    symbol_table: SymbolTable<'a>,
-) -> impl Fn(&'b [u8]) -> IonResult<&'b [u8], IonValue> {
-    move |i: &'b [u8]| parse_value(i, &symbol_table)
+/// Take a single IonValue from the head of an Ion byte stream
+fn parse_top_level_value<'a, 'b>(
+    i: &'a [u8],
+    symbol_table: &'b mut SymbolTable,
+) -> IonResult<&'a [u8], IonValue> {
+    match parse_value(i, symbol_table) {
+        Ok((rest, value)) => {
+            if let IonData::Struct(ion_struct) = &value.content {
+                if let Some(annotations) = &value.annotations {
+                    if annotations.starts_with(&[IonSymbol::Symbol {
+                        text: SYSTEM_SYMBOL_TABLE.symbols[3].parse().unwrap(),
+                    }]) {
+                        match update_table(rest, symbol_table, ion_struct) {
+                            Ok(()) => return parse_top_level_value(rest, symbol_table),
+                            Err(err) => {
+                                return Err(Err::Failure(IonError::from_format_error(
+                                    i,
+                                    FormatError::Binary(BinaryFormatError::LocalTable),
+                                )))
+                            }
+                        }
+                    }
+                }
+            }
+            Ok((rest, value))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn update_table<'a>(
+    index: &'a [u8],
+    current: &mut SymbolTable,
+    encountered: &IonStruct,
+) -> Result<(), IonError<&'a [u8]>> {
+    unimplemented!()
 }
 
 /// Take a single IonValue from the head of an Ion byte stream
 fn parse_value<'a, 'b>(
     i: &'a [u8],
-    symbol_table: &'b SymbolTable<'b>,
+    symbol_table: &'b SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     let (rest, typed_value) = take_typed_value(i)?;
     let (_, value) = parse_typed_value(typed_value, symbol_table)?;
@@ -37,9 +73,9 @@ fn parse_value<'a, 'b>(
 }
 
 /// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
-fn parse_typed_value<'a, 'b>(
+fn parse_typed_value<'a>(
     value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match value.type_code {
         TypeCode::Null => parse_null(value),
@@ -626,9 +662,9 @@ fn parse_timestamp(typed_value: TypedValue) -> IonResult<&[u8], IonValue> {
 ///
 /// See Ion Symbols for more details about symbol representations and symbol tables.
 /// ```
-fn parse_symbol<'a, 'b>(
+fn parse_symbol<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         LengthCode::L15 => Ok((
@@ -813,9 +849,9 @@ fn parse_blob(typed_value: TypedValue) -> IonResult<&[u8], IonValue> {
 /// Because values indicate their total lengths in octets, it is possible to locate the beginning of
 /// each successive value in constant time.
 /// ```
-fn parse_list<'a, 'b>(
+fn parse_list<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         LengthCode::L15 => Ok((
@@ -876,9 +912,9 @@ impl<'a> Iterator for BinaryListIterator<'a> {
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
 /// ```
-fn parse_sexp<'a, 'b>(
+fn parse_sexp<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         LengthCode::L15 => Ok((
@@ -956,9 +992,9 @@ fn parse_sexp<'a, 'b>(
 /// //  {$0:name::<NOP>}
 /// 0xD5 0x80 0xE3 0x81 0x84 0x00
 /// ```
-fn parse_struct<'a, 'b>(
+fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         LengthCode::L15 => Ok((
@@ -1013,9 +1049,9 @@ fn parse_struct<'a, 'b>(
 /// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
 /// Instead, that octet signals the start of a binary version marker.
 /// ```
-fn parse_annotation<'a, 'b>(
+fn parse_annotation<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable<'b>,
+    symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     match typed_value.length_code as u8 {
         3..=14 => {

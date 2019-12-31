@@ -97,6 +97,8 @@ pub enum BinaryFormatError {
     FloatSize(u8),
     #[error("string encoding must be utf8")]
     StringEncoding,
+    #[error("invalid local symbol table")]
+    LocalTable,
 }
 
 #[derive(Error, Debug, PartialEq)]

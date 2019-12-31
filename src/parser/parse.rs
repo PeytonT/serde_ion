@@ -4,11 +4,9 @@ use crate::ion_types::IonValue;
 use crate::symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE};
 use nom::error::ParseError;
 use nom::{
-    branch::alt,
     bytes::complete::{tag, take},
     error::ErrorKind,
-    multi::many0,
-    sequence::{preceded, tuple},
+    sequence::tuple,
     Err,
 };
 
@@ -69,10 +67,50 @@ pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
     let symbol_table = SymbolTable::System(SYSTEM_SYMBOL_TABLE);
-    alt((
-        preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse(symbol_table))),
-        version_placeholder,
-    ))(input)
+    preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse(symbol_table)))(input)
+}
+
+/// Matches an object from the first parser and discards it,
+/// then gets an object from the second parser.
+/// Derived from nom::sequence::preceded to lower the trait bound from Fn to FnMut.
+/// FIXME: This is silly.
+fn preceded<I, O1, O2, F, G>(mut first: F, mut second: G) -> impl FnMut(I) -> IonResult<I, O2>
+where
+    F: FnMut(I) -> IonResult<I, O1>,
+    G: FnMut(I) -> IonResult<I, O2>,
+{
+    move |input: I| {
+        let (input, _) = first(input)?;
+        second(input)
+    }
+}
+
+/// Repeats the embedded parser until it fails and returns the results in a `Vec`.
+/// Derived from nom::multi::many0 to lower the trait bound from Fn to FnMut.
+/// FIXME: This is silly.
+fn many0<I, O, F>(mut f: F) -> impl FnMut(I) -> IonResult<I, Vec<O>>
+where
+    I: Clone + PartialEq,
+    F: FnMut(I) -> IonResult<I, O>,
+{
+    move |i: I| {
+        let mut acc = std::vec::Vec::with_capacity(4);
+        let mut i = i.clone();
+        loop {
+            match f(i.clone()) {
+                Err(Err::Error(_)) => return Ok((i, acc)),
+                Err(e) => return Err(e),
+                Ok((i1, o)) => {
+                    if i1 == i {
+                        return Err(Err::Error(IonError::from_error_kind(i, ErrorKind::Many0)));
+                    }
+
+                    i = i1;
+                    acc.push(o);
+                }
+            }
+        }
+    }
 }
 
 // Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached.
