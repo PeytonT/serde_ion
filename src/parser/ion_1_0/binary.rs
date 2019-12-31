@@ -865,38 +865,6 @@ fn parse_list<'a>(
     }
 }
 
-struct BinaryListIterator<'a> {
-    cursor: u8,
-    list_bytes: &'a [u8],
-}
-
-impl<'a> BinaryListIterator<'a> {
-    fn new(list: &[u8]) -> BinaryListIterator {
-        BinaryListIterator {
-            cursor: 0,
-            list_bytes: list,
-        }
-    }
-}
-
-// Implement `Iterator` for `BinaryListIterator`.
-impl<'a> Iterator for BinaryListIterator<'a> {
-    type Item = IonValue;
-
-    // The return type is `Option<T>`:
-    //     * When the `Iterator` is finished, `None` is returned.
-    //     * Otherwise, the next value is wrapped in `Some` and returned.
-    fn next(&mut self) -> Option<IonValue> {
-        let cursor = self.cursor;
-        let list_bytes = self.list_bytes;
-
-        Some(IonValue {
-            content: IonData::Null(IonNull::Null),
-            annotations: None,
-        })
-    }
-}
-
 /// ### 12: sexp
 ///
 /// ```text
