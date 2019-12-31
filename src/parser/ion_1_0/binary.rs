@@ -1026,8 +1026,14 @@ fn parse_annotation<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
-    match typed_value.length_code as u8 {
-        3..=14 => {
+    match typed_value.length_code {
+        LengthCode::L0 | LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {
+            Err(Err::Failure(IonError::from_format_error(
+                typed_value.index,
+                FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+            )))
+        }
+        _ => {
             let (rest, annot_length) = take_usize_var_uint(typed_value.rep)?;
             let (annot_bytes, value_bytes) = rest.split_at(annot_length);
             let (_, value) = take_typed_value(value_bytes)?;
@@ -1053,10 +1059,6 @@ fn parse_annotation<'a>(
             let annots = many0(take_var_uint)(annot_bytes)?;
             unimplemented!()
         }
-        _ => Err(Err::Failure(IonError::from_error_kind(
-            typed_value.index,
-            ErrorKind::LengthValue,
-        ))),
     }
 }
 

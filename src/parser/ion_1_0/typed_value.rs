@@ -141,7 +141,6 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
     let (rest, descriptor_byte) = take(1usize)(input)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
     let length_code: LengthCode = LengthCode::from_u8(descriptor_byte[0] & 0b0000_1111).unwrap();
-    let length: usize = length_code as usize;
     match type_code {
         TypeCode::Null => match length_code {
             // Special cases: 1-byte NOP pad (L == 0) and null.null (L == 15) both have empty representation
@@ -226,10 +225,41 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
                     },
                 ))
             }
-            _ => Err(Err::Failure(IonError::from_error_kind(
-                rest,
-                ErrorKind::LengthValue,
+            catch_invalid => Err(Err::Failure(IonError::from_format_error(
+                input,
+                FormatError::Binary(BinaryFormatError::FloatSize(catch_invalid as u8)),
             ))),
+        },
+        TypeCode::Annotation => match length_code {
+            // Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
+            // Instead, that octet signals the start of a binary version marker.
+            // Consequentially, this particular invalid representation should be passed back
+            // up as an error instead of a failure, so that the parser will parse an alternative.
+            LengthCode::L0 => Err(Err::Error(IonError::from_format_error(
+                input,
+                FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+            ))),
+            LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {
+                Err(Err::Failure(IonError::from_format_error(
+                    input,
+                    FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+                )))
+            }
+            _ => {
+                let (rest, length) = take_representation_length(rest, length_code)?;
+                let (end, rep) = take(length)(rest)?;
+                let (end, value) = take(input.len() - end.len())(input)?;
+                Ok((
+                    end,
+                    TypedValue {
+                        type_code,
+                        length_code,
+                        index: input,
+                        value,
+                        rep,
+                    },
+                ))
+            }
         },
         TypeCode::Reserved => Err(Err::Failure(IonError::from_format_error(
             rest,

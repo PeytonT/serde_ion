@@ -91,6 +91,8 @@ pub enum BinaryFormatError {
     AnnotatedAnnotation,
     #[error("it is illegal for an annotation to wrap a no-op pad since they are not Ion values")]
     AnnotatedPadding,
+    #[error("annotations must have length_code > 2 and length_code < 15")]
+    AnnotationLengthCode,
     #[error("bool value `{0}` is not allowed")]
     BoolValue(u8),
     #[error("float size `{0}` is not allowed")]
