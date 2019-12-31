@@ -24,7 +24,11 @@ pub fn parse(mut table: SymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], Io
     move |i: &[u8]| parse_top_level_value(i, &mut table)
 }
 
-/// Take a single IonValue from the head of an Ion byte stream
+/// Take a single top level IonValue from the head of an Ion byte stream.
+///
+/// The top level distinction is important, since certain binary representations
+/// encountered at the top level result in updates to the current symbol table instead
+/// of being parsed as a value.
 fn parse_top_level_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b mut SymbolTable,
@@ -54,6 +58,7 @@ fn parse_top_level_value<'a, 'b>(
     }
 }
 
+/// Modify the current symbol table according to the encountered local symbol table.
 fn update_table<'a>(
     index: &'a [u8],
     current: &mut SymbolTable,
@@ -62,7 +67,7 @@ fn update_table<'a>(
     unimplemented!()
 }
 
-/// Take a single IonValue from the head of an Ion byte stream
+/// Take a single IonValue from the head of an Ion byte stream.
 fn parse_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b SymbolTable,
