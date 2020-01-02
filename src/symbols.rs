@@ -119,16 +119,16 @@ pub enum SymbolTable {
 impl SymbolTable {
     pub fn lookup_text(&self, text: &str) -> Result<SymbolToken, SymbolError> {
         match self {
-            SymbolTable::Local(table) => unimplemented!(),
-            SymbolTable::Shared(table) => unimplemented!(),
-            SymbolTable::System(table) => unimplemented!(),
+            SymbolTable::Local(table) => todo!(),
+            SymbolTable::Shared(table) => todo!(),
+            SymbolTable::System(table) => todo!(),
         }
     }
 
     pub fn lookup_sid(&self, sid: u32) -> Result<SymbolToken, SymbolError> {
         match self {
-            SymbolTable::Local(table) => unimplemented!(),
-            SymbolTable::Shared(table) => unimplemented!(),
+            SymbolTable::Local(table) => todo!(),
+            SymbolTable::Shared(table) => todo!(),
             SymbolTable::System(table) => {
                 let text = table
                     .symbols

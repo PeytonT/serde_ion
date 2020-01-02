@@ -45,7 +45,7 @@ impl IonNull {
     pub fn to_text(&self) -> String {
         match self {
             IonNull::Null => String::from("null.null"),
-            IonNull::Pad => unimplemented!(), // TODO(peyton): What error should go here?
+            IonNull::Pad => todo!(), // TODO(peyton): What error should go here?
         }
     }
 }
@@ -79,7 +79,7 @@ impl IonInt {
     pub fn to_text(&self) -> String {
         match self {
             IonInt::Null => String::from("null.int"),
-            IonInt::Integer { value } => unimplemented!(),
+            IonInt::Integer { value } => todo!(),
         }
     }
 }
@@ -102,7 +102,7 @@ impl IonFloat {
     pub fn to_text(&self) -> String {
         match self {
             IonFloat::Null => String::from("null.float"),
-            IonFloat::Float { value } => unimplemented!(),
+            IonFloat::Float { value } => todo!(),
         }
     }
 }
@@ -125,7 +125,7 @@ impl IonDecimal {
             IonDecimal::Decimal {
                 coefficient,
                 exponent,
-            } => unimplemented!(),
+            } => todo!(),
         }
     }
 }
@@ -187,7 +187,7 @@ impl IonTimestamp {
     pub fn to_text(&self) -> String {
         match self {
             IonTimestamp::Null => String::from("null.timestamp"),
-            _ => unimplemented!(),
+            _ => todo!(),
         }
     }
 }
@@ -203,7 +203,7 @@ impl IonString {
     pub fn to_text(&self) -> String {
         match self {
             IonString::Null => String::from("null.string"),
-            IonString::String { value } => unimplemented!(), // needs to re-expand escape sequences
+            IonString::String { value } => todo!(), // needs to re-expand escape sequences
         }
     }
 }
@@ -238,7 +238,7 @@ impl IonSymbol {
         match self {
             IonSymbol::Null => String::from("null.symbol"),
             IonSymbol::SidZero => String::from("$0"),
-            IonSymbol::Symbol { text } => unimplemented!(), // needs to re-expand escape sequences
+            IonSymbol::Symbol { text } => todo!(), // needs to re-expand escape sequences
         }
     }
 }
@@ -293,7 +293,7 @@ impl IonStruct {
     pub fn to_text(&self) -> String {
         match self {
             IonStruct::Null => String::from("null.struct"),
-            IonStruct::Structure(entries) => unimplemented!(),
+            IonStruct::Structure(entries) => todo!(),
         }
     }
 }
@@ -309,7 +309,7 @@ impl IonList {
     pub fn to_text(&self) -> String {
         match self {
             IonList::Null => String::from("null.list"),
-            IonList::List(val) => unimplemented!(),
+            IonList::List(val) => todo!(),
         }
     }
 }

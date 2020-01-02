@@ -25,7 +25,7 @@ pub enum OperatorCharacter {
 impl OperatorCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &OperatorCharacter::PlaceHolder => unimplemented!(),
+            &OperatorCharacter::PlaceHolder => todo!(),
             // ...
         }
     }
@@ -62,27 +62,27 @@ pub enum NumericStopCharacter {
     // \r
     VerticalTab,
     // \v
-    FormFeed,           // \f
+    FormFeed, // \f
 }
 
 impl NumericStopCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &NumericStopCharacter::LeftCurlyBracket => unimplemented!(),
-            &NumericStopCharacter::RightCurlyBracket => unimplemented!(),
-            &NumericStopCharacter::LeftSquareBracket => unimplemented!(),
-            &NumericStopCharacter::RightSquareBracket => unimplemented!(),
-            &NumericStopCharacter::LeftParenthesis => unimplemented!(),
-            &NumericStopCharacter::RightParenthesis => unimplemented!(),
-            &NumericStopCharacter::Comma => unimplemented!(),
-            &NumericStopCharacter::QuotationMark => unimplemented!(),
-            &NumericStopCharacter::Apostrophe => unimplemented!(),
-            &NumericStopCharacter::Space => unimplemented!(),
-            &NumericStopCharacter::Tab => unimplemented!(),
-            &NumericStopCharacter::LineFeed => unimplemented!(),
-            &NumericStopCharacter::CarriageReturn => unimplemented!(),
-            &NumericStopCharacter::VerticalTab => unimplemented!(),
-            &NumericStopCharacter::FormFeed => unimplemented!(),
+            &NumericStopCharacter::LeftCurlyBracket => todo!(),
+            &NumericStopCharacter::RightCurlyBracket => todo!(),
+            &NumericStopCharacter::LeftSquareBracket => todo!(),
+            &NumericStopCharacter::RightSquareBracket => todo!(),
+            &NumericStopCharacter::LeftParenthesis => todo!(),
+            &NumericStopCharacter::RightParenthesis => todo!(),
+            &NumericStopCharacter::Comma => todo!(),
+            &NumericStopCharacter::QuotationMark => todo!(),
+            &NumericStopCharacter::Apostrophe => todo!(),
+            &NumericStopCharacter::Space => todo!(),
+            &NumericStopCharacter::Tab => todo!(),
+            &NumericStopCharacter::LineFeed => todo!(),
+            &NumericStopCharacter::CarriageReturn => todo!(),
+            &NumericStopCharacter::VerticalTab => todo!(),
+            &NumericStopCharacter::FormFeed => todo!(),
         }
     }
 }
@@ -113,7 +113,7 @@ pub enum TextFormatEscapeCharacter {
 impl TextFormatEscapeCharacter {
     pub fn as_str(&self) -> String {
         match self {
-            &TextFormatEscapeCharacter::PlaceHolder => unimplemented!(),
+            &TextFormatEscapeCharacter::PlaceHolder => todo!(),
             // ...
         }
     }

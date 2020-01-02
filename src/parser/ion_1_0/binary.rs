@@ -64,7 +64,7 @@ fn update_table<'a>(
     current: &mut SymbolTable,
     encountered: &IonStruct,
 ) -> Result<(), IonError<&'a [u8]>> {
-    unimplemented!()
+    todo!()
 }
 
 /// Take a single IonValue from the head of an Ion byte stream.
@@ -866,7 +866,7 @@ fn parse_list<'a>(
                 annotations: None,
             },
         )),
-        _ => unimplemented!(),
+        _ => todo!(),
     }
 }
 
@@ -897,7 +897,7 @@ fn parse_sexp<'a>(
                 annotations: None,
             },
         )),
-        _ => unimplemented!(),
+        _ => todo!(),
     }
 }
 
@@ -977,7 +977,7 @@ fn parse_struct<'a>(
                 annotations: None,
             },
         )),
-        _ => unimplemented!(),
+        _ => todo!(),
     }
 }
 
@@ -1057,7 +1057,7 @@ fn parse_annotation<'a>(
                 )));
             };
             let annots = many0(take_var_uint)(annot_bytes)?;
-            unimplemented!()
+            todo!()
         }
     }
 }
