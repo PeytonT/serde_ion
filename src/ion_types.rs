@@ -302,7 +302,7 @@ impl IonStruct {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonList {
     Null,
-    List(Vec<(IonValue)>),
+    List(Vec<IonValue>),
 }
 
 impl IonList {
@@ -325,7 +325,7 @@ impl IonList {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonSexp {
     Null,
-    SymbolicExpression(Vec<(SymbolicExpressionSymbol)>),
+    SymbolicExpression(Vec<SymbolicExpressionSymbol>),
 }
 
 impl IonSexp {
