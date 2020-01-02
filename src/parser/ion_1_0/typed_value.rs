@@ -171,6 +171,10 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             input,
             FormatError::Binary(BinaryFormatError::BoolValue(invalid as u8)),
         ))),
+        (TypeCode::NegInt, LengthCode::L0) => Err(Err::Failure(IonError::from_format_error(
+            input,
+            FormatError::Binary(BinaryFormatError::NegativeZero),
+        ))),
         // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
         (TypeCode::Float, LengthCode::L0) | (TypeCode::Float, LengthCode::L15) => Ok((
             rest,

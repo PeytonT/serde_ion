@@ -93,6 +93,8 @@ pub enum BinaryFormatError {
     AnnotatedPadding,
     #[error("annotations must have length_code > 2 and length_code < 15")]
     AnnotationLengthCode,
+    #[error("int 0 is always stored with type code 2, type code 3 with length 0 is invalid")]
+    NegativeZero,
     #[error("bool value `{0}` is not allowed")]
     BoolValue(u8),
     #[error("float size `{0}` is not allowed")]
