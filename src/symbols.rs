@@ -130,14 +130,14 @@ impl SymbolTable {
             SymbolTable::Local(table) => todo!(),
             SymbolTable::Shared(table) => todo!(),
             SymbolTable::System(table) => {
-                let text = table
+                let text = (*table
                     .symbols
                     .get(sid as usize)
                     .ok_or(SymbolError::AboveMaxId {
                         symbol_id: sid,
                         max_id: 9,
-                    })?
-                    .to_string();
+                    })?)
+                .to_string();
                 Ok(SymbolToken::Known { text })
             }
         }
