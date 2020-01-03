@@ -68,11 +68,16 @@ impl<I> From<(I, nom::error::ErrorKind)> for IonError<I> {
 #[derive(Error, Debug, PartialEq)]
 pub enum SymbolError {
     #[error("invalid symbol_id {symbol_id:?} is greater than local max_id {max_id:?})")]
-    AboveMaxId { max_id: u32, symbol_id: u32 },
+    AboveMaxId { max_id: usize, symbol_id: usize },
     #[error("invalid symbol_id {symbol_id:?} is less than local min_local_id {min_local_id:?})")]
-    BelowMinId { min_local_id: u32, symbol_id: u32 },
+    BelowMinId {
+        min_local_id: usize,
+        symbol_id: usize,
+    },
     #[error("the text for SID `{0}` is unknown")]
-    UnknownSymbolText(u32),
+    UnknownSymbolText(usize),
+    #[error("the text for SID `{0}` is undefined")]
+    UndefinedSymbolText(usize),
 }
 
 #[derive(Error, Debug, PartialEq)]

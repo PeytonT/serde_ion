@@ -1,17 +1,18 @@
 use super::subfield::*;
 use super::typed_value::*;
+use crate::error::SymbolError;
 use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
-use crate::symbols::SYSTEM_SYMBOL_TABLE;
+use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
 use crate::{
     error::{BinaryFormatError, FormatError, IonError, IonResult},
     symbols::SymbolTable,
 };
 use nom::{
     error::{ErrorKind, ParseError},
-    multi::many0,
+    multi::many1,
     number::complete::{double, float},
     Err,
 };
@@ -39,16 +40,18 @@ fn parse_top_level_value<'a, 'b>(
         Ok((rest, value)) => {
             if let IonData::Struct(ion_struct) = &value.content {
                 if let Some(annotations) = &value.annotations {
-                    if annotations.starts_with(&[IonSymbol::Symbol {
-                        text: SYSTEM_SYMBOL_TABLE.symbols[3].parse().unwrap(),
-                    }]) {
-                        return match update_table(rest, symbol_table, ion_struct) {
-                            Ok(()) => parse_top_level_value(rest, symbol_table),
-                            Err(err) => Err(Err::Failure(IonError::from_format_error(
-                                i,
-                                FormatError::Binary(BinaryFormatError::LocalTable),
-                            ))),
-                        };
+                    if let Some(symbol) = annotations.first() {
+                        if let IonSymbol::Symbol { token } = symbol {
+                            if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
+                                return match update_table(rest, symbol_table, ion_struct) {
+                                    Ok(()) => parse_top_level_value(rest, symbol_table),
+                                    Err(err) => Err(Err::Failure(IonError::from_format_error(
+                                        i,
+                                        FormatError::Binary(BinaryFormatError::LocalTable),
+                                    ))),
+                                };
+                            }
+                        }
                     }
                 }
             }
@@ -536,17 +539,19 @@ fn parse_symbol<'a>(
 ) -> ParseResult<&'a [u8], IonSymbol> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonSymbol::Null),
-        LengthCode::L0 => Ok(IonSymbol::SidZero),
+        LengthCode::L0 => Ok(IonSymbol::Symbol {
+            token: SymbolToken::Zero,
+        }),
         _ => {
             let symbol_id = parse_uint(typed_value.rep);
             // FIXME: This constraint on symbol_id size should probably be made uniform
-            let symbol_id = symbol_id.to_u32().ok_or_else(|| {
+            let symbol_id = symbol_id.to_usize().ok_or_else(|| {
                 Err::Failure(IonError::from_error_kind(
                     typed_value.index,
                     ErrorKind::LengthValue,
                 ))
             })?;
-            let text = match symbol_table.lookup_sid(symbol_id) {
+            let token = match symbol_table.lookup_sid(symbol_id) {
                 Ok(token) => token,
                 Err(err) => {
                     return Err(Err::Failure(IonError::from_symbol_error(
@@ -555,7 +560,7 @@ fn parse_symbol<'a>(
                     )))
                 }
             };
-            Ok(IonSymbol::Null)
+            Ok(IonSymbol::Symbol { token })
         }
     }
 }
@@ -825,7 +830,7 @@ fn parse_annotation<'a>(
             )))
         }
         _ => {
-            let (rest, annot_length) = take_usize_var_uint(typed_value.rep)?;
+            let (rest, annot_length) = take_var_uint_as_usize(typed_value.rep)?;
             let (annot_bytes, value_bytes) = rest.split_at(annot_length);
             let (_, value) = take_typed_value(value_bytes)?;
             // It is illegal for an annotation to wrap another annotation atomically.
@@ -835,7 +840,7 @@ fn parse_annotation<'a>(
                     FormatError::Binary(BinaryFormatError::AnnotatedAnnotation),
                 )));
             }
-            let value = parse_typed_value(value, symbol_table)?;
+            let mut value = parse_typed_value(value, symbol_table)?;
             // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
             if let IonValue {
                 content: IonData::Null(IonNull::Pad),
@@ -847,8 +852,25 @@ fn parse_annotation<'a>(
                     FormatError::Binary(BinaryFormatError::AnnotatedPadding),
                 )));
             };
-            let annots = many0(take_var_uint)(annot_bytes)?;
-            todo!()
+            let (rest, annots) = many1(take_var_uint_as_usize)(annot_bytes)?;
+            debug_assert!(rest.is_empty(), "remaining unparsed bytes!");
+            let annots: Result<Vec<IonSymbol>, SymbolError> = annots
+                .into_iter()
+                .map(|x| match symbol_table.lookup_sid(x) {
+                    Ok(token) => Ok(IonSymbol::Symbol { token }),
+                    Result::Err(error) => Err(error),
+                })
+                .collect();
+            match annots {
+                Ok(annots) => {
+                    value.annotations = Some(annots);
+                    Ok(value)
+                }
+                Result::Err(error) => Err(Err::Failure(IonError::from_symbol_error(
+                    typed_value.index,
+                    error,
+                ))),
+            }
         }
     }
 }

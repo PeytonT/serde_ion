@@ -23,17 +23,17 @@ pub struct ImportLocation {
 /// ## SymbolToken
 /// <text:String, importLocation:ImportLocation>
 ///
-/// ## SymbolToken equivalence
+/// ### SymbolToken equivalence
 ///
 /// In order to fully support the equivalence semantics defined by the specification,
 /// SymbolToken equivalence must be implemented as follows.
 ///
 /// When text is
 ///
-/// ### Defined
+/// #### Defined
 /// SymbolTokens with the same text are equivalent; importLocation is ignored.
 ///
-/// ### Undefined
+/// #### Undefined
 /// if importLocation is
 ///
 /// *   Defined: SymbolTokens are equivalent if and only if their importLocations’ importName and importSID are equivalent.
@@ -69,9 +69,9 @@ pub struct ImportLocation {
 ///
 ///         *** Less than the current local symbol table’s min_local_id (as defined by the specification), for
 ///
-///             **** Raw text APIs, the implementation should raise an error1.
+///             **** Raw text APIs, the implementation should raise an error.
 ///
-///             **** SymbolToken APIs, return a SymbolToken with undefined text and with importLocation set2.
+///             **** SymbolToken APIs, return a SymbolToken with undefined text and with importLocation set.
 ///
 ///         *** At least min_local_id, then this symbol ID maps to a null (or non-string) slot in the local symbol table, and is treated as symbol zero. For
 ///
@@ -83,9 +83,12 @@ pub struct ImportLocation {
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum SymbolToken {
+    // All SymbolTokens with identical known text are equivalent, import_location is ignored
     Known { text: String },
+    // The SymbolToken's text is undefined if the import_location cannot not be resolved
     Unknown { import_location: ImportDescriptor },
-    Undefined,
+    // Special symbol zero denotes unknown text in any symbol table
+    Zero,
 }
 
 /// ## SymbolTable
@@ -113,7 +116,7 @@ pub enum SymbolToken {
 pub enum SymbolTable {
     Local(LocalSymbolTable),
     Shared(SharedSymbolTable),
-    System(SystemSymbolTable),
+    SystemV1,
 }
 
 impl SymbolTable {
@@ -121,25 +124,24 @@ impl SymbolTable {
         match self {
             SymbolTable::Local(table) => todo!(),
             SymbolTable::Shared(table) => todo!(),
-            SymbolTable::System(table) => todo!(),
+            SymbolTable::SystemV1 => todo!(),
         }
     }
 
-    pub fn lookup_sid(&self, sid: u32) -> Result<SymbolToken, SymbolError> {
+    pub fn lookup_sid(&self, sid: usize) -> Result<SymbolToken, SymbolError> {
+        if sid == 0 {
+            return Ok(SymbolToken::Zero);
+        }
         match self {
             SymbolTable::Local(table) => todo!(),
             SymbolTable::Shared(table) => todo!(),
-            SymbolTable::System(table) => {
-                let text = (*table
-                    .symbols
-                    .get(sid as usize)
-                    .ok_or(SymbolError::AboveMaxId {
-                        symbol_id: sid,
-                        max_id: 9,
-                    })?)
-                .to_string();
-                Ok(SymbolToken::Known { text })
-            }
+            SymbolTable::SystemV1 => match SYSTEM_SYMBOL_TABLE_V1.symbols.get(sid) {
+                Some(token) => Ok(token.clone()),
+                None => Err(SymbolError::AboveMaxId {
+                    symbol_id: sid,
+                    max_id: 9,
+                }),
+            },
         }
     }
 }
@@ -190,26 +192,49 @@ pub struct SharedImport {
     version: u32,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SystemSymbolTable {
     pub name: &'static str,
     pub version: u32,
-    pub symbols: [&'static str; 10],
+    // Hopefully there will be const generics by the time the $ion symbol table has more than 1 version
+    pub symbols: [SymbolToken; 10],
 }
 
-pub const SYSTEM_SYMBOL_TABLE: SystemSymbolTable = SystemSymbolTable {
-    name: "$ion",
-    version: 1,
-    symbols: [
-        "$0",
-        "$ion",
-        "$ion_1_0",
-        "$ion_symbol_table",
-        "name",
-        "version",
-        "imports",
-        "symbols",
-        "max_id",
-        "$ion_shared_symbol_table",
-    ],
-};
+lazy_static! {
+    pub static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {
+        SystemSymbolTable {
+            name: "$ion",
+            version: 1,
+            symbols: [
+                SymbolToken::Zero,
+                SymbolToken::Known {
+                    text: "$ion".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "$ion_1_0".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "$ion_symbol_table".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "name".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "version".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "imports".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "symbols".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "max_id".to_string(),
+                },
+                SymbolToken::Known {
+                    text: "$ion_shared_symbol_table".to_string(),
+                },
+            ],
+        }
+    };
+}

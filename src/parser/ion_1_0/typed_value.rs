@@ -267,7 +267,7 @@ fn take_representation_length(input: &[u8], length_code: LengthCode) -> IonResul
     let length: usize = length_code as usize;
     let (rest, length) = match length {
         0..=13 => (input, length),
-        14 => take_usize_var_uint(input)?,
+        14 => take_var_uint_as_usize(input)?,
         _ => (input, 0),
     };
     Ok((rest, length))

@@ -1,7 +1,7 @@
 use super::ion_1_0;
 use crate::error::{IonError, IonResult};
 use crate::ion_types::IonValue;
-use crate::symbols::{SymbolTable, SYSTEM_SYMBOL_TABLE};
+use crate::symbols::SymbolTable;
 use nom::error::ParseError;
 use nom::{
     bytes::complete::{tag, take},
@@ -66,7 +66,7 @@ pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
 }
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
-    let symbol_table = SymbolTable::System(SYSTEM_SYMBOL_TABLE);
+    let symbol_table = SymbolTable::SystemV1;
     preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse(symbol_table)))(input)
 }
 
@@ -130,6 +130,7 @@ mod tests {
         IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,
         IonSexp, IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
     };
+    use crate::symbols::SymbolToken;
     use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
     use num_traits::Num;
@@ -600,7 +601,6 @@ mod tests {
         );
     }
 
-    #[ignore] // FIXME: re-enable on completion of symbol implementation
     #[test]
     fn test_parse_symbolExplicitZero() {
         let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
@@ -609,7 +609,9 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue {
-                content: IonData::Symbol(IonSymbol::SidZero),
+                content: IonData::Symbol(IonSymbol::Symbol {
+                    token: SymbolToken::Zero
+                }),
                 annotations: None,
             }]
         );
@@ -623,7 +625,9 @@ mod tests {
         assert_eq!(
             value,
             vec![IonValue {
-                content: IonData::Symbol(IonSymbol::SidZero),
+                content: IonData::Symbol(IonSymbol::Symbol {
+                    token: SymbolToken::Zero
+                }),
                 annotations: None,
             }]
         );

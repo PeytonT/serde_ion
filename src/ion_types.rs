@@ -5,6 +5,7 @@ extern crate serde_bytes;
 use std::str;
 use std::string::String;
 
+use crate::symbols::SymbolToken;
 use base64::encode;
 use num_bigint::BigInt;
 use num_bigint::BigUint;
@@ -227,18 +228,18 @@ impl IonString {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonSymbol {
     Null,
-    // SID zero (i.e. $0) is a special symbol that is not assigned text by any symbol table.
-    // $0 is only semantically equivalent to itself and to locally-declared SIDs with unknown text.
-    SidZero,
-    Symbol { text: String },
+    Symbol { token: SymbolToken },
 }
 
 impl IonSymbol {
     pub fn to_text(&self) -> String {
         match self {
             IonSymbol::Null => String::from("null.symbol"),
-            IonSymbol::SidZero => String::from("$0"),
-            IonSymbol::Symbol { text } => todo!(), // needs to re-expand escape sequences
+            IonSymbol::Symbol { token } => match token {
+                SymbolToken::Known { text } => text.to_string(),
+                SymbolToken::Unknown { .. } => todo!(), // should error, but how?
+                SymbolToken::Zero => "$0".to_string(),
+            },
         }
     }
 }
