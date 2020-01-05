@@ -153,623 +153,684 @@ mod tests {
     }
 
     // Parse null tests
+    mod null {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_value_null() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Null(IonNull::Null),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_value_null() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Null(IonNull::Null),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_value_nopPadOneByte() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Null(IonNull::Pad),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_value_nopPadOneByte() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Null(IonNull::Pad),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_value_emptyThreeByteNopPad() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Null(IonNull::Pad),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_value_emptyThreeByteNopPad() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Null(IonNull::Pad),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_value_nopPad16Bytes() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Null(IonNull::Pad),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_value_nopPad16Bytes() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Null(IonNull::Pad),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse bool tests
+    mod bool {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_value_nullBool() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Bool(IonBool::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_value_nullBool() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Bool(IonBool::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse int tests
+    mod int {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_value_nullInt2() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Int(IonInt::Null),
-                annotations: None,
-            }]
-        );
-    }
-
-    #[test]
-    fn test_parse_value_nullInt3() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Int(IonInt::Null),
-                annotations: None,
-            }]
-        );
-    }
-
-    #[test]
-    fn test_parse_intBigSize13() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize13.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(value.len(), 1usize);
-        match value[0].clone() {
-            IonValue {
-                content: IonData::Int(IonInt::Integer { value: x }),
-                annotations: None,
-            } => {}
-            _ => panic!("expected IonInteger"),
+        #[test]
+        fn test_parse_value_nullInt2() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Int(IonInt::Null),
+                    annotations: None,
+                }]
+            );
         }
-    }
 
-    #[test]
-    fn test_parse_intBigSize14() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize14.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(value.len(), 1usize);
-        match value[0].clone() {
-            IonValue {
-                content: IonData::Int(IonInt::Integer { value: x }),
-                annotations: None,
-            } => {}
-            _ => panic!("expected IonInteger"),
+        #[test]
+        fn test_parse_value_nullInt3() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Int(IonInt::Null),
+                    annotations: None,
+                }]
+            );
         }
-    }
 
-    #[test]
-    fn test_parse_intBigSize16() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize16.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(value.len(), 1usize);
-        match value[0].clone() {
-            IonValue {
-                content: IonData::Int(IonInt::Integer { value: x }),
-                annotations: None,
-            } => {}
-            _ => panic!("expected IonInteger"),
+        #[test]
+        fn test_parse_intBigSize13() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize13.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(value.len(), 1usize);
+            match value[0].clone() {
+                IonValue {
+                    content: IonData::Int(IonInt::Integer { value: x }),
+                    annotations: None,
+                } => {}
+                _ => panic!("expected IonInteger"),
+            }
         }
-    }
 
-    #[test]
-    fn test_parse_intBigSize256() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize256.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(value.len(), 1usize);
-        match value[0].clone() {
-            IonValue {
-                content: IonData::Int(IonInt::Integer { value: x }),
-                annotations: None,
-            } => {}
-            _ => panic!("expected IonInteger"),
+        #[test]
+        fn test_parse_intBigSize14() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize14.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(value.len(), 1usize);
+            match value[0].clone() {
+                IonValue {
+                    content: IonData::Int(IonInt::Integer { value: x }),
+                    annotations: None,
+                } => {}
+                _ => panic!("expected IonInteger"),
+            }
         }
-    }
 
-    #[test]
-    fn test_parse_intBigSize1201() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize1201.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(value.len(), 1usize);
-        match value[0].clone() {
-            IonValue {
-                content: IonData::Int(IonInt::Integer { value: x }),
-                annotations: None,
-            } => {}
-            _ => panic!("expected IonInteger"),
+        #[test]
+        fn test_parse_intBigSize16() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize16.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(value.len(), 1usize);
+            match value[0].clone() {
+                IonValue {
+                    content: IonData::Int(IonInt::Integer { value: x }),
+                    annotations: None,
+                } => {}
+                _ => panic!("expected IonInteger"),
+            }
         }
-    }
 
-    #[test]
-    fn test_parse_intLongMaxValuePlusOne() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMaxValuePlusOne.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Int(IonInt::Integer {
-                    value: BigInt::from_str("9223372036854775808").unwrap()
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_intBigSize256() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize256.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(value.len(), 1usize);
+            match value[0].clone() {
+                IonValue {
+                    content: IonData::Int(IonInt::Integer { value: x }),
+                    annotations: None,
+                } => {}
+                _ => panic!("expected IonInteger"),
+            }
+        }
 
-    #[test]
-    fn test_parse_intLongMinValue() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMinValue.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Int(IonInt::Integer {
-                    value: BigInt::from_str("-9223372036854775808").unwrap()
-                }),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_intBigSize1201() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize1201.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(value.len(), 1usize);
+            match value[0].clone() {
+                IonValue {
+                    content: IonData::Int(IonInt::Integer { value: x }),
+                    annotations: None,
+                } => {}
+                _ => panic!("expected IonInteger"),
+            }
+        }
+
+        #[test]
+        fn test_parse_intLongMaxValuePlusOne() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMaxValuePlusOne.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Int(IonInt::Integer {
+                        value: BigInt::from_str("9223372036854775808").unwrap()
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_intLongMinValue() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMinValue.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Int(IonInt::Integer {
+                        value: BigInt::from_str("-9223372036854775808").unwrap()
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse float tests
+    mod float {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullFloat() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullFloat.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Float(IonFloat::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullFloat() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullFloat.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Float(IonFloat::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse decimal tests
+    mod decimal {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullDecimal() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullDecimal.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Null),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_nullDecimal() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullDecimal.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Null),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_decimalNegativeOneDotZero() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeOneDotZero.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Decimal {
-                    coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
-                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_decimalNegativeOneDotZero() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/decimalNegativeOneDotZero.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Decimal {
+                        coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
+                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_decimalNegativeZeroDot() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDot.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Decimal {
-                    coefficient: BigInt::zero(),
-                    exponent: BigInt::zero(),
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_decimalNegativeZeroDot() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDot.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Decimal {
+                        coefficient: BigInt::zero(),
+                        exponent: BigInt::zero(),
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_decimalNegativeZeroDotZero() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDotZero.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Decimal {
-                    coefficient: BigInt::zero(),
-                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_decimalNegativeZeroDotZero() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDotZero.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Decimal {
+                        coefficient: BigInt::zero(),
+                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_decimalOneDotZero() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalOneDotZero.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Decimal {
-                    coefficient: BigInt::from_str_radix("10", 10).unwrap(),
-                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_decimalOneDotZero() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/decimalOneDotZero.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Decimal {
+                        coefficient: BigInt::from_str_radix("10", 10).unwrap(),
+                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_decimalZeroDot() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalZeroDot.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Decimal(IonDecimal::Decimal {
-                    coefficient: BigInt::zero(),
-                    exponent: BigInt::zero(),
-                }),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_decimalZeroDot() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalZeroDot.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Decimal(IonDecimal::Decimal {
+                        coefficient: BigInt::zero(),
+                        exponent: BigInt::zero(),
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse timestamp tests
+    mod timestamp {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullTimestamp() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Timestamp(IonTimestamp::Null),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_nullTimestamp() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Timestamp(IonTimestamp::Null),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_timestamp2011() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Timestamp(IonTimestamp::Year {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32)
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_timestamp2011() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Timestamp(IonTimestamp::Year {
+                        offset: BigInt::zero(),
+                        year: BigUint::from(2011u32)
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_timestamp2011_02() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Timestamp(IonTimestamp::Month {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32)
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_timestamp2011_02() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Timestamp(IonTimestamp::Month {
+                        offset: BigInt::zero(),
+                        year: BigUint::from(2011u32),
+                        month: BigUint::from(2u32)
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_timestamp2011_02_20() {
-        let bytes = include_bytes!(
-            "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20.10n"
-        );
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Timestamp(IonTimestamp::Day {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32),
-                    day: BigUint::from(20u32)
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_timestamp2011_02_20() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Timestamp(IonTimestamp::Day {
+                        offset: BigInt::zero(),
+                        year: BigUint::from(2011u32),
+                        month: BigUint::from(2u32),
+                        day: BigUint::from(20u32)
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_timestamp2011_02_20T19_30_59_100_8_00() {
-        let bytes = include_bytes!(
-            "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20T19_30_59_100-08_00.10n"
-        );
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Timestamp(IonTimestamp::FractionalSecond {
-                    offset: BigInt::from(-480i32),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32),
-                    day: BigUint::from(20u32),
-                    hour: BigUint::from(19u32),
-                    minute: BigUint::from(30u32),
-                    second: BigUint::from(59u32),
-                    fraction_coefficient: BigUint::from(100u32),
-                    fraction_exponent: -3,
-                }),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_timestamp2011_02_20T19_30_59_100_8_00() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20T19_30_59_100-08_00.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Timestamp(IonTimestamp::FractionalSecond {
+                        offset: BigInt::from(-480i32),
+                        year: BigUint::from(2011u32),
+                        month: BigUint::from(2u32),
+                        day: BigUint::from(20u32),
+                        hour: BigUint::from(19u32),
+                        minute: BigUint::from(30u32),
+                        second: BigUint::from(59u32),
+                        fraction_coefficient: BigUint::from(100u32),
+                        fraction_exponent: -3,
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse symbol tests
+    mod symbol {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullSymbol() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSymbol.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Symbol(IonSymbol::Null),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_nullSymbol() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSymbol.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Symbol(IonSymbol::Null),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_symbolExplicitZero() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Symbol(IonSymbol::Symbol {
-                    token: SymbolToken::Zero
-                }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_symbolExplicitZero() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Symbol(IonSymbol::Symbol {
+                        token: SymbolToken::Zero
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_symbolImplicitZero() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Symbol(IonSymbol::Symbol {
-                    token: SymbolToken::Zero
-                }),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_symbolImplicitZero() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Symbol(IonSymbol::Symbol {
+                        token: SymbolToken::Zero
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse string tests
+    mod string {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullString() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullString.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::String(IonString::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullString() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullString.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::String(IonString::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse clob tests
+    mod clob {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullClob() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullClob.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Clob(IonClob::Null),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_nullClob() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullClob.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Clob(IonClob::Null),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_clobWithDel() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithDel.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Clob(IonClob::Clob { data: vec![127u8] }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_clobWithDel() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithDel.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Clob(IonClob::Clob { data: vec![127u8] }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_clobWithNonAsciiCharacter() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNonAsciiCharacter.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Clob(IonClob::Clob { data: vec![128u8] }),
-                annotations: None,
-            }]
-        );
-    }
+        #[test]
+        fn test_parse_clobWithNonAsciiCharacter() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/clobWithNonAsciiCharacter.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Clob(IonClob::Clob { data: vec![128u8] }),
+                    annotations: None,
+                }]
+            );
+        }
 
-    #[test]
-    fn test_parse_clobWithNullCharacter() {
-        let bytes =
-            include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNullCharacter.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Clob(IonClob::Clob { data: vec![0u8] }),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_clobWithNullCharacter() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNullCharacter.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Clob(IonClob::Clob { data: vec![0u8] }),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse blob tests
+    mod blob {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullBlob() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBlob.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Blob(IonBlob::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullBlob() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBlob.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Blob(IonBlob::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse list tests
+    mod list {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullList() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullList.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::List(IonList::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullList() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullList.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::List(IonList::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse sexp tests
+    mod sexp {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullSexp() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSexp.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Sexp(IonSexp::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullSexp() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSexp.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Sexp(IonSexp::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 
     // Parse struct tests
+    mod r#struct {
+        use self::assert_eq;
+        use super::*;
 
-    #[test]
-    fn test_parse_nullStructure() {
-        let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
-        let (remaining_bytes, value) = parse(bytes).unwrap();
-        assert_eq!(remaining_bytes, &[] as &[u8]);
-        assert_eq!(
-            value,
-            vec![IonValue {
-                content: IonData::Struct(IonStruct::Null),
-                annotations: None,
-            }]
-        );
+        #[test]
+        fn test_parse_nullStructure() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Null),
+                    annotations: None,
+                }]
+            );
+        }
     }
 }
