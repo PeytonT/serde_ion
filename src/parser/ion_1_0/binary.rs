@@ -38,23 +38,29 @@ fn parse_top_level_value<'a, 'b>(
 ) -> IonResult<&'a [u8], IonValue> {
     match parse_value(i, symbol_table) {
         Ok((rest, value)) => {
+            // If the value is a Struct...
             if let IonData::Struct(ion_struct) = &value.content {
+                // And it has an annotations vector...
                 if let Some(annotations) = &value.annotations {
+                    // And the annotations vector contains a first annotation (i.e. is non-empty)...
                     if let Some(symbol) = annotations.first() {
+                        // And the first annotation is not a null symbol...
                         if let IonSymbol::Symbol { token } = symbol {
+                            // And the value of the annotation is "$ion_symbol_table"...
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
-                                return match update_table(rest, symbol_table, ion_struct) {
-                                    Ok(()) => parse_top_level_value(rest, symbol_table),
-                                    Err(err) => Err(Err::Failure(IonError::from_format_error(
-                                        i,
-                                        FormatError::Binary(BinaryFormatError::LocalTable),
-                                    ))),
-                                };
+                                // Then it is an update to the local symbol table.
+                                let updated_symbol_table =
+                                    update_table(i, symbol_table, ion_struct)?;
+                                // Apply it.
+                                *symbol_table = updated_symbol_table;
+                                // And continue with the next top-level value.
+                                return parse_top_level_value(rest, symbol_table);
                             }
                         }
                     }
                 }
             }
+            // In all other cases, it is an Ion value.
             Ok((rest, value))
         }
         Err(err) => Err(err),
@@ -66,7 +72,7 @@ fn update_table<'a>(
     index: &'a [u8],
     current: &mut SymbolTable,
     encountered: &IonStruct,
-) -> Result<(), IonError<&'a [u8]>> {
+) -> ParseResult<&'a [u8], SymbolTable> {
     todo!()
 }
 
