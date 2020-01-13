@@ -843,7 +843,7 @@ fn parse_annotation<'a>(
         _ => {
             let (rest, annot_length) = take_var_uint_as_usize(typed_value.rep)?;
             let (annot_bytes, value_bytes) = rest.split_at(annot_length);
-            let (_, value) = take_typed_value(value_bytes)?;
+            let (_, value) = all_consuming(take_typed_value)(value_bytes)?;
             // It is illegal for an annotation to wrap another annotation atomically.
             if value.type_code == TypeCode::Annotation {
                 return Err(Err::Failure(IonError::from_format_error(

@@ -819,87 +819,110 @@ mod tests {
 
     // Parse annotation tests
     mod annotation {
+        use self::assert_eq;
         use super::*;
+        use nom::error::ErrorKind;
 
         //    annotationLengthTooLongScalar.10n
         //---------------------------------
         //    Contains an Annotation wrapper whose declared length is too long for its
         //    subfields (including its wrapped scalar value).
-        #[ignore]
         #[test]
         fn test_parse_annotationLengthTooLongScalar() {
             let bytes = include_bytes!(
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongScalar.10n"
             );
-            let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = dbg!(parse(bytes).err().unwrap());
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
         }
 
         //    annotationLengthTooLongContainer.10n
         //---------------------------------
         //    Contains an Annotation wrapper whose declared length is too long for its
         //    subfields (including its wrapped container value).
-        #[ignore]
         #[test]
         fn test_parse_annotationLengthTooLongContainer() {
             let bytes = include_bytes!(
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongContainer.10n"
             );
-            let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = dbg!(parse(bytes).err().unwrap());
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
         }
 
         //    annotationLengthTooShortScalar.10n
         //---------------------------------
         //    Contains an Annotation wrapper whose declared length is too short for its
         //    subfields (including its wrapped scalar value).
-        #[ignore]
         #[test]
         fn test_parse_annotationLengthTooShortScalar() {
             let bytes = include_bytes!(
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortScalar.10n"
             );
+            let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
         }
 
         //    annotationLengthTooShortContainer.10n
         //---------------------------------
         //    Contains an Annotation wrapper whose declared length is too short for its
         //    subfields (including its wrapped container value).
-        #[ignore]
         #[test]
         fn test_parse_annotationLengthTooShortContainer() {
             let bytes = include_bytes!(
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortContainer.10n"
             );
+            let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
         }
 
         //    annotationNested.10n
         //--------------------
         //    Contains an Annotation wrapper which contains another annotation wrapper as
         //    its value.
-        #[ignore]
         #[test]
         fn test_parse_annotationNested() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationNested.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::AnnotatedAnnotation)
+                ))
+            );
         }
 
         //    annotationWithNoValue.10n
         //-------------------------
         //    Contains an Annotation wrapper with no value.
-        #[ignore]
         #[test]
         fn test_parse_annotationWithNoValue() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationWithNoValue.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
-            dbg!(err);
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
         }
     }
 
