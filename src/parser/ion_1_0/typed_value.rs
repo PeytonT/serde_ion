@@ -254,7 +254,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
         ))),
         // All remaining type_codes behave in a standard way
         (type_code, length_code) => {
-            let (rest, length) = take_representation_length(rest, length_code)?;
+            let (rest, length) = take_representation_length(length_code)(rest)?;
             let (end, rep) = take(length)(rest)?;
             let (end, value) = take(input.len() - end.len())(input)?;
             Ok((
@@ -271,14 +271,18 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
     }
 }
 
-fn take_representation_length(input: &[u8], length_code: LengthCode) -> IonResult<&[u8], usize> {
-    let length: usize = length_code as usize;
-    let (rest, length) = match length {
-        0..=13 => (input, length),
-        14 => take_var_uint_as_usize(input)?,
-        _ => (input, 0),
-    };
-    Ok((rest, length))
+fn take_representation_length(
+    length_code: LengthCode,
+) -> impl Fn(&[u8]) -> IonResult<&[u8], usize> {
+    move |input: &[u8]| {
+        let length: usize = length_code as usize;
+        let (rest, length) = match length {
+            0..=13 => (input, length),
+            14 => take_var_uint_as_usize(input)?,
+            _ => (input, 0),
+        };
+        Ok((rest, length))
+    }
 }
 
 #[allow(non_snake_case)]

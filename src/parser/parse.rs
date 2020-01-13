@@ -1,13 +1,11 @@
+use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
-use crate::error::{IonError, IonResult};
+use crate::error::IonResult;
 use crate::ion_types::IonValue;
 use crate::symbols::SymbolTable;
-use nom::error::ParseError;
 use nom::{
     bytes::complete::{tag, take},
-    error::ErrorKind,
     sequence::tuple,
-    Err,
 };
 
 // Binary Ion streams begin with a four-octet Binary Version Marker
@@ -66,50 +64,15 @@ pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
 }
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
-    let symbol_table = SymbolTable::SystemV1;
-    preceded(tag(BVM_1_0), many0(ion_1_0::binary::parse(symbol_table)))(input)
+    all_consuming(map(many0(preceded(tag(BVM_1_0), _parse_1_0())), |x| {
+        x.into_iter().flatten().collect()
+    }))(input)
 }
 
-/// Matches an object from the first parser and discards it,
-/// then gets an object from the second parser.
-/// Derived from nom::sequence::preceded to lower the trait bound from Fn to FnMut.
-/// FIXME: This is silly.
-fn preceded<I, O1, O2, F, G>(mut first: F, mut second: G) -> impl FnMut(I) -> IonResult<I, O2>
-where
-    F: FnMut(I) -> IonResult<I, O1>,
-    G: FnMut(I) -> IonResult<I, O2>,
-{
-    move |input: I| {
-        let (input, _) = first(input)?;
-        second(input)
-    }
-}
-
-/// Repeats the embedded parser until it fails and returns the results in a `Vec`.
-/// Derived from nom::multi::many0 to lower the trait bound from Fn to FnMut.
-/// FIXME: This is silly.
-fn many0<I, O, F>(mut f: F) -> impl FnMut(I) -> IonResult<I, Vec<O>>
-where
-    I: Clone + PartialEq,
-    F: FnMut(I) -> IonResult<I, O>,
-{
-    move |i: I| {
-        let mut acc = std::vec::Vec::with_capacity(4);
-        let mut i = i.clone();
-        loop {
-            match f(i.clone()) {
-                Err(Err::Error(_)) => return Ok((i, acc)),
-                Err(e) => return Err(e),
-                Ok((i1, o)) => {
-                    if i1 == i {
-                        return Err(Err::Error(IonError::from_error_kind(i, ErrorKind::Many0)));
-                    }
-
-                    i = i1;
-                    acc.push(o);
-                }
-            }
-        }
+fn _parse_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<IonValue>> {
+    move |i: &[u8]| {
+        let symbol_table = SymbolTable::SystemV1;
+        many0(ion_1_0::binary::parse(symbol_table))(i)
     }
 }
 
@@ -118,11 +81,16 @@ where
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
-    use crate::ion_types::{
-        IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,
-        IonSexp, IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
+    use crate::error::{BinaryFormatError, FormatError, IonError};
+    use crate::{
+        ion_types::{
+            IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,
+            IonSexp, IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
+        },
+        symbols::SymbolToken,
     };
-    use crate::symbols::SymbolToken;
+    use nom::error::ParseError;
+    use nom::{AsBytes, Err};
     use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
     use num_traits::Num;
@@ -775,6 +743,9 @@ mod tests {
     mod list {
         use self::assert_eq;
         use super::*;
+        use nom::error::ErrorKind;
+
+        // Good
 
         #[test]
         fn test_parse_nullList() {
@@ -787,6 +758,21 @@ mod tests {
                     content: IonData::List(IonList::Null),
                     annotations: None,
                 }]
+            );
+        }
+
+        // Bad
+
+        #[test]
+        fn test_parse_listWithValueLargerThanSize() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/listWithValueLargerThanSize.10n"
+            );
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
     }
@@ -831,14 +817,98 @@ mod tests {
         }
     }
 
+    // Parse annotation tests
+    mod annotation {
+        use super::*;
+
+        //    annotationLengthTooLongScalar.10n
+        //---------------------------------
+        //    Contains an Annotation wrapper whose declared length is too long for its
+        //    subfields (including its wrapped scalar value).
+        #[ignore]
+        #[test]
+        fn test_parse_annotationLengthTooLongScalar() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongScalar.10n"
+            );
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+
+        //    annotationLengthTooLongContainer.10n
+        //---------------------------------
+        //    Contains an Annotation wrapper whose declared length is too long for its
+        //    subfields (including its wrapped container value).
+        #[ignore]
+        #[test]
+        fn test_parse_annotationLengthTooLongContainer() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongContainer.10n"
+            );
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+
+        //    annotationLengthTooShortScalar.10n
+        //---------------------------------
+        //    Contains an Annotation wrapper whose declared length is too short for its
+        //    subfields (including its wrapped scalar value).
+        #[ignore]
+        #[test]
+        fn test_parse_annotationLengthTooShortScalar() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortScalar.10n"
+            );
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+
+        //    annotationLengthTooShortContainer.10n
+        //---------------------------------
+        //    Contains an Annotation wrapper whose declared length is too short for its
+        //    subfields (including its wrapped container value).
+        #[ignore]
+        #[test]
+        fn test_parse_annotationLengthTooShortContainer() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortContainer.10n"
+            );
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+
+        //    annotationNested.10n
+        //--------------------
+        //    Contains an Annotation wrapper which contains another annotation wrapper as
+        //    its value.
+        #[ignore]
+        #[test]
+        fn test_parse_annotationNested() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationNested.10n");
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+
+        //    annotationWithNoValue.10n
+        //-------------------------
+        //    Contains an Annotation wrapper with no value.
+        #[ignore]
+        #[test]
+        fn test_parse_annotationWithNoValue() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationWithNoValue.10n");
+            let err = parse(bytes).err().unwrap();
+            dbg!(err);
+        }
+    }
+
     /// Verify errors when parsing streams containing invalid type descriptors
     /// Tests in this module are obvious candidates for parameterized testing, if I can find a
     /// satisfactory parameterized testing harness.
     mod invalid_typecodes {
         use self::assert_eq;
         use super::*;
-        use crate::error::{BinaryFormatError, FormatError};
-        use nom::AsBytes;
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L2() {

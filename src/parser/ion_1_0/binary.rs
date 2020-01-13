@@ -1,18 +1,15 @@
 use super::subfield::*;
 use super::typed_value::*;
-use crate::error::SymbolError;
+use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
 use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
-use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
-use crate::{
-    error::{BinaryFormatError, FormatError, IonError, IonResult},
-    symbols::SymbolTable,
-};
+use crate::symbols::{SymbolTable, SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
 use nom::{
+    combinator::{all_consuming, complete},
     error::{ErrorKind, ParseError},
-    multi::many1,
+    multi::{many0, many1},
     number::complete::{double, float},
     Err,
 };
@@ -680,7 +677,13 @@ fn parse_list<'a>(
 ) -> ParseResult<&'a [u8], IonList> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonList::Null),
-        _ => todo!(),
+        LengthCode::L0 => Ok(IonList::List { values: vec![] }),
+        _ => {
+            let (_, values) = complete(all_consuming(many0(move |i: &[u8]| {
+                parse_value(i, symbol_table)
+            })))(typed_value.rep)?;
+            Ok(IonList::List { values })
+        }
     }
 }
 
@@ -860,18 +863,17 @@ fn parse_annotation<'a>(
                     FormatError::Binary(BinaryFormatError::AnnotatedPadding),
                 )));
             };
-            let (rest, annots) = many1(take_var_uint_as_usize)(annot_bytes)?;
-            debug_assert!(rest.is_empty(), "remaining unparsed bytes!");
-            let annots: Result<Vec<IonSymbol>, SymbolError> = annots
+            let (_, annotations) = all_consuming(many1(take_var_uint_as_usize))(annot_bytes)?;
+            match annotations
                 .into_iter()
                 .map(|x| match symbol_table.lookup_sid(x) {
                     Ok(token) => Ok(IonSymbol::Symbol { token }),
                     Result::Err(error) => Err(error),
                 })
-                .collect();
-            match annots {
-                Ok(annots) => {
-                    value.annotations = Some(annots);
+                .collect()
+            {
+                Ok(annotations) => {
+                    value.annotations = Some(annotations);
                     Ok(value)
                 }
                 Result::Err(error) => Err(Err::Failure(IonError::from_symbol_error(

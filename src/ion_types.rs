@@ -303,14 +303,14 @@ impl IonStruct {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonList {
     Null,
-    List(Vec<IonValue>),
+    List { values: Vec<IonValue> },
 }
 
 impl IonList {
     pub fn to_text(&self) -> String {
         match self {
             IonList::Null => String::from("null.list"),
-            IonList::List(val) => todo!(),
+            IonList::List { values } => todo!(),
         }
     }
 }
