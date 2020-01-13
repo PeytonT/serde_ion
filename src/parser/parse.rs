@@ -216,8 +216,6 @@ mod tests {
     mod bool {
         use self::assert_eq;
         use super::*;
-        use crate::error::{BinaryFormatError, FormatError};
-        use nom::AsBytes;
 
         #[test]
         fn test_parse_value_nullBool() {
@@ -238,8 +236,6 @@ mod tests {
     mod int {
         use self::assert_eq;
         use super::*;
-        use crate::error::{BinaryFormatError, FormatError};
-        use nom::AsBytes;
 
         #[test]
         fn test_parse_value_nullInt2() {
@@ -383,8 +379,6 @@ mod tests {
     mod float {
         use self::assert_eq;
         use super::*;
-        use crate::error::{BinaryFormatError, FormatError};
-        use nom::AsBytes;
 
         #[test]
         fn test_parse_nullFloat() {
@@ -516,8 +510,6 @@ mod tests {
     mod timestamp {
         use self::assert_eq;
         use super::*;
-        use crate::error::{BinaryFormatError, FormatError};
-        use nom::AsBytes;
 
         #[test]
         fn test_parse_nullTimestamp() {

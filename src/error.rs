@@ -42,7 +42,7 @@ impl<I> ParseError<I> for IonError<I> {
         }
     }
 
-    fn append(input: I, kind: nom::error::ErrorKind, mut other: Self) -> Self {
+    fn append(input: I, kind: nom::error::ErrorKind, other: Self) -> Self {
         Self::from_error_kind(input, nom::error::ErrorKind::Char)
     }
 
