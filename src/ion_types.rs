@@ -326,40 +326,14 @@ impl IonList {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonSexp {
     Null,
-    SymbolicExpression(Vec<SymbolicExpressionSymbol>),
+    Sexp { values: Vec<IonValue> },
 }
 
 impl IonSexp {
     pub fn to_text(&self) -> String {
         match self {
             IonSexp::Null => String::from("null.sexp"),
-            IonSexp::SymbolicExpression(sexp) => format!(
-                "({})",
-                sexp.iter()
-                    .map(|x| x.to_text())
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            ),
+            IonSexp::Sexp { values } => todo!(),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum SymbolicExpressionSymbol {
-    SexpSymbol(IonSymbol),
-    SexpOperator(IonOperator),
-}
-
-impl SymbolicExpressionSymbol {
-    pub fn to_text(&self) -> String {
-        match self {
-            SymbolicExpressionSymbol::SexpSymbol(val) => val.to_text(),
-            SymbolicExpressionSymbol::SexpOperator(val) => val.seq_op_chars.clone(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct IonOperator {
-    seq_op_chars: String,
 }

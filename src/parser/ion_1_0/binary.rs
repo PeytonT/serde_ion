@@ -708,7 +708,13 @@ fn parse_sexp<'a>(
 ) -> ParseResult<&'a [u8], IonSexp> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonSexp::Null),
-        _ => todo!(),
+        LengthCode::L0 => Ok(IonSexp::Sexp { values: vec![] }),
+        _ => {
+            let (_, values) = complete(all_consuming(many0(move |i: &[u8]| {
+                parse_value(i, symbol_table)
+            })))(typed_value.rep)?;
+            Ok(IonSexp::Sexp { values })
+        }
     }
 }
 
