@@ -220,15 +220,23 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
         }
         (TypeCode::Float, invalid) => Err(Err::Failure(IonError::from_format_error(
             input,
-            FormatError::Binary(BinaryFormatError::FloatSize(invalid as u8)),
+            FormatError::Binary(BinaryFormatError::FloatLength(invalid as u8)),
         ))),
+        // For timestamp values, a VarInt offset and VarUInt year are required.
+        // Thus, type code 6 with L equal to zero or one is illegal.
+        (TypeCode::Timestamp, LengthCode::L0) | (TypeCode::Timestamp, LengthCode::L1) => {
+            Err(Err::Failure(IonError::from_format_error(
+                input,
+                FormatError::Binary(BinaryFormatError::TimestampLength(length_code as u8)),
+            )))
+        }
         // Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
         // Instead, that octet signals the start of a binary version marker.
         // This particular invalid representation should be passed back up as an error
         // so that an alternative parse can be attempted.
         (TypeCode::Annotation, LengthCode::L0) => Err(Err::Error(IonError::from_format_error(
             input,
-            FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+            FormatError::Binary(BinaryFormatError::AnnotationLength(length_code as u8)),
         ))),
         // Because at least one annotation and exactly one content field must exist,
         // L is at least 3 and is never 15.
@@ -237,7 +245,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
         | (TypeCode::Annotation, LengthCode::L15) => {
             Err(Err::Failure(IonError::from_format_error(
                 input,
-                FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+                FormatError::Binary(BinaryFormatError::AnnotationLength(length_code as u8)),
             )))
         }
         (TypeCode::Reserved, _) => Err(Err::Failure(IonError::from_format_error(

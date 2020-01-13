@@ -113,14 +113,6 @@ where
     }
 }
 
-// Ion currently has only one version, so this exists to provide alternative in nom::branch::alt. Immediately errors if reached.
-fn version_placeholder(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
-    Err(Err::Error(IonError::from_error_kind(
-        input,
-        ErrorKind::NoneOf,
-    )))
-}
-
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
@@ -136,6 +128,11 @@ mod tests {
     use num_traits::Num;
     use pretty_assertions::assert_eq;
     use std::str::FromStr;
+
+    pub fn strip_bvm(input: &[u8]) -> &[u8] {
+        assert_eq!(BVM_1_0, &input[..4]);
+        &input[4..]
+    }
 
     #[test]
     fn binary_version_marker_test() {
@@ -219,6 +216,8 @@ mod tests {
     mod bool {
         use self::assert_eq;
         use super::*;
+        use crate::error::{BinaryFormatError, FormatError};
+        use nom::AsBytes;
 
         #[test]
         fn test_parse_value_nullBool() {
@@ -239,6 +238,8 @@ mod tests {
     mod int {
         use self::assert_eq;
         use super::*;
+        use crate::error::{BinaryFormatError, FormatError};
+        use nom::AsBytes;
 
         #[test]
         fn test_parse_value_nullInt2() {
@@ -382,6 +383,8 @@ mod tests {
     mod float {
         use self::assert_eq;
         use super::*;
+        use crate::error::{BinaryFormatError, FormatError};
+        use nom::AsBytes;
 
         #[test]
         fn test_parse_nullFloat() {
@@ -513,6 +516,8 @@ mod tests {
     mod timestamp {
         use self::assert_eq;
         use super::*;
+        use crate::error::{BinaryFormatError, FormatError};
+        use nom::AsBytes;
 
         #[test]
         fn test_parse_nullTimestamp() {
@@ -830,6 +835,768 @@ mod tests {
                     content: IonData::Struct(IonStruct::Null),
                     annotations: None,
                 }]
+            );
+        }
+    }
+
+    /// Verify errors when parsing streams containing invalid type descriptors
+    /// Tests in this module are obvious candidates for parameterized testing, if I can find a
+    /// satisfactory parameterized testing harness.
+    mod invalid_typecodes {
+        use self::assert_eq;
+        use super::*;
+        use crate::error::{BinaryFormatError, FormatError};
+        use nom::AsBytes;
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L2() {
+            let T1L2 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_2.10n"
+            );
+            let index_of_error = strip_bvm(T1L2.as_bytes());
+            let err = parse(T1L2).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(2))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L3() {
+            let T1L3 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_3.10n"
+            );
+            let index_of_error = strip_bvm(T1L3.as_bytes());
+            let err = parse(T1L3).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(3))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L4() {
+            let T1L4 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_4.10n"
+            );
+            let index_of_error = strip_bvm(T1L4.as_bytes());
+            let err = parse(T1L4).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(4))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L5() {
+            let T1L5 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_5.10n"
+            );
+            let index_of_error = strip_bvm(T1L5.as_bytes());
+            let err = parse(T1L5).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(5))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L6() {
+            let T1L6 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_6.10n"
+            );
+            let index_of_error = strip_bvm(T1L6.as_bytes());
+            let err = parse(T1L6).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(6))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L7() {
+            let T1L7 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_7.10n"
+            );
+            let index_of_error = strip_bvm(T1L7.as_bytes());
+            let err = parse(T1L7).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(7))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L8() {
+            let T1L8 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_8.10n"
+            );
+            let index_of_error = strip_bvm(T1L8.as_bytes());
+            let err = parse(T1L8).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(8))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L9() {
+            let T1L9 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_9.10n"
+            );
+            let index_of_error = strip_bvm(T1L9.as_bytes());
+            let err = parse(T1L9).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(9))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L10() {
+            let T1L10 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_10.10n"
+            );
+            let index_of_error = strip_bvm(T1L10.as_bytes());
+            let err = parse(T1L10).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(10))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L11() {
+            let T1L11 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_11.10n"
+            );
+            let index_of_error = strip_bvm(T1L11.as_bytes());
+            let err = parse(T1L11).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(11))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L12() {
+            let T1L12 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_12.10n"
+            );
+            let index_of_error = strip_bvm(T1L12.as_bytes());
+            let err = parse(T1L12).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(12))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L13() {
+            let T1L13 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_13.10n"
+            );
+            let index_of_error = strip_bvm(T1L13.as_bytes());
+            let err = parse(T1L13).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(13))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T1L14() {
+            let T1L14 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_14.10n"
+            );
+            let index_of_error = strip_bvm(T1L14.as_bytes());
+            let err = parse(T1L14).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(14))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T3L0() {
+            let T3L0 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_3_length_0.10n"
+            );
+            let index_of_error = strip_bvm(T3L0.as_bytes());
+            let err = parse(T3L0).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::NegativeZero)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L1() {
+            let T4L1 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_1.10n"
+            );
+            let index_of_error = strip_bvm(T4L1.as_bytes());
+            let err = parse(T4L1).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(1))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L2() {
+            let T4L2 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_2.10n"
+            );
+            let index_of_error = strip_bvm(T4L2.as_bytes());
+            let err = parse(T4L2).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(2))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L3() {
+            let T4L3 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_3.10n"
+            );
+            let index_of_error = strip_bvm(T4L3.as_bytes());
+            let err = parse(T4L3).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(3))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L5() {
+            let T4L5 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_5.10n"
+            );
+            let index_of_error = strip_bvm(T4L5.as_bytes());
+            let err = parse(T4L5).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(5))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L6() {
+            let T4L6 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_6.10n"
+            );
+            let index_of_error = strip_bvm(T4L6.as_bytes());
+            let err = parse(T4L6).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(6))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L7() {
+            let T4L7 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_7.10n"
+            );
+            let index_of_error = strip_bvm(T4L7.as_bytes());
+            let err = parse(T4L7).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(7))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L9() {
+            let T4L9 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_9.10n"
+            );
+            let index_of_error = strip_bvm(T4L9.as_bytes());
+            let err = parse(T4L9).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(9))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L10() {
+            let T4L10 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_10.10n"
+            );
+            let index_of_error = strip_bvm(T4L10.as_bytes());
+            let err = parse(T4L10).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(10))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L11() {
+            let T4L11 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_11.10n"
+            );
+            let index_of_error = strip_bvm(T4L11.as_bytes());
+            let err = parse(T4L11).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(11))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L12() {
+            let T4L12 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_12.10n"
+            );
+            let index_of_error = strip_bvm(T4L12.as_bytes());
+            let err = parse(T4L12).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(12))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L13() {
+            let T4L13 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_13.10n"
+            );
+            let index_of_error = strip_bvm(T4L13.as_bytes());
+            let err = parse(T4L13).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(13))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T4L14() {
+            let T4L14 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_14.10n"
+            );
+            let index_of_error = strip_bvm(T4L14.as_bytes());
+            let err = parse(T4L14).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::FloatLength(14))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T6L0() {
+            let T6L0 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_0.10n"
+            );
+            let index_of_error = strip_bvm(T6L0.as_bytes());
+            let err = parse(T6L0).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::TimestampLength(0))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T6L1() {
+            let T6L1 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_1.10n"
+            );
+            let index_of_error = strip_bvm(T6L1.as_bytes());
+            let err = parse(T6L1).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::TimestampLength(1))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T14L1() {
+            let T14L1 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_1.10n"
+            );
+            let index_of_error = strip_bvm(T14L1.as_bytes());
+            let err = parse(T14L1).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::AnnotationLength(1))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T14L2() {
+            let T14L2 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_2.10n"
+            );
+            let index_of_error = strip_bvm(T14L2.as_bytes());
+            let err = parse(T14L2).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::AnnotationLength(2))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T14L15() {
+            let T14L15 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_15.10n"
+            );
+            let index_of_error = strip_bvm(T14L15.as_bytes());
+            let err = parse(T14L15).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::AnnotationLength(15))
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L0() {
+            let T15L0 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_0.10n"
+            );
+            let index_of_error = strip_bvm(T15L0.as_bytes());
+            let err = parse(T15L0).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L1() {
+            let T15L1 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_1.10n"
+            );
+            let index_of_error = strip_bvm(T15L1.as_bytes());
+            let err = parse(T15L1).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L2() {
+            let T15L2 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_2.10n"
+            );
+            let index_of_error = strip_bvm(T15L2.as_bytes());
+            let err = parse(T15L2).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L3() {
+            let T15L3 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_3.10n"
+            );
+            let index_of_error = strip_bvm(T15L3.as_bytes());
+            let err = parse(T15L3).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L4() {
+            let T15L4 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_4.10n"
+            );
+            let index_of_error = strip_bvm(T15L4.as_bytes());
+            let err = parse(T15L4).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L5() {
+            let T15L5 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_5.10n"
+            );
+            let index_of_error = strip_bvm(T15L5.as_bytes());
+            let err = parse(T15L5).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L6() {
+            let T15L6 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_6.10n"
+            );
+            let index_of_error = strip_bvm(T15L6.as_bytes());
+            let err = parse(T15L6).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L7() {
+            let T15L7 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_7.10n"
+            );
+            let index_of_error = strip_bvm(T15L7.as_bytes());
+            let err = parse(T15L7).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L8() {
+            let T15L8 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_8.10n"
+            );
+            let index_of_error = strip_bvm(T15L8.as_bytes());
+            let err = parse(T15L8).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L9() {
+            let T15L9 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_9.10n"
+            );
+            let index_of_error = strip_bvm(T15L9.as_bytes());
+            let err = parse(T15L9).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L10() {
+            let T15L10 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_10.10n"
+            );
+            let index_of_error = strip_bvm(T15L10.as_bytes());
+            let err = parse(T15L10).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L11() {
+            let T15L11 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_11.10n"
+            );
+            let index_of_error = strip_bvm(T15L11.as_bytes());
+            let err = parse(T15L11).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L12() {
+            let T15L12 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_12.10n"
+            );
+            let index_of_error = strip_bvm(T15L12.as_bytes());
+            let err = parse(T15L12).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L13() {
+            let T15L13 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_13.10n"
+            );
+            let index_of_error = strip_bvm(T15L13.as_bytes());
+            let err = parse(T15L13).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L14() {
+            let T15L14 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_14.10n"
+            );
+            let index_of_error = strip_bvm(T15L14.as_bytes());
+            let err = parse(T15L14).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
+            );
+        }
+
+        #[test]
+        fn test_parse_invalid_type_descriptor_T15L15() {
+            let T15L15 = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_15.10n"
+            );
+            let index_of_error = strip_bvm(T15L15.as_bytes());
+            let err = parse(T15L15).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::ReservedTypeCode)
+                ))
             );
         }
     }

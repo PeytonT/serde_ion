@@ -96,14 +96,16 @@ pub enum BinaryFormatError {
     AnnotatedAnnotation,
     #[error("it is illegal for an annotation to wrap a no-op pad since they are not Ion values")]
     AnnotatedPadding,
-    #[error("annotations must have length_code > 2 and length_code < 15")]
-    AnnotationLengthCode,
+    #[error("annotation length code of `{0}` is not allowed")]
+    AnnotationLength(u8),
     #[error("int 0 is always stored with type code 2, type code 3 with length 0 is invalid")]
     NegativeZero,
     #[error("bool value `{0}` is not allowed")]
     BoolValue(u8),
-    #[error("float size `{0}` is not allowed")]
-    FloatSize(u8),
+    #[error("float length code of `{0}` is not allowed")]
+    FloatLength(u8),
+    #[error("timestamp length code of `{0}` is not allowed")]
+    TimestampLength(u8),
     #[error("string encoding must be utf8")]
     StringEncoding,
     #[error("invalid local symbol table")]

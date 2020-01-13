@@ -290,7 +290,7 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], IonFloat> {
         LengthCode::L15 => Ok(IonFloat::Null),
         catch_invalid => Err(Err::Failure(IonError::from_format_error(
             typed_value.index,
-            FormatError::Binary(BinaryFormatError::FloatSize(catch_invalid as u8)),
+            FormatError::Binary(BinaryFormatError::FloatLength(catch_invalid as u8)),
         ))),
     }
 }
@@ -826,7 +826,9 @@ fn parse_annotation<'a>(
         LengthCode::L0 | LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {
             Err(Err::Failure(IonError::from_format_error(
                 typed_value.index,
-                FormatError::Binary(BinaryFormatError::AnnotationLengthCode),
+                FormatError::Binary(BinaryFormatError::AnnotationLength(
+                    typed_value.length_code as u8,
+                )),
             )))
         }
         _ => {
