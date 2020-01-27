@@ -210,8 +210,17 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], IonBool> {
 fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonInt::Null),
+        LengthCode::L0 => Ok(IonInt::Integer {
+            value: BigInt::zero(),
+        }),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
+            if magnitude == BigUint::zero() {
+                return Err(Err::Failure(IonError::from_format_error(
+                    typed_value.index,
+                    FormatError::Binary(BinaryFormatError::EncodingOfZero),
+                )));
+            }
             Ok(IonInt::Integer {
                 value: BigInt::from_biguint(Sign::Plus, magnitude),
             })
@@ -246,6 +255,12 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
         LengthCode::L15 => Ok(IonInt::Null),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
+            if magnitude == BigUint::zero() {
+                return Err(Err::Failure(IonError::from_format_error(
+                    typed_value.index,
+                    FormatError::Binary(BinaryFormatError::NegativeZero),
+                )));
+            }
             Ok(IonInt::Integer {
                 value: BigInt::from_biguint(Sign::Minus, magnitude),
             })

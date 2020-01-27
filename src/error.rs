@@ -98,7 +98,9 @@ pub enum BinaryFormatError {
     AnnotatedPadding,
     #[error("annotation length code of `{0}` is not allowed")]
     AnnotationLength(u8),
-    #[error("int 0 is always stored with type code 2, type code 3 with length 0 is invalid")]
+    #[error("int 0 is stored with type code T == 2 and L == 0, other encodings are invalid.")]
+    EncodingOfZero,
+    #[error("int 0 is stored with type code T == 2, type code 3 with length 0 is invalid")]
     NegativeZero,
     #[error("bool value `{0}` is not allowed")]
     BoolValue(u8),

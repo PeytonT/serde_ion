@@ -89,7 +89,7 @@ mod tests {
         },
         symbols::SymbolToken,
     };
-    use nom::error::ParseError;
+    use nom::error::{ErrorKind, ParseError};
     use nom::{AsBytes, Err};
     use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
@@ -123,7 +123,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_parse_value_null() {
+        fn test_parse_null() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -137,7 +137,7 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_value_nopPadOneByte() {
+        fn test_parse_nopPadOneByte() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -151,7 +151,7 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_value_emptyThreeByteNopPad() {
+        fn test_parse_emptyThreeByteNopPad() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
@@ -166,7 +166,7 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_value_nopPad16Bytes() {
+        fn test_parse_nopPad16Bytes() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -178,6 +178,32 @@ mod tests {
                 }]
             );
         }
+
+        #[test]
+        fn test_parse_nopPadTooShort() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/nopPadTooShort.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
+        }
+
+        #[test]
+        fn test_parse_nopPadWithAnnotations() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/nopPadWithAnnotations.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::AnnotatedPadding)
+                ))
+            );
+        }
     }
 
     // Parse bool tests
@@ -186,7 +212,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_parse_value_nullBool() {
+        fn test_parse_nullBool() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -198,6 +224,46 @@ mod tests {
                 }]
             );
         }
+
+        //        boolWithInvalidLength_1.10n
+        //    ---------------------------
+        //        Contains a Bool whose _L_ value is `3`.
+        //
+        // Redundant, already covered by invalid typecode tests
+        #[test]
+        fn test_parse_boolWithInvalidLength_1() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_1.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(3))
+                ))
+            );
+        }
+
+        //        boolWithInvalidLength_2.10n
+        //    ---------------------------
+        //        Contains a Bool whose _L_ value is `14`.
+        //
+        // Redundant, already covered by invalid typecode tests
+        #[test]
+        fn test_parse_boolWithInvalidLength_2() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_2.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::BoolValue(14))
+                ))
+            );
+        }
     }
 
     // Parse int tests
@@ -206,7 +272,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_parse_value_nullInt2() {
+        fn test_parse_nullInt2() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -220,7 +286,7 @@ mod tests {
         }
 
         #[test]
-        fn test_parse_value_nullInt3() {
+        fn test_parse_nullInt3() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -341,6 +407,71 @@ mod tests {
                 }]
             );
         }
+
+        //        minLongWithLenTooLarge.10n
+        //    --------------------------
+        //        Contains an Int whose length is specified as 9 byte, but only 8 bytes of data
+        //        are available.
+        #[test]
+        fn test_parse_minLongWithLenTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/minLongWithLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
+        }
+
+        //        minLongWithLenTooSmall.10n
+        //    --------------------------
+        //        Contains an Int whose length is specified as 7 bytes, but contains 8 bytes of
+        //        data. The trailing byte is `0x00` (a Null with an invalid _L_ value).
+        //
+        // TODO: It's unclear if this should actually fail, and if so with what error.
+        // https://github.com/amzn/ion-tests/issues/60
+        #[ignore]
+        #[test]
+        fn test_parse_minLongWithLenTooSmall() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/minLongWithLenTooSmall.10n");
+        }
+
+        //        negativeIntZero
+        //        -----------------
+        //        Contains a negative integer with length of 1 and value of zero (hex: `31 00`).
+        #[test]
+        fn test_parse_negativeIntZero() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/negativeIntZero.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::NegativeZero)
+                ))
+            );
+        }
+
+        //        negativeIntZero
+        //        ---------------
+        //        Contains a negative integer with length zero (hex: `30`).
+        #[test]
+        fn test_parse_negativeIntZeroLn() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/negativeIntZeroLn.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::NegativeZero)
+                ))
+            );
+        }
     }
 
     // Parse float tests
@@ -359,6 +490,22 @@ mod tests {
                     content: IonData::Float(IonFloat::Null),
                     annotations: None,
                 }]
+            );
+        }
+
+        //        floatLenTooLarge.10n
+        //    --------------------
+        //        Contains a Float whose length is specified as 8 bytes, but only 7 bytes of data
+        //        are available.
+        #[test]
+        fn test_parse_floatLenTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/floatLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
     }
@@ -470,6 +617,52 @@ mod tests {
                     }),
                     annotations: None,
                 }]
+            );
+        }
+
+        //        decimalExpTooLarge.10n
+        //    ----------------------
+        //        This file contains a Decimal who's exponent exceeds the length defined by the
+        //        decimal container's length.
+        #[ignore]
+        #[test]
+        fn test_parse_decimalExpTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/decimalExpTooLarge.10n");
+        }
+
+        //        decimalLenCauses64BitOverflow.10n
+        //    ---------------------------------
+        //        This file contains a Decimal who's total length is 2^64-1, larger than the
+        //        datagram size, and when combined with a buffer offset, is likely to cause an
+        //        overflow when calculating the end index of the value.
+        #[ignore]
+        #[test]
+        fn test_parse_decimalLenCauses64BitOverflow() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/decimalLenCauses64BitOverflow.10n"
+            );
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
+        }
+
+        //        decimalLenTooLarge.10n
+        //    ----------------------
+        //        Contains a Decimal whose length is specified as 34 bytes, but only 24 bytes of
+        //        data are available.
+        #[test]
+        fn test_parse_decimalLenTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/decimalLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
     }
@@ -584,6 +777,7 @@ mod tests {
     mod symbol {
         use self::assert_eq;
         use super::*;
+        use crate::error::SymbolError;
 
         #[test]
         fn test_parse_nullSymbol() {
@@ -632,6 +826,48 @@ mod tests {
                 }]
             );
         }
+
+        #[test]
+        fn test_parse_symbolIDUnmapped() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/symbolIDUnmapped.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Failure(IonError::from_symbol_error(
+                    index_of_error,
+                    SymbolError::AboveMaxId {
+                        max_id: 9,
+                        symbol_id: 10
+                    }
+                ))
+            );
+        }
+
+        #[ignore]
+        #[test]
+        fn test_parse_fieldNameSymbolIDUnmapped() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/bad/fieldNameSymbolIDUnmapped.10n"
+            );
+        }
+
+        //        symbolLenTooLarge.10n
+        //    ---------------------
+        //        Contains a Symbol whose length is specified as 2 bytes, but only 1 byte of data
+        //        is available.
+        #[test]
+        fn test_parse_symbolLenTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/symbolLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
+        }
     }
 
     // Parse string tests
@@ -650,6 +886,41 @@ mod tests {
                     content: IonData::String(IonString::Null),
                     annotations: None,
                 }]
+            );
+        }
+
+        //        stringLenTooLarge.10n
+        //    ---------------------
+        //        Contains a String whose length is specified as 44 bytes, but only 38 bytes of
+        //        data are available.
+        #[test]
+        fn test_parse_stringLenTooLarge() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/stringLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
+        }
+
+        //        stringWithLatinEncoding.10n
+        //    ---------------------------
+        //        Contains a String with several valid Latin-1 (ISO-8859-1) characters which do
+        //        not produce valid UTF-8 code points.
+        #[test]
+        fn test_parse_stringWithLatinEncoding() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/stringWithLatinEncoding.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::StringEncoding)
+                ))
             );
         }
     }
@@ -717,6 +988,21 @@ mod tests {
                 }]
             );
         }
+
+        //        clobLenTooLarge.10n
+        //    -------------------
+        //        Contains a Clob whose length is specified as 5,400 bytes, but only 16 bytes of
+        //        data are available.
+        #[test]
+        fn test_parse_clobLenTooLarge() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/clobLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
+        }
     }
 
     // Parse blob tests
@@ -735,6 +1021,21 @@ mod tests {
                     content: IonData::Blob(IonBlob::Null),
                     annotations: None,
                 }]
+            );
+        }
+
+        //        blobLenTooLarge.10n
+        //    -------------------
+        //        Contains a Blob whose length is specified as 15 bytes, but only 14 bytes of
+        //        data are available.
+        #[test]
+        fn test_parse_blobLenTooLarge() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/blobLenTooLarge.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
     }
@@ -803,7 +1104,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_parse_nullStructure() {
+        fn test_parse_nullStruct() {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -814,6 +1115,17 @@ mod tests {
                     annotations: None,
                 }]
             );
+        }
+
+        //        structOrderedEmpty.10n
+        //    ----------------------
+        //        Contains an ordered Struct (type ID `0xD1`) with a length of `0` (`0x80`).
+        //        Ordered structs must contain at least one symbol/value pair.
+        #[ignore]
+        #[test]
+        fn test_parse_structOrderedEmpty() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/structOrderedEmpty.10n");
         }
     }
 
@@ -917,6 +1229,24 @@ mod tests {
         fn test_parse_annotationWithNoValue() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationWithNoValue.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
+            );
+        }
+
+        //    emptyAnnotatedInt.10n
+        //-------------------------
+        //    Contains an Annotation wrapper with an annot_length subfield value of zero,
+        //    which is illegal because at least one annotation must exist.
+        //
+        // Redundant: This is already covered by the invalid type descriptor tests.
+        #[test]
+        fn test_parse_emptyAnnotatedInt() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/bad/emptyAnnotatedInt.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
