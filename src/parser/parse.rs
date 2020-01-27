@@ -1102,6 +1102,9 @@ mod tests {
     mod r#struct {
         use self::assert_eq;
         use super::*;
+        use crate::ion_types::IonSymbol::Symbol;
+
+        // Good
 
         #[test]
         fn test_parse_nullStruct() {
@@ -1116,6 +1119,200 @@ mod tests {
                 }]
             );
         }
+
+        #[test]
+        fn test_parse_nopPadInsideEmptyStructNonZeroSymbolId() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructNonZeroSymbolId.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_nopPadInsideEmptyStructZeroSymbolId() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructZeroSymbolId.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_nopPadInsideStructWithNopPadThenValueZeroSymbolId() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithNopPadThenValueZeroSymbolId.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+        }
+
+        #[test]
+        fn test_parse_nopPadInsideStructWithValueThenNopPad() {
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithValueThenNopPad.10n"
+            );
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+        }
+
+        #[test]
+        fn test_parse_structAnnotatedEmpty() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedEmpty.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: Some(vec![Symbol {
+                        token: SymbolToken::Known {
+                            text: String::from("max_id")
+                        },
+                    }])
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structAnnotatedOrdered() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedOrdered.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: Some(vec![Symbol {
+                        token: SymbolToken::Known {
+                            text: String::from("max_id")
+                        },
+                    }])
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structEmpty() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structEmpty.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structLen13() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen13.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![(
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            IonValue {
+                                content: IonData::String(IonString::String {
+                                    value: String::from("123456789AB")
+                                }),
+                                annotations: None,
+                            }
+                        )]
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structLen14() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen14.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![(
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            IonValue {
+                                content: IonData::String(IonString::String {
+                                    value: String::from("123456789ABC")
+                                }),
+                                annotations: None,
+                            }
+                        )]
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structLen15() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen15.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![(
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            IonValue {
+                                content: IonData::String(IonString::String {
+                                    value: String::from("123456789ABCD")
+                                }),
+                                annotations: None,
+                            }
+                        )]
+                    }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        #[test]
+        fn test_parse_structOrdered() {
+            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structOrdered.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
+                    annotations: None,
+                }]
+            );
+        }
+
+        // Bad
 
         //        structOrderedEmpty.10n
         //    ----------------------

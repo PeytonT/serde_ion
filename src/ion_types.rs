@@ -287,14 +287,16 @@ impl IonBlob {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IonStruct {
     Null,
-    Structure(Vec<(IonSymbol, IonValue)>),
+    Struct {
+        values: Vec<(SymbolToken, IonValue)>,
+    },
 }
 
 impl IonStruct {
     pub fn to_text(&self) -> String {
         match self {
             IonStruct::Null => String::from("null.struct"),
-            IonStruct::Structure(entries) => todo!(),
+            IonStruct::Struct { values: entries } => todo!(),
         }
     }
 }

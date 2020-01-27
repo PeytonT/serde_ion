@@ -11,6 +11,7 @@ use nom::{
     error::{ErrorKind, ParseError},
     multi::{many0, many1},
     number::complete::{double, float},
+    sequence::pair,
     Err,
 };
 use num_bigint::{BigInt, BigUint, Sign};
@@ -33,7 +34,8 @@ fn parse_top_level_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b mut SymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
-    match parse_value(i, symbol_table) {
+    let parse_result = take_value(symbol_table)(i);
+    match parse_result {
         Ok((rest, value)) => {
             // If the value is a Struct...
             if let IonData::Struct(ion_struct) = &value.content {
@@ -73,14 +75,13 @@ fn update_table<'a>(
     todo!()
 }
 
-/// Take a single IonValue from the head of an Ion byte stream.
-fn parse_value<'a, 'b>(
-    i: &'a [u8],
-    symbol_table: &'b SymbolTable,
-) -> IonResult<&'a [u8], IonValue> {
-    let (rest, typed_value) = take_typed_value(i)?;
-    let value = parse_typed_value(typed_value, symbol_table)?;
-    Ok((rest, value))
+/// Generate a parser that takes a single IonValue from the head of an Ion byte stream.
+fn take_value(symbol_table: &SymbolTable) -> impl Fn(&[u8]) -> IonResult<&[u8], IonValue> + '_ {
+    move |i: &[u8]| {
+        let (rest, typed_value) = take_typed_value(i)?;
+        let value = parse_typed_value(typed_value, symbol_table)?;
+        Ok((rest, value))
+    }
 }
 
 /// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
@@ -694,9 +695,8 @@ fn parse_list<'a>(
         LengthCode::L15 => Ok(IonList::Null),
         LengthCode::L0 => Ok(IonList::List { values: vec![] }),
         _ => {
-            let (_, values) = complete(all_consuming(many0(move |i: &[u8]| {
-                parse_value(i, symbol_table)
-            })))(typed_value.rep)?;
+            let (_, values) =
+                complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
             Ok(IonList::List { values })
         }
     }
@@ -725,9 +725,8 @@ fn parse_sexp<'a>(
         LengthCode::L15 => Ok(IonSexp::Null),
         LengthCode::L0 => Ok(IonSexp::Sexp { values: vec![] }),
         _ => {
-            let (_, values) = complete(all_consuming(many0(move |i: &[u8]| {
-                parse_value(i, symbol_table)
-            })))(typed_value.rep)?;
+            let (_, values) =
+                complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
             Ok(IonSexp::Sexp { values })
         }
     }
@@ -801,10 +800,46 @@ fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &SymbolTable,
 ) -> ParseResult<&'a [u8], IonStruct> {
-    match typed_value.length_code {
-        LengthCode::L15 => Ok(IonStruct::Null),
-        _ => todo!(),
-    }
+    let (_, entries): (_, Vec<(usize, IonValue)>) = match typed_value.length_code {
+        LengthCode::L15 => return Ok(IonStruct::Null),
+        LengthCode::L0 => return Ok(IonStruct::Struct { values: vec![] }),
+        // TODO: Should fail if field names are unordered.
+        LengthCode::L1 => complete(all_consuming(many1(pair(
+            take_var_uint_as_usize,
+            take_value(symbol_table),
+        ))))(typed_value.rep)?,
+        _ => complete(all_consuming(many0(pair(
+            take_var_uint_as_usize,
+            take_value(symbol_table),
+        ))))(typed_value.rep)?,
+    };
+    let values: ParseResult<&'a [u8], Vec<(SymbolToken, IonValue)>> = entries
+        .into_iter()
+        .filter(|(field_name, value)| {
+            if let IonValue {
+                content: IonData::Null(IonNull::Pad),
+                ..
+            } = value
+            {
+                return false;
+            }
+            true
+        })
+        .map(|(field_name, value)| {
+            let symbol = match symbol_table.lookup_sid(field_name) {
+                Ok(token) => token,
+                Err(err) => {
+                    return Err(Err::Failure(IonError::from_symbol_error(
+                        typed_value.index,
+                        err,
+                    )))
+                }
+            };
+            Ok((symbol, value))
+        })
+        .collect();
+    let values = values?;
+    Ok(IonStruct::Struct { values })
 }
 
 /// ### 14: Annotations
