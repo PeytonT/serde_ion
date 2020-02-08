@@ -216,12 +216,6 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
         }),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
-            if magnitude == BigUint::zero() {
-                return Err(Err::Failure(IonError::from_format_error(
-                    typed_value.index,
-                    FormatError::Binary(BinaryFormatError::EncodingOfZero),
-                )));
-            }
             Ok(IonInt::Integer {
                 value: BigInt::from_biguint(Sign::Plus, magnitude),
             })
