@@ -427,15 +427,17 @@ mod tests {
         //        minLongWithLenTooSmall.10n
         //    --------------------------
         //        Contains an Int whose length is specified as 7 bytes, but contains 8 bytes of
-        //        data. The trailing byte is `0x00` (a Null with an invalid _L_ value).
-        //
-        // TODO: It's unclear if this should actually fail, and if so with what error.
-        // https://github.com/amzn/ion-tests/issues/60
-        #[ignore]
+        //        data. The trailing byte is `0x01` (a Null with an invalid _L_ value).
         #[test]
         fn test_parse_minLongWithLenTooSmall() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/minLongWithLenTooSmall.10n");
+            let index_of_error = &strip_bvm(bytes.as_bytes())[8..];
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                dbg!(err),
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
         }
 
         //        negativeIntZero
