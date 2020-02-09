@@ -1154,9 +1154,28 @@ mod tests {
 
         #[test]
         fn test_parse_nopPadInsideStructWithNopPadThenValueZeroSymbolId() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithNopPadThenValueZeroSymbolId.10n");
+            let bytes = include_bytes!(
+                "../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithNopPadThenValueZeroSymbolId.10n"
+            );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![(
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            IonValue {
+                                content: IonData::Bool(IonBool::True),
+                                annotations: None,
+                            }
+                        )]
+                    }),
+                    annotations: None,
+                }]
+            );
         }
 
         #[test]
@@ -1166,31 +1185,29 @@ mod tests {
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![(
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            IonValue {
+                                content: IonData::Bool(IonBool::True),
+                                annotations: None,
+                            }
+                        )]
+                    }),
+                    annotations: None,
+                }]
+            );
         }
 
         #[test]
         fn test_parse_structAnnotatedEmpty() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedEmpty.10n");
-            let (remaining_bytes, value) = parse(bytes).unwrap();
-            assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![IonValue {
-                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
-                    annotations: Some(vec![Symbol {
-                        token: SymbolToken::Known {
-                            text: String::from("max_id")
-                        },
-                    }])
-                }]
-            );
-        }
-
-        #[test]
-        fn test_parse_structAnnotatedOrdered() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedOrdered.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1306,9 +1323,95 @@ mod tests {
             assert_eq!(
                 value,
                 vec![IonValue {
-                    content: IonData::Struct(IonStruct::Struct { values: vec![] }),
-                    annotations: None,
-                }]
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("name")
+                                },
+                                IonValue {
+                                    content: IonData::Null(IonNull::Null),
+                                    annotations: None,
+                                }
+                            ),
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("version")
+                                },
+                                IonValue {
+                                    content: IonData::Bool(IonBool::False),
+                                    annotations: None,
+                                }
+                            ),
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("imports")
+                                },
+                                IonValue {
+                                    content: IonData::Bool(IonBool::True),
+                                    annotations: None,
+                                }
+                            )
+                        ]
+                    }),
+                    annotations: None
+                }],
+            );
+        }
+
+        #[test]
+        fn test_parse_structAnnotatedOrdered() {
+            let bytes =
+                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedOrdered.10n");
+            let (remaining_bytes, value) = parse(bytes).unwrap();
+            assert_eq!(remaining_bytes, &[] as &[u8]);
+            assert_eq!(
+                value,
+                vec![IonValue {
+                    content: IonData::Struct(IonStruct::Struct {
+                        values: vec![
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("name")
+                                },
+                                IonValue {
+                                    content: IonData::Null(IonNull::Null),
+                                    annotations: None,
+                                }
+                            ),
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("version")
+                                },
+                                IonValue {
+                                    content: IonData::Bool(IonBool::False),
+                                    annotations: None,
+                                }
+                            ),
+                            (
+                                SymbolToken::Known {
+                                    text: String::from("imports")
+                                },
+                                IonValue {
+                                    content: IonData::Bool(IonBool::True),
+                                    annotations: None,
+                                }
+                            )
+                        ]
+                    }),
+                    annotations: Some(vec![
+                        IonSymbol::Symbol {
+                            token: SymbolToken::Known {
+                                text: String::from("symbols")
+                            }
+                        },
+                        IonSymbol::Symbol {
+                            token: SymbolToken::Known {
+                                text: String::from("max_id")
+                            }
+                        }
+                    ]),
+                }],
             );
         }
 
@@ -1318,11 +1421,19 @@ mod tests {
         //    ----------------------
         //        Contains an ordered Struct (type ID `0xD1`) with a length of `0` (`0x80`).
         //        Ordered structs must contain at least one symbol/value pair.
-        #[ignore]
         #[test]
         fn test_parse_structOrderedEmpty() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/structOrderedEmpty.10n");
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_format_error(
+                    index_of_error,
+                    FormatError::Binary(BinaryFormatError::StructEmpty)
+                ))
+            );
         }
     }
 

@@ -6,6 +6,7 @@ use crate::ion_types::{
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
 use crate::symbols::{SymbolTable, SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
+use itertools::Itertools;
 use nom::{
     combinator::{all_consuming, complete},
     error::{ErrorKind, ParseError},
@@ -794,20 +795,15 @@ fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &SymbolTable,
 ) -> ParseResult<&'a [u8], IonStruct> {
+    // Get all entries
     let (_, entries): (_, Vec<(usize, IonValue)>) = match typed_value.length_code {
         LengthCode::L15 => return Ok(IonStruct::Null),
         LengthCode::L0 => return Ok(IonStruct::Struct { values: vec![] }),
-        // TODO: Should fail if field names are unordered.
-        LengthCode::L1 => complete(all_consuming(many1(pair(
-            take_var_uint_as_usize,
-            take_value(symbol_table),
-        ))))(typed_value.rep)?,
-        _ => complete(all_consuming(many0(pair(
-            take_var_uint_as_usize,
-            take_value(symbol_table),
-        ))))(typed_value.rep)?,
+        _ => parse_struct_entries(symbol_table)(typed_value.rep)?,
     };
-    let values: ParseResult<&'a [u8], Vec<(SymbolToken, IonValue)>> = entries
+
+    // Strip all of the entries with values containing padding
+    let entries: Vec<(usize, IonValue)> = entries
         .into_iter()
         .filter(|(field_name, value)| {
             if let IonValue {
@@ -819,6 +815,32 @@ fn parse_struct<'a>(
             }
             true
         })
+        .collect();
+
+    // If the struct is a sorted struct, verify that it is actually sorted
+    if typed_value.length_code == LengthCode::L1 {
+        if entries.is_empty() {
+            return Err(Err::Failure(IonError::from_format_error(
+                typed_value.index,
+                FormatError::Binary(BinaryFormatError::StructEmpty),
+            )));
+        }
+        let sorted = entries
+            .iter()
+            .map(|x| x.0)
+            .tuple_windows()
+            .all(|(a, b)| a < b);
+        if !sorted {
+            return Err(Err::Failure(IonError::from_format_error(
+                typed_value.index,
+                FormatError::Binary(BinaryFormatError::StructUnordered),
+            )));
+        }
+    }
+
+    // Map each symbol_id to its associated symbol token
+    let entries: ParseResult<&'a [u8], Vec<(SymbolToken, IonValue)>> = entries
+        .into_iter()
         .map(|(field_name, value)| {
             let symbol = match symbol_table.lookup_sid(field_name) {
                 Ok(token) => token,
@@ -832,8 +854,20 @@ fn parse_struct<'a>(
             Ok((symbol, value))
         })
         .collect();
-    let values = values?;
+
+    let values = entries?;
     Ok(IonStruct::Struct { values })
+}
+
+fn parse_struct_entries(
+    symbol_table: &SymbolTable,
+) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, IonValue)>)> + '_ {
+    move |i: &[u8]| {
+        complete(all_consuming(many0(pair(
+            take_var_uint_as_usize,
+            take_value(symbol_table),
+        ))))(i)
+    }
 }
 
 /// ### 14: Annotations

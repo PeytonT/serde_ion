@@ -137,8 +137,8 @@ pub enum LengthCode {
 }
 
 /// Exists to support skip-searching over a value stream.
-pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
-    let (rest, descriptor_byte) = take(1usize)(input)?;
+pub fn take_typed_value(index: &[u8]) -> IonResult<&[u8], TypedValue> {
+    let (rest, descriptor_byte) = take(1usize)(index)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
     let length_code: LengthCode = LengthCode::from_u8(descriptor_byte[0] & 0b0000_1111).unwrap();
     match (type_code, length_code) {
@@ -148,7 +148,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             TypedValue {
                 type_code,
                 length_code,
-                index: input,
+                index,
                 value: descriptor_byte,
                 rep: &[],
             },
@@ -161,18 +161,18 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             TypedValue {
                 type_code,
                 length_code,
-                index: input,
+                index,
                 value: descriptor_byte,
                 rep: &[],
             },
         )),
         // bool length_codes other than 0, 1, and 15 are invalid
         (TypeCode::Bool, invalid) => Err(Err::Failure(IonError::from_format_error(
-            input,
+            index,
             FormatError::Binary(BinaryFormatError::BoolValue(invalid as u8)),
         ))),
         (TypeCode::NegInt, LengthCode::L0) => Err(Err::Failure(IonError::from_format_error(
-            input,
+            index,
             FormatError::Binary(BinaryFormatError::NegativeZero),
         ))),
         // Special cases: 0e0 (L == 0) and null.float (L == 15) both have empty representation
@@ -181,7 +181,7 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             TypedValue {
                 type_code,
                 length_code,
-                index: input,
+                index,
                 value: descriptor_byte,
                 rep: &[],
             },
@@ -190,13 +190,13 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             let (end, rep) = take(4usize)(rest)?;
             // TODO: remove unnecessary checks
             // we know these 5 bytes exist from the previous line
-            let (end, value) = take(5usize)(input)?;
+            let (end, value) = take(5usize)(index)?;
             Ok((
                 end,
                 TypedValue {
                     type_code,
                     length_code,
-                    index: input,
+                    index,
                     value,
                     rep,
                 },
@@ -206,36 +206,55 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
             let (end, rep) = take(8usize)(rest)?;
             // TODO: remove unnecessary checks
             // we know these 9 bytes exist from the previous line
-            let (end, value) = take(9usize)(input)?;
+            let (end, value) = take(9usize)(index)?;
             Ok((
                 end,
                 TypedValue {
                     type_code,
                     length_code,
-                    index: input,
+                    index,
                     value,
                     rep,
                 },
             ))
         }
         (TypeCode::Float, invalid) => Err(Err::Failure(IonError::from_format_error(
-            input,
+            index,
             FormatError::Binary(BinaryFormatError::FloatLength(invalid as u8)),
         ))),
         // For timestamp values, a VarInt offset and VarUInt year are required.
         // Thus, type code 6 with L equal to zero or one is illegal.
         (TypeCode::Timestamp, LengthCode::L0) | (TypeCode::Timestamp, LengthCode::L1) => {
             Err(Err::Failure(IonError::from_format_error(
-                input,
+                index,
                 FormatError::Binary(BinaryFormatError::TimestampLength(length_code as u8)),
             )))
+        }
+        // Binary-encoded structs support a special case where the fields are known to be sorted
+        // such that the field-name integers are increasing. This state exists when L is one.
+        // When L is 1, the struct has at least one symbol/value pair, the length field exists,
+        // and the field name integers are sorted in increasing order.
+        (TypeCode::Struct, LengthCode::L1) => {
+            let (rest, length) = take_var_uint_as_usize(rest)?;
+            let (end, rep) = take(length)(rest)?;
+            let (end, value) = take(index.len() - end.len())(index)?;
+            Ok((
+                end,
+                TypedValue {
+                    type_code,
+                    length_code,
+                    index,
+                    value,
+                    rep,
+                },
+            ))
         }
         // Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
         // Instead, that octet signals the start of a binary version marker.
         // This particular invalid representation should be passed back up as an error
         // so that an alternative parse can be attempted.
         (TypeCode::Annotation, LengthCode::L0) => Err(Err::Error(IonError::from_format_error(
-            input,
+            index,
             FormatError::Binary(BinaryFormatError::AnnotationLength(length_code as u8)),
         ))),
         // Because at least one annotation and exactly one content field must exist,
@@ -244,25 +263,25 @@ pub fn take_typed_value(input: &[u8]) -> IonResult<&[u8], TypedValue> {
         | (TypeCode::Annotation, LengthCode::L2)
         | (TypeCode::Annotation, LengthCode::L15) => {
             Err(Err::Failure(IonError::from_format_error(
-                input,
+                index,
                 FormatError::Binary(BinaryFormatError::AnnotationLength(length_code as u8)),
             )))
         }
         (TypeCode::Reserved, _) => Err(Err::Failure(IonError::from_format_error(
-            input,
+            index,
             FormatError::Binary(BinaryFormatError::ReservedTypeCode),
         ))),
         // All remaining type_codes behave in a standard way
         (type_code, length_code) => {
             let (rest, length) = take_representation_length(length_code)(rest)?;
             let (end, rep) = take(length)(rest)?;
-            let (end, value) = take(input.len() - end.len())(input)?;
+            let (end, value) = take(index.len() - end.len())(index)?;
             Ok((
                 end,
                 TypedValue {
                     type_code,
                     length_code,
-                    index: input,
+                    index,
                     value,
                     rep,
                 },

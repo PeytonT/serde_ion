@@ -35,6 +35,7 @@ base64 = "0.10.1"
 nom = "5.0.0"
 thiserror = "1.0.9"
 lazy_static = "1.4.0"
+itertools = "0.8.2"
 
 
 [dev-dependencies]

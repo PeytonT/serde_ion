@@ -108,6 +108,10 @@ pub enum BinaryFormatError {
     TimestampLength(u8),
     #[error("string encoding must be utf8")]
     StringEncoding,
+    #[error("structs with length_code L1 cannot be empty")]
+    StructEmpty,
+    #[error("structs with length_code L1 must have increasing field-name integers")]
+    StructUnordered,
     #[error("invalid local symbol table")]
     LocalTable,
 }
