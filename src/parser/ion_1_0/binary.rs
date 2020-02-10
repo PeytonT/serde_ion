@@ -1,3 +1,4 @@
+use super::current_symbol_table::*;
 use super::subfield::*;
 use super::typed_value::*;
 use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
@@ -5,7 +6,8 @@ use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
-use crate::symbols::{SymbolTable, SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
+use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
+use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
 use itertools::Itertools;
 use nom::{
     combinator::{all_consuming, complete},
@@ -22,7 +24,7 @@ use num_traits::ToPrimitive;
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
 /// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
-pub fn parse(mut table: SymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], IonValue> {
+pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], IonValue> {
     move |i: &[u8]| parse_top_level_value(i, &mut table)
 }
 
@@ -33,7 +35,7 @@ pub fn parse(mut table: SymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], Io
 /// of being parsed as a value.
 fn parse_top_level_value<'a, 'b>(
     i: &'a [u8],
-    symbol_table: &'b mut SymbolTable,
+    symbol_table: &'b mut CurrentSymbolTable,
 ) -> IonResult<&'a [u8], IonValue> {
     let parse_result = take_value(symbol_table)(i);
     match parse_result {
@@ -48,11 +50,8 @@ fn parse_top_level_value<'a, 'b>(
                         if let IonSymbol::Symbol { token } = symbol {
                             // And the value of the annotation is "$ion_symbol_table"...
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
-                                // Then it is an update to the local symbol table.
-                                let updated_symbol_table =
-                                    update_table(i, symbol_table, ion_struct)?;
-                                // Apply it.
-                                *symbol_table = updated_symbol_table;
+                                // Then it is an update to the local symbol table. Apply it.
+                                update_current_symbol_table(symbol_table, ion_struct);
                                 // And continue with the next top-level value.
                                 return parse_top_level_value(rest, symbol_table);
                             }
@@ -67,17 +66,10 @@ fn parse_top_level_value<'a, 'b>(
     }
 }
 
-/// Modify the current symbol table according to the encountered local symbol table.
-fn update_table<'a>(
-    index: &'a [u8],
-    current: &mut SymbolTable,
-    encountered: &IonStruct,
-) -> ParseResult<&'a [u8], SymbolTable> {
-    todo!()
-}
-
 /// Generate a parser that takes a single IonValue from the head of an Ion byte stream.
-fn take_value(symbol_table: &SymbolTable) -> impl Fn(&[u8]) -> IonResult<&[u8], IonValue> + '_ {
+fn take_value(
+    symbol_table: &CurrentSymbolTable,
+) -> impl Fn(&[u8]) -> IonResult<&[u8], IonValue> + '_ {
     move |i: &[u8]| {
         let (rest, typed_value) = take_typed_value(i)?;
         let value = parse_typed_value(typed_value, symbol_table)?;
@@ -88,7 +80,7 @@ fn take_value(symbol_table: &SymbolTable) -> impl Fn(&[u8]) -> IonResult<&[u8], 
 /// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
 fn parse_typed_value<'a>(
     value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonValue> {
     match value.type_code {
         TypeCode::Null => wrap_data(IonData::Null(parse_null(value)?)),
@@ -549,7 +541,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 /// ```
 fn parse_symbol<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonSymbol> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonSymbol::Null),
@@ -684,7 +676,7 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], IonBlob> {
 /// ```
 fn parse_list<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonList> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonList::Null),
@@ -714,7 +706,7 @@ fn parse_list<'a>(
 /// ```
 fn parse_sexp<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonSexp> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(IonSexp::Null),
@@ -793,7 +785,7 @@ fn parse_sexp<'a>(
 /// ```
 fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonStruct> {
     // Get all entries
     let (_, entries): (_, Vec<(usize, IonValue)>) = match typed_value.length_code {
@@ -860,7 +852,7 @@ fn parse_struct<'a>(
 }
 
 fn parse_struct_entries(
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, IonValue)>)> + '_ {
     move |i: &[u8]| {
         complete(all_consuming(many0(pair(
@@ -913,7 +905,7 @@ fn parse_struct_entries(
 /// ```
 fn parse_annotation<'a>(
     typed_value: TypedValue<'a>,
-    symbol_table: &SymbolTable,
+    symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], IonValue> {
     match typed_value.length_code {
         LengthCode::L0 | LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {

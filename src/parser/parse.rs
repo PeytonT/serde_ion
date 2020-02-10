@@ -2,7 +2,7 @@ use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
 use crate::error::IonResult;
 use crate::ion_types::IonValue;
-use crate::symbols::SymbolTable;
+use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use nom::{
     bytes::complete::{tag, take},
     sequence::tuple,
@@ -71,7 +71,7 @@ pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
 
 fn _parse_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<IonValue>> {
     move |i: &[u8]| {
-        let symbol_table = SymbolTable::SystemV1;
+        let symbol_table = CurrentSymbolTable::SystemV1;
         many0(ion_1_0::binary::parse(symbol_table))(i)
     }
 }

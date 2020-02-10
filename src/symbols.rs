@@ -5,7 +5,7 @@ use crate::error::SymbolError;
 
 /// ## ImportDescriptor
 /// <importName:String, version:Int, max_id:Int>
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportDescriptor {
     import_name: String,
     version: u32,
@@ -14,7 +14,7 @@ pub struct ImportDescriptor {
 
 /// ## ImportLocation
 /// <importName:String, importSID:Int>
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportLocation {
     import_name: String,
     import_sid: u32,
@@ -81,7 +81,7 @@ pub struct ImportLocation {
 ///
 /// * Greater than the current local symbol table’s max_id, or less than zero, an error must be raised.
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SymbolToken {
     // All SymbolTokens with identical known text are equivalent, import_location is ignored
     Known { text: String },
