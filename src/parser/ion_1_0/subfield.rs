@@ -1,6 +1,6 @@
 use std::iter;
 
-use crate::error::{IonError, IonResult};
+use crate::parser::error::{IonError, IonResult};
 use bit_vec::BitVec;
 use nom::error::ParseError;
 use nom::{

@@ -1,7 +1,7 @@
 use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
-use crate::error::IonResult;
 use crate::ion_types::IonValue;
+use crate::parser::error::IonResult;
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use nom::{
     bytes::complete::{tag, take},
@@ -81,7 +81,8 @@ fn _parse_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<IonValue>> {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
-    use crate::error::{BinaryFormatError, FormatError, IonError};
+    use crate::error::{BinaryFormatError, FormatError};
+    use crate::parser::error::IonError;
     use crate::{
         ion_types::{
             IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,

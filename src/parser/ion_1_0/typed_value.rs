@@ -1,5 +1,6 @@
 use super::subfield::*;
-use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
+use crate::error::{BinaryFormatError, FormatError};
+use crate::parser::error::{IonError, IonResult};
 use nom::{bytes::complete::take, Err};
 use num_traits::cast::FromPrimitive;
 

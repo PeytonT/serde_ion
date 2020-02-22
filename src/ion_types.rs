@@ -178,8 +178,8 @@ pub enum IonTimestamp {
         hour: BigUint,
         minute: BigUint,
         second: BigUint,
-        // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
         fraction_coefficient: BigUint,
+        // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
         fraction_exponent: i32,
     },
 }

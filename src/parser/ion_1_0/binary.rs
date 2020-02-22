@@ -1,11 +1,12 @@
 use super::current_symbol_table::*;
 use super::subfield::*;
 use super::typed_value::*;
-use crate::error::{BinaryFormatError, FormatError, IonError, IonResult};
+use crate::error::{BinaryFormatError, FormatError};
 use crate::ion_types::{
     IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
     IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
 };
+use crate::parser::error::{IonError, IonResult};
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
 use itertools::Itertools;
