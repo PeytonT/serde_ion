@@ -110,14 +110,19 @@ fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Value> {
 
 /// ### 0: null
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Null value |    0    |    15   |
 ///            +---------+---------+
+/// ```
+///
 /// Values of type null always have empty lengths and representations.
 /// The only valid L value is 15, representing the only value of this type, null.null.
 ///
 /// NOP Padding
+///
+/// ```text
 ///          7       4 3       0
 ///         +---------+---------+
 /// NOP Pad |    0    |    L    |
@@ -126,6 +131,8 @@ fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Value> {
 ///         +--------------------------+
 ///         |      ignored octets      |
 ///         +--------------------------+
+/// ```
+///
 /// In addition to null.null, the null type code is used to encode padding that has no operation
 /// (NOP padding). This can be used for “binary whitespace” when alignment of octet boundaries is
 /// needed or to support in-place editing. Such encodings are not considered values and are ignored
@@ -158,10 +165,13 @@ fn parse_null(typed_value: TypedValue) -> ParseResult<&[u8], Null> {
 
 /// ### 1: bool
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Bool value |    1    |   rep   |
 ///            +---------+---------+
+/// ```
+///
 /// Values of type bool always have empty lengths, and their representation is stored in the typedesc
 /// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 /// means true; and a representation of 15 means null.bool.
@@ -182,6 +192,7 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Bool> {
 /// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 /// Both codes use a UInt subfield to store the magnitude.
 ///
+/// ```text
 ///            7       4 3       0
 ///           +---------+---------+
 /// Int value |  2 or 3 |    L    |
@@ -190,6 +201,8 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Bool> {
 ///           +==========================+
 ///           :     magnitude [UInt]     :
 ///           +==========================+
+/// ```
+///
 /// Zero is always stored as positive; negative zero is illegal.
 ///
 /// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
@@ -217,6 +230,7 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
 /// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 /// Both codes use a UInt subfield to store the magnitude.
 ///
+/// ```text
 ///            7       4 3       0
 ///           +---------+---------+
 /// Int value |  2 or 3 |    L    |
@@ -225,6 +239,8 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
 ///           +==========================+
 ///           :     magnitude [UInt]     :
 ///           +==========================+
+/// ```
+///
 /// Zero is always stored as positive; negative zero is illegal.
 ///
 /// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
@@ -252,12 +268,15 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
 
 /// ### 4: float
 ///
+/// ```text
 ///               7       4 3       0
 ///             +---------+---------+
 /// Float value |    4    |    L    |
 ///             +---------+---------+-----------+
 ///             |   representation [IEEE-754]   |
 ///             +-------------------------------+
+/// ```
+///
 /// Floats are encoded as big endian octets of their IEEE 754 bit patterns.
 ///
 /// The L field of floats encodes the size of the IEEE-754 value.
@@ -295,6 +314,7 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Float> {
 
 /// ### 5: decimal
 ///
+/// ```text
 ///                7       4 3       0
 ///               +---------+---------+
 /// Decimal value |    5    |    L    |
@@ -305,6 +325,7 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Float> {
 ///               +--------------------------+
 ///               |    coefficient [Int]     |
 ///               +--------------------------+
+/// ```
 ///
 /// Decimal representations have two components: exponent (a VarInt) and coefficient (an Int).
 /// The decimal’s value is coefficient * 10 ^ exponent.
@@ -338,6 +359,7 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Decimal> {
 
 /// ### 6: timestamp
 ///
+/// ```text
 ///                  7       4 3       0
 ///                 +---------+---------+
 /// Timestamp value |    6    |    L    |
@@ -362,6 +384,8 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Decimal> {
 ///                 +============================+
 ///                 : fraction_coefficient [Int] :
 ///                 +============================+
+/// ```
+///
 /// Timestamp representations have 7 components, where 5 of these components are optional depending on
 /// the precision of the timestamp. The 2 non-optional components are offset and year.
 /// The 5 optional components are (from least precise to most precise): month, day, hour and minute,
@@ -512,6 +536,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
 
 /// ### 7: symbol
 ///
+/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// Symbol value |    7    |    L    |
@@ -520,6 +545,8 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
 ///              +--------------------------+
 ///              |     symbol ID [UInt]     |
 ///              +--------------------------+
+/// ```
+///
 /// In the binary encoding, all Ion symbols are stored as integer symbol IDs whose text values are
 /// provided by a symbol table. If L is zero then the symbol ID is zero and the length and symbol ID
 /// fields are omitted.
@@ -559,6 +586,7 @@ fn parse_symbol<'a>(
 
 /// ### 8: string
 ///
+/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// String value |    8    |    L    |
@@ -567,6 +595,8 @@ fn parse_symbol<'a>(
 ///              +==========================+
 ///              :  representation [UTF8]   :
 ///              +==========================+
+/// ```
+///
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
 fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
     match typed_value.length_code {
@@ -590,6 +620,7 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
 
 /// ### 9: clob
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Clob value |    9    |    L    |
@@ -598,6 +629,8 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
 ///            +==========================+
 ///            :       data [Bytes]       :
 ///            +==========================+
+/// ```
+///
 /// Values of type clob are encoded as a sequence of octets that should be interpreted as text with
 /// an unknown encoding (and thus opaque to the application).
 ///
@@ -613,6 +646,7 @@ fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Clob> {
 
 /// ### 10: blob
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Blob value |   10    |    L    |
@@ -621,6 +655,8 @@ fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Clob> {
 ///            +==========================+
 ///            :       data [Bytes]       :
 ///            +==========================+
+/// ```
+///
 /// This is a sequence of octets with no interpretation (and thus opaque to the application).
 ///
 /// Zero-length blobs are legal, so L may be zero.
@@ -635,6 +671,7 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Blob> {
 
 /// ### 11: list
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// List value |   11    |    L    |
@@ -644,6 +681,7 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Blob> {
 ///            :           value          :
 ///            +==========================+
 ///                          ⋮
+/// ```
 ///
 /// The representation fields of a list value are simply nested Ion values.
 ///
@@ -669,6 +707,7 @@ fn parse_list<'a>(
 
 /// ### 12: sexp
 ///
+/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Sexp value |   12    |    L    |
@@ -678,6 +717,7 @@ fn parse_list<'a>(
 ///            :           value          :
 ///            +==========================+
 ///                          ⋮
+/// ```
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
 fn parse_sexp<'a>(
@@ -700,6 +740,7 @@ fn parse_sexp<'a>(
 /// Structs are encoded as sequences of symbol/value pairs. Since all symbols are encoded as positive
 /// integers, we can omit the typedesc on the field names and just encode the integer value.
 ///
+/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// Struct value |   13    |    L    |
@@ -709,6 +750,7 @@ fn parse_sexp<'a>(
 ///              : field name [VarUInt] :        value         :
 ///              +======================+======================+
 ///                          ⋮                     ⋮
+/// ```
 ///
 /// Binary-encoded structs support a special case where the fields are known to be sorted
 /// such that the field-name integers are increasing. This state exists when L is one. Thus:
@@ -844,6 +886,7 @@ fn parse_struct_entries(
 /// Annotations are a special type that wrap content identified by the other type codes.
 /// The annotations themselves are encoded as integer symbol ids.
 ///
+/// ```text
 ///                     7       4 3       0
 ///                    +---------+---------+
 /// Annotation wrapper |   14    |    L    |
@@ -856,6 +899,7 @@ fn parse_struct_entries(
 ///                    +--------------------------+
 ///                    |          value           |
 ///                    +--------------------------+
+/// ```
 ///
 /// The length field L field indicates the length from the beginning of the annot_length field to the
 /// end of the enclosed value. Because at least one annotation and exactly one content field must exist,

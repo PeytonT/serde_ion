@@ -40,17 +40,20 @@ pub struct ImportLocation {
 ///
 /// #### Undefined
 ///
+/// ```text
 /// if importLocation is
 ///
-/// *   Defined: SymbolTokens are equivalent if and only if their importLocations’ importName and importSID are equivalent.
+///     * Defined: SymbolTokens are equivalent if and only if their importLocations’ importName and importSID are equivalent.
 ///
-/// *   Undefined: The SymbolToken represents the special symbol zero,
-///     which is used to denote that a SymbolToken has unknown text in any symbol table.
-///     SymbolTokens representing symbol zero are equivalent only to other SymbolTokens
-///     representing symbol zero.
+///     * Undefined: The SymbolToken represents the special symbol zero,
+///       which is used to denote that a SymbolToken has unknown text in any symbol table.
+///       SymbolTokens representing symbol zero are equivalent only to other SymbolTokens
+///       representing symbol zero.
+/// ```
 ///
 /// ### Reading SymbolTokens
 ///
+/// ```text
 /// Ion readers must support being provided with an optional catalog to use for resolving shared
 /// symbol table imports declared within local symbol tables encountered in the stream.
 /// If a declared import is not found in the catalog,
@@ -58,34 +61,35 @@ pub struct ImportLocation {
 ///
 /// Generally, Ion readers provide two kinds of SymbolToken reading APIs, those that return:
 ///
-/// * Raw text (for convenience), and
-/// * Complete SymbolTokens (for full fidelity).
+///     * Raw text (for convenience), and
+///     * Complete SymbolTokens (for full fidelity).
 ///
 /// For a Binary reader, if the local symbol ID is
 ///
-/// * Within the current local symbol table’s max_id range, if the local symbol ID maps to text which is
+///     * Within the current local symbol table’s max_id range, if the local symbol ID maps to text which is
 ///
-///     ** Known, for
+///         ** Known, for
 ///
-///         *** Raw text APIs, return that text.
+///             *** Raw text APIs, return that text.
 ///
-///         *** SymbolToken APIs, return a SymbolToken with that text and with an undefined importLocation.
+///             *** SymbolToken APIs, return a SymbolToken with that text and with an undefined importLocation.
 ///
-///     ** Unknown, if the local symbol ID is
+///         ** Unknown, if the local symbol ID is
 ///
-///         *** Less than the current local symbol table’s min_local_id (as defined by the specification), for
+///             *** Less than the current local symbol table’s min_local_id (as defined by the specification), for
 ///
-///             **** Raw text APIs, the implementation should raise an error.
+///                 **** Raw text APIs, the implementation should raise an error.
 ///
-///             **** SymbolToken APIs, return a SymbolToken with undefined text and with importLocation set.
+///                 **** SymbolToken APIs, return a SymbolToken with undefined text and with importLocation set.
 ///
-///         *** At least min_local_id, then this symbol ID maps to a null (or non-string) slot in the local symbol table, and is treated as symbol zero. For
+///             *** At least min_local_id, then this symbol ID maps to a null (or non-string) slot in the local symbol table, and is treated as symbol zero. For
 ///
-///             **** Raw text APIs, return undefined text.
+///                 **** Raw text APIs, return undefined text.
 ///
 ///             **** SymbolToken APIs, return a SymbolToken with undefined text and an undefined importLocation.
 ///
-/// * Greater than the current local symbol table’s max_id, or less than zero, an error must be raised.
+///     * Greater than the current local symbol table’s max_id, or less than zero, an error must be raised.
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SymbolToken {
     // All SymbolTokens with identical known text are equivalent, import_location is ignored

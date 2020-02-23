@@ -23,6 +23,7 @@ use num_traits::identities::Zero;
 /// These field formats are always used in some context that clearly indicates the
 /// number of octets in the field.
 ///
+/// ```text
 ///             7                       0
 ///            +-------------------------+
 /// UInt field |          bits           |
@@ -34,9 +35,11 @@ use num_traits::identities::Zero;
 ///            :          bits           :
 ///            +=========================+
 ///             n+7                     n
+/// ```
 ///
 /// UInts are sequences of octets, interpreted as big-endian.
 ///
+/// ```text
 ///              7  6                   0
 ///            +---+---------------------+
 /// Int field  |   |      bits           |
@@ -52,6 +55,7 @@ use num_traits::identities::Zero;
 ///            :          bits           :
 ///            +=========================+
 ///             n+7                     n
+/// ```
 ///
 /// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
 /// on the highest-order bit of the first octet). This means that the representations of
@@ -128,14 +132,17 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 /// in the field; the last octet (and only the last octet) has its high-order bit set to
 /// terminate the field.
 ///
+/// ```text
 ///                 7  6                   0       n+7 n+6                 n
 ///               +===+=====================+     +---+---------------------+
 /// VarUInt field : 0 :         bits        :  …  | 1 |         bits        |
 ///               +===+=====================+     +---+---------------------+
+/// ```
 ///
 /// VarUInts are a sequence of octets. The high-order bit of the last octet is one,
 /// indicating the end of the sequence. All other high-order bits must be zero.
 ///
+/// ```text
 ///                7   6  5               0       n+7 n+6                 n
 ///              +===+                           +---+
 /// VarInt field : 0 :       payload          …  | 1 |       payload
@@ -147,6 +154,7 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 ///                |   |                           |
 ///                |   +--sign                     +--end flag
 ///                +--end flag
+/// ```
 ///
 /// VarInts are sign-and-magnitude integers, like Ints. Their layout is complicated,
 /// as there is one special leading bit (the sign) and one special trailing bit (the terminator).
@@ -157,6 +165,7 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 /// flag in the first octet of the representation, but part of the extension bits for all other octets.
 /// For single-octet VarInt values, this collapses down to:
 ///
+/// ```text
 ///                             7   6  5           0
 ///                           +---+---+-------------+
 /// single octet VarInt field | 1 |   |  magnitude  |
@@ -164,6 +173,7 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 ///                                 ^
 ///                                 |
 ///                                 +--sign
+/// ```
 
 pub fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;

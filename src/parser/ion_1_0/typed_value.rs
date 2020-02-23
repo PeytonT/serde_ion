@@ -9,6 +9,7 @@ use num_traits::cast::FromPrimitive;
 /// A value consists of a one-octet type descriptor, possibly followed by a length in octets,
 /// possibly followed by a representation.
 ///
+/// ```text
 ///        7       4 3       0
 ///       +---------+---------+
 /// value |    T    |    L    |
@@ -17,6 +18,7 @@ use num_traits::cast::FromPrimitive;
 ///       +==========================+
 ///       :      representation      :
 ///       +==========================+
+/// ```
 ///
 /// The type descriptor octet has two subfields: a four-bit type code T, and a four-bit length L.
 ///
