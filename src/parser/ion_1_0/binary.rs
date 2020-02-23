@@ -3,8 +3,8 @@ use super::subfield::*;
 use super::typed_value::*;
 use crate::error::{BinaryFormatError, FormatError};
 use crate::ion_types::{
-    Blob, Bool, Clob, Data, Decimal, Float, Int, List, Null, Sexp, String, Struct, Symbol,
-    Timestamp, Value,
+    Blob, Bool, Clob, Data, Decimal, Float, Int, List, Sexp, String, Struct, Symbol, Timestamp,
+    Value,
 };
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::parser::parse_error::{IonError, IonResult};
@@ -25,7 +25,9 @@ use std::string::String as StdString;
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
-pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], Value> {
+pub fn parse(
+    mut table: CurrentSymbolTable,
+) -> impl FnMut(&[u8]) -> IonResult<&[u8], Option<Value>> {
     move |i: &[u8]| parse_top_level_value(i, &mut table)
 }
 
@@ -37,10 +39,10 @@ pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[
 fn parse_top_level_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b mut CurrentSymbolTable,
-) -> IonResult<&'a [u8], Value> {
+) -> IonResult<&'a [u8], Option<Value>> {
     let parse_result = take_value(symbol_table)(i);
     match parse_result {
-        Ok((rest, value)) => {
+        Ok((rest, Some(value))) => {
             // If the value is a Struct...
             if let Data::Struct(ion_struct) = &value.value {
                 // And it has an annotations vector...
@@ -53,22 +55,26 @@ fn parse_top_level_value<'a, 'b>(
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
                                 // Then it is an update to the local symbol table. Apply it.
                                 update_current_symbol_table(symbol_table, ion_struct);
-                                // And continue with the next top-level value.
-                                return parse_top_level_value(rest, symbol_table);
+                                // And return no Value
+                                return Ok((rest, None));
                             }
                         }
                     }
                 }
             }
             // In all other cases, it is an Ion value.
-            Ok((rest, value))
+            Ok((rest, Some(value)))
         }
+        // If there's no Value, it was a NOP pad
+        Ok((rest, None)) => Ok((rest, None)),
         Err(err) => Err(err),
     }
 }
 
 /// Generate a parser that takes a single Value from the head of an Ion byte stream.
-fn take_value(symbol_table: &CurrentSymbolTable) -> impl Fn(&[u8]) -> IonResult<&[u8], Value> + '_ {
+fn take_value(
+    symbol_table: &CurrentSymbolTable,
+) -> impl Fn(&[u8]) -> IonResult<&[u8], Option<Value>> + '_ {
     move |i: &[u8]| {
         let (rest, typed_value) = take_typed_value(i)?;
         let value = parse_typed_value(typed_value, symbol_table)?;
@@ -76,13 +82,17 @@ fn take_value(symbol_table: &CurrentSymbolTable) -> impl Fn(&[u8]) -> IonResult<
     }
 }
 
-/// Parse a TypedValue containing bytes representing an Ion value into the Value data model form
+/// Parse a TypedValue containing bytes representing an Ion value into the Value data model form.
+/// A TypedValue may represent a No-Op pad, so there may not be a Value.
 fn parse_typed_value<'a>(
     value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], Value> {
+) -> ParseResult<&'a [u8], Option<Value>> {
     match value.type_code {
-        TypeCode::Null => wrap_data(Data::Null(parse_null(value)?)),
+        TypeCode::Null => match parse_null(value) {
+            None => Ok(None),
+            Some(_) => wrap_data(Data::Null),
+        },
         TypeCode::Bool => wrap_data(Data::Bool(parse_bool(value)?)),
         TypeCode::PosInt => wrap_data(Data::Int(parse_positive_int(value)?)),
         TypeCode::NegInt => wrap_data(Data::Int(parse_negative_int(value)?)),
@@ -96,16 +106,19 @@ fn parse_typed_value<'a>(
         TypeCode::List => wrap_data(Data::List(parse_list(value, symbol_table)?)),
         TypeCode::Sexp => wrap_data(Data::Sexp(parse_sexp(value, symbol_table)?)),
         TypeCode::Struct => wrap_data(Data::Struct(parse_struct(value, symbol_table)?)),
-        TypeCode::Annotation => parse_annotation(value, symbol_table),
-        TypeCode::Reserved => error_reserved(value),
+        TypeCode::Annotation => match parse_annotation(value, symbol_table) {
+            Ok(value) => Ok(Some(value)),
+            Err(err) => Err(err),
+        },
+        TypeCode::Reserved => Err(error_reserved(value)),
     }
 }
 
-fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Value> {
-    Ok(Value {
+fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Option<Value>> {
+    Ok(Some(Value {
         value: data,
         annotations: None,
-    })
+    }))
 }
 
 /// ### 0: null
@@ -156,10 +169,11 @@ fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Value> {
 ///
 /// NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
 /// NOP padding in struct requires additional encoding considerations.
-fn parse_null(typed_value: TypedValue) -> ParseResult<&[u8], Null> {
+fn parse_null(typed_value: TypedValue) -> Option<()> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Null::Null),
-        _ => Ok(Null::Pad),
+        LengthCode::L15 => Some(()),
+        // Anything else is a NOP pad
+        _ => None,
     }
 }
 
@@ -700,6 +714,13 @@ fn parse_list<'a>(
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
+            let values = values
+                .into_iter()
+                .filter_map(|value| match value {
+                    None => None,
+                    Some(value) => Some(value),
+                })
+                .collect();
             Ok(List::List { values })
         }
     }
@@ -730,6 +751,13 @@ fn parse_sexp<'a>(
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
+            let values = values
+                .into_iter()
+                .filter_map(|value| match value {
+                    None => None,
+                    Some(value) => Some(value),
+                })
+                .collect();
             Ok(Sexp::Sexp { values })
         }
     }
@@ -804,7 +832,7 @@ fn parse_struct<'a>(
     symbol_table: &CurrentSymbolTable,
 ) -> ParseResult<&'a [u8], Struct> {
     // Get all entries
-    let (_, entries): (_, Vec<(usize, Value)>) = match typed_value.length_code {
+    let (_, entries): (_, Vec<(usize, Option<Value>)>) = match typed_value.length_code {
         LengthCode::L15 => return Ok(Struct::Null),
         LengthCode::L0 => return Ok(Struct::Struct { values: vec![] }),
         _ => parse_struct_entries(symbol_table)(typed_value.rep)?,
@@ -813,15 +841,9 @@ fn parse_struct<'a>(
     // Strip all of the entries with values containing padding
     let entries: Vec<(usize, Value)> = entries
         .into_iter()
-        .filter(|(field_name, value)| {
-            if let Value {
-                value: Data::Null(Null::Pad),
-                ..
-            } = value
-            {
-                return false;
-            }
-            true
+        .filter_map(|(field_name, value)| match value {
+            None => None,
+            Some(value) => Some((field_name, value)),
         })
         .collect();
 
@@ -869,7 +891,7 @@ fn parse_struct<'a>(
 
 fn parse_struct_entries(
     symbol_table: &CurrentSymbolTable,
-) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, Value)>)> + '_ {
+) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, Option<Value>)>)> + '_ {
     move |i: &[u8]| {
         complete(all_consuming(many0(pair(
             take_var_uint_as_usize,
@@ -943,17 +965,15 @@ fn parse_annotation<'a>(
                     FormatError::Binary(BinaryFormatError::AnnotatedAnnotation),
                 )));
             }
-            let mut value = parse_typed_value(value, symbol_table)?;
-            // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
-            if let Value {
-                value: Data::Null(Null::Pad),
-                ..
-            } = value
-            {
-                return Err(Err::Failure(IonError::from_format_error(
-                    typed_value.index,
-                    FormatError::Binary(BinaryFormatError::AnnotatedPadding),
-                )));
+            let mut value = match parse_typed_value(value, symbol_table)? {
+                // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::AnnotatedPadding),
+                    )));
+                }
+                Some(value) => value,
             };
             let (_, annotations) = all_consuming(many1(take_var_uint_as_usize))(annot_bytes)?;
             match annotations
@@ -981,9 +1001,9 @@ fn parse_annotation<'a>(
 ///
 /// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
 
-fn error_reserved(typed_value: TypedValue) -> ParseResult<&[u8], Value> {
-    Err(Err::Failure(IonError::from_format_error(
+fn error_reserved(typed_value: TypedValue) -> Err<IonError<&[u8]>> {
+    Err::Failure(IonError::from_format_error(
         typed_value.index,
         FormatError::Binary(BinaryFormatError::ReservedTypeCode),
-    )))
+    ))
 }

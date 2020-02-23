@@ -19,7 +19,8 @@ pub struct Value {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Data {
-    Null(Null),
+    // null - A generic null value
+    Null,
     Bool(Bool),
     Int(Int),
     Float(Float),
@@ -32,22 +33,6 @@ pub enum Data {
     Struct(Struct),
     List(List),
     Sexp(Sexp),
-}
-
-// null - A generic null value
-#[derive(Clone, Debug, PartialEq)]
-pub enum Null {
-    Null,
-    Pad,
-}
-
-impl Null {
-    pub fn to_text(&self) -> StdString {
-        match self {
-            Null::Null => StdString::from("null.null"),
-            Null::Pad => todo!(), // TODO(peyton): What error should go here?
-        }
-    }
 }
 
 // bool - Boolean values

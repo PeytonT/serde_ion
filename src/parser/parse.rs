@@ -65,15 +65,12 @@ fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
 
 fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
     all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
-        x.into_iter().flatten().collect()
+        x.into_iter().flatten().filter_map(|x| x).collect()
     }))(input)
 }
 
-fn parse_ion_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<Value>> {
-    move |i: &[u8]| {
-        let symbol_table = CurrentSymbolTable::SystemV1;
-        many0(ion_1_0::binary::parse(symbol_table))(i)
-    }
+fn parse_ion_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<Option<Value>>> {
+    move |i: &[u8]| many0(ion_1_0::binary::parse(CurrentSymbolTable::SystemV1))(i)
 }
 
 #[allow(non_snake_case)]
@@ -85,7 +82,7 @@ mod tests {
     use crate::parser::parse_error::IonError;
     use crate::{
         ion_types::{
-            Blob, Bool, Clob, Data, Decimal, Float, Int, List, Null, Sexp, String, Struct, Symbol,
+            Blob, Bool, Clob, Data, Decimal, Float, Int, List, Sexp, String, Struct, Symbol,
             Timestamp, Value,
         },
         symbols::SymbolToken,
@@ -131,7 +128,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Null(Null::Null),
+                    value: Data::Null,
                     annotations: None,
                 }]
             );
@@ -142,13 +139,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Null(Null::Pad),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![]);
         }
 
         #[test]
@@ -157,13 +148,7 @@ mod tests {
                 include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Null(Null::Pad),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![]);
         }
 
         #[test]
@@ -171,13 +156,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Null(Null::Pad),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![]);
         }
 
         #[test]
@@ -1334,7 +1313,7 @@ mod tests {
                                     text: StdString::from("name")
                                 },
                                 Value {
-                                    value: Data::Null(Null::Null),
+                                    value: Data::Null,
                                     annotations: None,
                                 }
                             ),
@@ -1379,7 +1358,7 @@ mod tests {
                                     text: StdString::from("name")
                                 },
                                 Value {
-                                    value: Data::Null(Null::Null),
+                                    value: Data::Null,
                                     annotations: None,
                                 }
                             ),
