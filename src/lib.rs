@@ -4,8 +4,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 #![allow(dead_code, unused_variables)]
+mod de;
 pub mod error;
 pub mod parser;
+mod ser;
 pub mod symbols;
 pub mod value;
 
