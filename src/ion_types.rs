@@ -3,90 +3,89 @@ extern crate num_bigint;
 extern crate serde_bytes;
 
 use std::str;
-use std::string::String;
+use std::string::String as StdString;
 
 use crate::symbols::SymbolToken;
 use base64::encode;
 use num_bigint::BigInt;
 use num_bigint::BigUint;
 
-/** Reference http://amzn.github.io/ion-docs/docs/spec.html */
 #[derive(Clone, Debug, PartialEq)]
-pub struct IonValue {
-    pub content: IonData,
-    pub annotations: Option<Vec<IonSymbol>>,
+pub struct Value {
+    pub value: Data,
+    pub annotations: Option<Vec<Symbol>>,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonData {
-    Null(IonNull),
-    Bool(IonBool),
-    Int(IonInt),
-    Float(IonFloat),
-    Decimal(IonDecimal),
-    Timestamp(IonTimestamp),
-    String(IonString),
-    Symbol(IonSymbol),
-    Blob(IonBlob),
-    Clob(IonClob),
-    Struct(IonStruct),
-    List(IonList),
-    Sexp(IonSexp),
+pub enum Data {
+    Null(Null),
+    Bool(Bool),
+    Int(Int),
+    Float(Float),
+    Decimal(Decimal),
+    Timestamp(Timestamp),
+    String(String),
+    Symbol(Symbol),
+    Blob(Blob),
+    Clob(Clob),
+    Struct(Struct),
+    List(List),
+    Sexp(Sexp),
 }
 
 // null - A generic null value
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonNull {
+pub enum Null {
     Null,
     Pad,
 }
 
-impl IonNull {
-    pub fn to_text(&self) -> String {
+impl Null {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonNull::Null => String::from("null.null"),
-            IonNull::Pad => todo!(), // TODO(peyton): What error should go here?
+            Null::Null => StdString::from("null.null"),
+            Null::Pad => todo!(), // TODO(peyton): What error should go here?
         }
     }
 }
 
 // bool - Boolean values
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonBool {
+pub enum Bool {
     Null,
     True,
     False,
 }
 
-impl IonBool {
-    pub fn to_text(&self) -> String {
+impl Bool {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonBool::Null => String::from("null.bool"),
-            IonBool::True => String::from("true"),
-            IonBool::False => String::from("false"),
+            Bool::Null => StdString::from("null.bool"),
+            Bool::True => StdString::from("true"),
+            Bool::False => StdString::from("false"),
         }
     }
 }
 
 // int - Signed integers of arbitrary size
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonInt {
+pub enum Int {
     Null,
     Integer { value: BigInt },
 }
 
-impl IonInt {
-    pub fn to_text(&self) -> String {
+impl Int {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonInt::Null => String::from("null.int"),
-            IonInt::Integer { value } => todo!(),
+            Int::Null => StdString::from("null.int"),
+            Int::Integer { value } => todo!(),
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonIntegerTextFormat {
+pub enum IntegerTextFormat {
     Decimal,
     Hexadecimal,
     Binary,
@@ -94,16 +93,16 @@ pub enum IonIntegerTextFormat {
 
 // float - Binary-encoded floating point numbers (IEEE 64-bit)
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonFloat {
+pub enum Float {
     Null,
     Float { value: f64 },
 }
 
-impl IonFloat {
-    pub fn to_text(&self) -> String {
+impl Float {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonFloat::Null => String::from("null.float"),
-            IonFloat::Float { value } => todo!(),
+            Float::Null => StdString::from("null.float"),
+            Float::Float { value } => todo!(),
         }
     }
 }
@@ -111,7 +110,7 @@ impl IonFloat {
 // decimal - Decimal-encoded real numbers of arbitrary precision
 // Reference http://speleotrove.com/decimal/decarith.html
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonDecimal {
+pub enum Decimal {
     Null,
     Decimal {
         coefficient: BigInt,
@@ -119,11 +118,11 @@ pub enum IonDecimal {
     },
 }
 
-impl IonDecimal {
-    pub fn to_text(&self) -> String {
+impl Decimal {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonDecimal::Null => String::from("null.decimal"),
-            IonDecimal::Decimal {
+            Decimal::Null => StdString::from("null.decimal"),
+            Decimal::Decimal {
                 coefficient,
                 exponent,
             } => todo!(),
@@ -136,7 +135,7 @@ impl IonDecimal {
 // Enum variant names represent the precision of the variant
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonTimestamp {
+pub enum Timestamp {
     Null,
     Year {
         offset: BigInt,
@@ -184,34 +183,33 @@ pub enum IonTimestamp {
     },
 }
 
-impl IonTimestamp {
-    pub fn to_text(&self) -> String {
+impl Timestamp {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonTimestamp::Null => String::from("null.timestamp"),
+            Timestamp::Null => StdString::from("null.timestamp"),
             _ => todo!(),
         }
     }
 }
 
-// string - Unicode text literals
+// String - Unicode text literals
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonString {
+pub enum String {
     Null,
-    String { value: String },
+    String { value: StdString },
 }
 
-impl IonString {
-    pub fn to_text(&self) -> String {
+impl String {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonString::Null => String::from("null.string"),
-            IonString::String { value } => todo!(), // needs to re-expand escape sequences
+            String::Null => StdString::from("null.string"),
+            String::String { value } => todo!(), // needs to re-expand escape sequences
         }
     }
 }
 
 /// ## symbol - Interned, Unicode symbolic atoms (aka identifiers)
 ///
-/// ```text
 /// symbol - Interned, Unicode symbolic atoms (aka identifiers)
 /// A subset of symbols called identifiers can be denoted in text without single-quotes.
 /// An identifier is a sequence of ASCII letters, digits, or the
@@ -224,18 +222,17 @@ impl IonString {
 /// A processor encountering a symbol with unknown text and a valid SID other than $0 MAY produce an error
 /// because this means that the context of the data is missing.
 /// Note: serde_ion does not support symbols other than $0 with unknown text.
-/// ```
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonSymbol {
+pub enum Symbol {
     Null,
     Symbol { token: SymbolToken },
 }
 
-impl IonSymbol {
-    pub fn to_text(&self) -> String {
+impl Symbol {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonSymbol::Null => String::from("null.symbol"),
-            IonSymbol::Symbol { token } => match token {
+            Symbol::Null => StdString::from("null.symbol"),
+            Symbol::Symbol { token } => match token {
                 SymbolToken::Known { text } => text.to_string(),
                 SymbolToken::Unknown { .. } => todo!(), // should error, but how?
                 SymbolToken::Zero => "$0".to_string(),
@@ -246,73 +243,71 @@ impl IonSymbol {
 
 // clob - Text data of user-defined encoding
 // In the text format, clob values use similar syntax to blob,
-// but the data between braces must be one string.
-// The string may only contain legal 7-bit ASCII characters, using the same escaping syntax as
-// string and symbol values. This guarantees that the value can be transmitted unscathed while
+// but the data between braces must be one StdString.
+// The StdString may only contain legal 7-bit ASCII characters, using the same escaping syntax as
+// StdString and symbol values. This guarantees that the value can be transmitted unscathed while
 // remaining generally readable (at least for western language text).
 // Like blobs, clobs disallow comments everywhere within the value.
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonClob {
+pub enum Clob {
     Null,
     Clob { data: Vec<u8> },
 }
 
-impl IonClob {
-    pub fn to_text(&self) -> String {
+impl Clob {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonClob::Null => String::from("null.clob"),
+            Clob::Null => StdString::from("null.clob"),
             // from_utf8's constraints might not be sufficiently strong
-            IonClob::Clob { data } => format!("{{{{{}}}}}", str::from_utf8(data).unwrap()),
+            Clob::Clob { data } => format!("{{{{{}}}}}", str::from_utf8(data).unwrap()),
         }
     }
 }
 
 // blob - Binary data of user-defined encoding
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonBlob {
+pub enum Blob {
     Null,
     Blob { data: Vec<u8> },
 }
 
-impl IonBlob {
-    pub fn to_text(&self) -> String {
+impl Blob {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonBlob::Null => String::from("null.blob"),
-            IonBlob::Blob { data } => format!("{{{{{}}}}}", encode(data)),
+            Blob::Null => StdString::from("null.blob"),
+            Blob::Blob { data } => format!("{{{{{}}}}}", encode(data)),
         }
     }
 }
 
 // struct - Unordered collections of tagged values
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonStruct {
+pub enum Struct {
     Null,
-    Struct {
-        values: Vec<(SymbolToken, IonValue)>,
-    },
+    Struct { values: Vec<(SymbolToken, Value)> },
 }
 
-impl IonStruct {
-    pub fn to_text(&self) -> String {
+impl Struct {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonStruct::Null => String::from("null.struct"),
-            IonStruct::Struct { values: entries } => todo!(),
+            Struct::Null => StdString::from("null.struct"),
+            Struct::Struct { values: entries } => todo!(),
         }
     }
 }
 
 // list - Ordered collections of values
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonList {
+pub enum List {
     Null,
-    List { values: Vec<IonValue> },
+    List { values: Vec<Value> },
 }
 
-impl IonList {
-    pub fn to_text(&self) -> String {
+impl List {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonList::Null => String::from("null.list"),
-            IonList::List { values } => todo!(),
+            List::Null => StdString::from("null.list"),
+            List::List { values } => todo!(),
         }
     }
 }
@@ -326,16 +321,16 @@ impl IonList {
 // nineteen ASCII characters: !#%&*+-./;<=>?@^`|~
 // Operators and identifiers can be juxtaposed without whitespace.
 #[derive(Clone, Debug, PartialEq)]
-pub enum IonSexp {
+pub enum Sexp {
     Null,
-    Sexp { values: Vec<IonValue> },
+    Sexp { values: Vec<Value> },
 }
 
-impl IonSexp {
-    pub fn to_text(&self) -> String {
+impl Sexp {
+    pub fn to_text(&self) -> StdString {
         match self {
-            IonSexp::Null => String::from("null.sexp"),
-            IonSexp::Sexp { values } => todo!(),
+            Sexp::Null => StdString::from("null.sexp"),
+            Sexp::Sexp { values } => todo!(),
         }
     }
 }

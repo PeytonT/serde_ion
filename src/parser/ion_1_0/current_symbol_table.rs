@@ -1,5 +1,5 @@
 use crate::error::SymbolError;
-use crate::ion_types::{IonData, IonList, IonString, IonStruct};
+use crate::ion_types::{Data, List, String, Struct};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
 use std::collections::hash_map::HashMap;
 
@@ -33,6 +33,7 @@ impl CurrentSymbolTable {
 }
 
 /// # Local Symbol Tables
+///
 /// A local symbol table defines symbols through two mechanisms, both of which are optional.
 ///
 /// First, it imports the symbols from one or more shared symbol tables,
@@ -60,14 +61,11 @@ impl CurrentSymbolTable {
 ///
 /// Any other field (including, for example, name or version) is ignored.
 
-/// Modify the current symbol table according to the encountered local symbol table.
-pub(crate) fn update_current_symbol_table(
-    current: &mut CurrentSymbolTable,
-    encountered: &IonStruct,
-) {
+// Modify the current symbol table according to the encountered local symbol table.
+pub(crate) fn update_current_symbol_table(current: &mut CurrentSymbolTable, encountered: &Struct) {
     let (imports, symbols): (TableImport, Vec<SymbolToken>) = match encountered {
-        IonStruct::Null => (TableImport::None, vec![]),
-        IonStruct::Struct { values } => {
+        Struct::Null => (TableImport::None, vec![]),
+        Struct::Struct { values } => {
             let keys: HashMap<&str, usize> = values
                 .iter()
                 .enumerate()
@@ -80,14 +78,14 @@ pub(crate) fn update_current_symbol_table(
             // The imports field should be the symbol $ion_symbol_table or a list as specified.
             let imports = match keys.get("imports") {
                 None => TableImport::None,
-                Some(index) => match &values.get(*index).unwrap().1.content {
-                    IonData::List(list) => match list {
-                        IonList::Null => TableImport::None,
-                        IonList::List { values } => TableImport::Imports(
+                Some(index) => match &values.get(*index).unwrap().1.value {
+                    Data::List(list) => match list {
+                        List::Null => TableImport::None,
+                        List::List { values } => TableImport::Imports(
                             values
                                 .iter()
-                                .filter_map(|value| match &value.content {
-                                    IonData::Struct(val) => Some(val.clone()),
+                                .filter_map(|value| match &value.value {
+                                    Data::Struct(val) => Some(val.clone()),
                                     _ => None,
                                 })
                                 .collect(),
@@ -103,15 +101,15 @@ pub(crate) fn update_current_symbol_table(
             // Any SIDs that refer to null slots in a local symbol table are equivalent to symbol zero.
             let symbols = match keys.get("symbols") {
                 None => vec![],
-                Some(index) => match &values.get(*index).unwrap().1.content {
-                    IonData::List(list) => match list {
-                        IonList::Null => vec![],
-                        IonList::List { values } => values
+                Some(index) => match &values.get(*index).unwrap().1.value {
+                    Data::List(list) => match list {
+                        List::Null => vec![],
+                        List::List { values } => values
                             .iter()
-                            .map(|value| match &value.content {
-                                IonData::String(string) => match string {
-                                    IonString::Null => SymbolToken::Zero,
-                                    IonString::String { value } => SymbolToken::Known {
+                            .map(|value| match &value.value {
+                                Data::String(string) => match string {
+                                    String::Null => SymbolToken::Zero,
+                                    String::String { value } => SymbolToken::Known {
                                         text: value.clone(),
                                     },
                                 },
@@ -157,6 +155,7 @@ fn append_symbols_to_system_table(table: &mut CurrentSymbolTable, symbols: Vec<S
 }
 
 /// Imports
+///
 /// A local symbol table implicitly imports the system symbol table that is active at the point
 /// where the local table is encountered.
 ///
@@ -176,7 +175,7 @@ fn append_symbols_to_system_table(table: &mut CurrentSymbolTable, symbols: Vec<S
 enum TableImport {
     None,
     IonSymbolTable,
-    Imports(Vec<IonStruct>),
+    Imports(Vec<Struct>),
 }
 
 /// Import structs in an import list are processed in order as follows:

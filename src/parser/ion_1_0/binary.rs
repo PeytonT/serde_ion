@@ -3,8 +3,8 @@ use super::subfield::*;
 use super::typed_value::*;
 use crate::error::{BinaryFormatError, FormatError};
 use crate::ion_types::{
-    IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull, IonSexp,
-    IonString, IonStruct, IonSymbol, IonTimestamp, IonValue,
+    Blob, Bool, Clob, Data, Decimal, Float, Int, List, Null, Sexp, String, Struct, Symbol,
+    Timestamp, Value,
 };
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::parser::parse_error::{IonError, IonResult};
@@ -21,15 +21,15 @@ use nom::{
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
 use num_traits::ToPrimitive;
+use std::string::String as StdString;
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
-/// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
-pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], IonValue> {
+pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[u8], Value> {
     move |i: &[u8]| parse_top_level_value(i, &mut table)
 }
 
-/// Take a single top level IonValue from the head of an Ion byte stream.
+/// Take a single top level Value from the head of an Ion byte stream.
 ///
 /// The top level distinction is important, since certain binary representations
 /// encountered at the top level result in updates to the current symbol table instead
@@ -37,18 +37,18 @@ pub fn parse(mut table: CurrentSymbolTable) -> impl FnMut(&[u8]) -> IonResult<&[
 fn parse_top_level_value<'a, 'b>(
     i: &'a [u8],
     symbol_table: &'b mut CurrentSymbolTable,
-) -> IonResult<&'a [u8], IonValue> {
+) -> IonResult<&'a [u8], Value> {
     let parse_result = take_value(symbol_table)(i);
     match parse_result {
         Ok((rest, value)) => {
             // If the value is a Struct...
-            if let IonData::Struct(ion_struct) = &value.content {
+            if let Data::Struct(ion_struct) = &value.value {
                 // And it has an annotations vector...
                 if let Some(annotations) = &value.annotations {
                     // And the annotations vector contains a first annotation (i.e. is non-empty)...
                     if let Some(symbol) = annotations.first() {
                         // And the first annotation is not a null symbol...
-                        if let IonSymbol::Symbol { token } = symbol {
+                        if let Symbol::Symbol { token } = symbol {
                             // And the value of the annotation is "$ion_symbol_table"...
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
                                 // Then it is an update to the local symbol table. Apply it.
@@ -67,10 +67,8 @@ fn parse_top_level_value<'a, 'b>(
     }
 }
 
-/// Generate a parser that takes a single IonValue from the head of an Ion byte stream.
-fn take_value(
-    symbol_table: &CurrentSymbolTable,
-) -> impl Fn(&[u8]) -> IonResult<&[u8], IonValue> + '_ {
+/// Generate a parser that takes a single Value from the head of an Ion byte stream.
+fn take_value(symbol_table: &CurrentSymbolTable) -> impl Fn(&[u8]) -> IonResult<&[u8], Value> + '_ {
     move |i: &[u8]| {
         let (rest, typed_value) = take_typed_value(i)?;
         let value = parse_typed_value(typed_value, symbol_table)?;
@@ -78,41 +76,40 @@ fn take_value(
     }
 }
 
-/// Parse a TypedValue containing bytes representing an Ion value into the IonValue data model form
+/// Parse a TypedValue containing bytes representing an Ion value into the Value data model form
 fn parse_typed_value<'a>(
     value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonValue> {
+) -> ParseResult<&'a [u8], Value> {
     match value.type_code {
-        TypeCode::Null => wrap_data(IonData::Null(parse_null(value)?)),
-        TypeCode::Bool => wrap_data(IonData::Bool(parse_bool(value)?)),
-        TypeCode::PosInt => wrap_data(IonData::Int(parse_positive_int(value)?)),
-        TypeCode::NegInt => wrap_data(IonData::Int(parse_negative_int(value)?)),
-        TypeCode::Float => wrap_data(IonData::Float(parse_float(value)?)),
-        TypeCode::Decimal => wrap_data(IonData::Decimal(parse_decimal(value)?)),
-        TypeCode::Timestamp => wrap_data(IonData::Timestamp(parse_timestamp(value)?)),
-        TypeCode::Symbol => wrap_data(IonData::Symbol(parse_symbol(value, symbol_table)?)),
-        TypeCode::String => wrap_data(IonData::String(parse_string(value)?)),
-        TypeCode::Clob => wrap_data(IonData::Clob(parse_clob(value)?)),
-        TypeCode::Blob => wrap_data(IonData::Blob(parse_blob(value)?)),
-        TypeCode::List => wrap_data(IonData::List(parse_list(value, symbol_table)?)),
-        TypeCode::Sexp => wrap_data(IonData::Sexp(parse_sexp(value, symbol_table)?)),
-        TypeCode::Struct => wrap_data(IonData::Struct(parse_struct(value, symbol_table)?)),
+        TypeCode::Null => wrap_data(Data::Null(parse_null(value)?)),
+        TypeCode::Bool => wrap_data(Data::Bool(parse_bool(value)?)),
+        TypeCode::PosInt => wrap_data(Data::Int(parse_positive_int(value)?)),
+        TypeCode::NegInt => wrap_data(Data::Int(parse_negative_int(value)?)),
+        TypeCode::Float => wrap_data(Data::Float(parse_float(value)?)),
+        TypeCode::Decimal => wrap_data(Data::Decimal(parse_decimal(value)?)),
+        TypeCode::Timestamp => wrap_data(Data::Timestamp(parse_timestamp(value)?)),
+        TypeCode::Symbol => wrap_data(Data::Symbol(parse_symbol(value, symbol_table)?)),
+        TypeCode::String => wrap_data(Data::String(parse_string(value)?)),
+        TypeCode::Clob => wrap_data(Data::Clob(parse_clob(value)?)),
+        TypeCode::Blob => wrap_data(Data::Blob(parse_blob(value)?)),
+        TypeCode::List => wrap_data(Data::List(parse_list(value, symbol_table)?)),
+        TypeCode::Sexp => wrap_data(Data::Sexp(parse_sexp(value, symbol_table)?)),
+        TypeCode::Struct => wrap_data(Data::Struct(parse_struct(value, symbol_table)?)),
         TypeCode::Annotation => parse_annotation(value, symbol_table),
         TypeCode::Reserved => error_reserved(value),
     }
 }
 
-fn wrap_data<'a>(data: IonData) -> ParseResult<&'a [u8], IonValue> {
-    Ok(IonValue {
-        content: data,
+fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Value> {
+    Ok(Value {
+        value: data,
         annotations: None,
     })
 }
 
 /// ### 0: null
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Null value |    0    |    15   |
@@ -139,27 +136,28 @@ fn wrap_data<'a>(data: IonData) -> ParseResult<&'a [u8], IonValue> {
 /// The following is a single byte NOP pad. The NOP padding typedesc bytes are counted as padding:
 ///
 /// 0x00
+///
 /// The following is a two byte NOP pad:
 ///
 /// 0x01 0xFE
+///
 /// Note that the single byte of “payload” 0xFE is arbitrary and ignored by the parser.
 ///
 /// The following is a 16 byte NOP pad:
 ///
 /// 0x0E 0x8E 0x00 ... <12 arbitrary octets> ... 0x00
+///
 /// NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
 /// NOP padding in struct requires additional encoding considerations.
-/// ```
-fn parse_null(typed_value: TypedValue) -> ParseResult<&[u8], IonNull> {
+fn parse_null(typed_value: TypedValue) -> ParseResult<&[u8], Null> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonNull::Null),
-        _ => Ok(IonNull::Pad),
+        LengthCode::L15 => Ok(Null::Null),
+        _ => Ok(Null::Pad),
     }
 }
 
 /// ### 1: bool
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Bool value |    1    |   rep   |
@@ -167,12 +165,11 @@ fn parse_null(typed_value: TypedValue) -> ParseResult<&[u8], IonNull> {
 /// Values of type bool always have empty lengths, and their representation is stored in the typedesc
 /// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 /// means true; and a representation of 15 means null.bool.
-/// ```
-fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], IonBool> {
+fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Bool> {
     match typed_value.length_code {
-        LengthCode::L0 => Ok(IonBool::False),
-        LengthCode::L1 => Ok(IonBool::True),
-        LengthCode::L15 => Ok(IonBool::Null),
+        LengthCode::L0 => Ok(Bool::False),
+        LengthCode::L1 => Ok(Bool::True),
+        LengthCode::L15 => Ok(Bool::Null),
         catch_invalid => Err(Err::Failure(IonError::from_format_error(
             typed_value.index,
             FormatError::Binary(BinaryFormatError::BoolValue(catch_invalid as u8)),
@@ -182,7 +179,6 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], IonBool> {
 
 /// ### 2: positive int
 ///
-/// ```text
 /// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 /// Both codes use a UInt subfield to store the magnitude.
 ///
@@ -201,16 +197,15 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], IonBool> {
 ///
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
-/// ```
-fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
+fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonInt::Null),
-        LengthCode::L0 => Ok(IonInt::Integer {
+        LengthCode::L15 => Ok(Int::Null),
+        LengthCode::L0 => Ok(Int::Integer {
             value: BigInt::zero(),
         }),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
-            Ok(IonInt::Integer {
+            Ok(Int::Integer {
                 value: BigInt::from_biguint(Sign::Plus, magnitude),
             })
         }
@@ -219,7 +214,6 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
 
 /// ### 3: negative int
 ///
-/// ```text
 /// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 /// Both codes use a UInt subfield to store the magnitude.
 ///
@@ -238,10 +232,9 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
 ///
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
-/// ```
-fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
+fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonInt::Null),
+        LengthCode::L15 => Ok(Int::Null),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
             if magnitude == BigUint::zero() {
@@ -250,7 +243,7 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
                     FormatError::Binary(BinaryFormatError::NegativeZero),
                 )));
             }
-            Ok(IonInt::Integer {
+            Ok(Int::Integer {
                 value: BigInt::from_biguint(Sign::Minus, magnitude),
             })
         }
@@ -259,7 +252,6 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
 
 /// ### 4: float
 ///
-/// ```text
 ///               7       4 3       0
 ///             +---------+---------+
 /// Float value |    4    |    L    |
@@ -280,21 +272,20 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], IonInt> {
 /// If L is 15, then the value is null.float and the representation is empty.
 /// Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 /// of the standard may support 16-bit and 128-bit float values.
-/// ```
-fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], IonFloat> {
+fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Float> {
     match typed_value.length_code {
-        LengthCode::L0 => Ok(IonFloat::Float { value: 0e0 }),
+        LengthCode::L0 => Ok(Float::Float { value: 0e0 }),
         LengthCode::L4 => {
             let (_, value) = float(typed_value.rep)?;
-            Ok(IonFloat::Float {
+            Ok(Float::Float {
                 value: f64::from(value),
             })
         }
         LengthCode::L8 => {
             let (_, value) = double(typed_value.rep)?;
-            Ok(IonFloat::Float { value })
+            Ok(Float::Float { value })
         }
-        LengthCode::L15 => Ok(IonFloat::Null),
+        LengthCode::L15 => Ok(Float::Null),
         catch_invalid => Err(Err::Failure(IonError::from_format_error(
             typed_value.index,
             FormatError::Binary(BinaryFormatError::FloatLength(catch_invalid as u8)),
@@ -304,7 +295,6 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], IonFloat> {
 
 /// ### 5: decimal
 ///
-/// ```text
 ///                7       4 3       0
 ///               +---------+---------+
 /// Decimal value |    5    |    L    |
@@ -325,11 +315,10 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], IonFloat> {
 ///
 /// If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 /// entire value is encoded as the single byte 0x50.
-/// ```
-fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], IonDecimal> {
+fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Decimal> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonDecimal::Null),
-        LengthCode::L0 => Ok(IonDecimal::Decimal {
+        LengthCode::L15 => Ok(Decimal::Null),
+        LengthCode::L0 => Ok(Decimal::Decimal {
             coefficient: BigInt::zero(),
             exponent: BigInt::zero(),
         }),
@@ -339,7 +328,7 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], IonDecimal> {
                 0 => (coefficient_index, BigInt::zero()),
                 remaining_bytes => take_int(remaining_bytes)(coefficient_index)?,
             };
-            Ok(IonDecimal::Decimal {
+            Ok(Decimal::Decimal {
                 exponent,
                 coefficient,
             })
@@ -349,7 +338,6 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], IonDecimal> {
 
 /// ### 6: timestamp
 ///
-/// ```text
 ///                  7       4 3       0
 ///                 +---------+---------+
 /// Timestamp value |    6    |    L    |
@@ -408,24 +396,23 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], IonDecimal> {
 /// Note: The component values in the binary encoding are always in UTC, while components in the
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
-/// ```
-fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> {
+fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonTimestamp::Null),
+        LengthCode::L15 => Ok(Timestamp::Null),
         _ => {
             let (rest, offset) = take_var_int(typed_value.rep)?;
             let (rest, year) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
-                return Ok(IonTimestamp::Year { offset, year });
+                return Ok(Timestamp::Year { offset, year });
             }
 
             let (rest, month) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
-                return Ok(IonTimestamp::Month {
+                return Ok(Timestamp::Month {
                     offset,
                     year,
                     month,
@@ -436,7 +423,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
-                return Ok(IonTimestamp::Day {
+                return Ok(Timestamp::Day {
                     offset,
                     year,
                     month,
@@ -449,7 +436,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 
             // Parsing complete with precision of Minute
             if rest.is_empty() {
-                return Ok(IonTimestamp::Minute {
+                return Ok(Timestamp::Minute {
                     offset,
                     year,
                     month,
@@ -463,7 +450,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 
             // Parsing complete with precision of Second
             if rest.is_empty() {
-                return Ok(IonTimestamp::Second {
+                return Ok(Timestamp::Second {
                     offset,
                     year,
                     month,
@@ -496,7 +483,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 
             // Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
             if fraction_coefficient.is_zero() && fraction_exponent > -1 {
-                return Ok(IonTimestamp::Second {
+                return Ok(Timestamp::Second {
                     offset,
                     year,
                     month,
@@ -508,7 +495,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
             }
 
             // Parsing complete with precision of FractionalSecond
-            Ok(IonTimestamp::FractionalSecond {
+            Ok(Timestamp::FractionalSecond {
                 offset,
                 year,
                 month,
@@ -525,7 +512,6 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 
 /// ### 7: symbol
 ///
-/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// Symbol value |    7    |    L    |
@@ -539,14 +525,13 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], IonTimestamp> 
 /// fields are omitted.
 ///
 /// See Ion Symbols for more details about symbol representations and symbol tables.
-/// ```
 fn parse_symbol<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonSymbol> {
+) -> ParseResult<&'a [u8], Symbol> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonSymbol::Null),
-        LengthCode::L0 => Ok(IonSymbol::Symbol {
+        LengthCode::L15 => Ok(Symbol::Null),
+        LengthCode::L0 => Ok(Symbol::Symbol {
             token: SymbolToken::Zero,
         }),
         _ => {
@@ -567,14 +552,13 @@ fn parse_symbol<'a>(
                     )))
                 }
             };
-            Ok(IonSymbol::Symbol { token })
+            Ok(Symbol::Symbol { token })
         }
     }
 }
 
 /// ### 8: string
 ///
-/// ```text
 ///               7       4 3       0
 ///              +---------+---------+
 /// String value |    8    |    L    |
@@ -584,10 +568,9 @@ fn parse_symbol<'a>(
 ///              :  representation [UTF8]   :
 ///              +==========================+
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
-/// ```
-fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], IonString> {
+fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonString::Null),
+        LengthCode::L15 => Ok(String::Null),
         _ => {
             let representation = match std::str::from_utf8(typed_value.rep) {
                 Ok(value) => value,
@@ -598,8 +581,8 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], IonString> {
                     )))
                 }
             };
-            Ok(IonString::String {
-                value: String::from(representation),
+            Ok(String::String {
+                value: StdString::from(representation),
             })
         }
     }
@@ -607,7 +590,6 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], IonString> {
 
 /// ### 9: clob
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Clob value |    9    |    L    |
@@ -620,11 +602,10 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], IonString> {
 /// an unknown encoding (and thus opaque to the application).
 ///
 /// Zero-length clobs are legal, so L may be zero.
-/// ```
-fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], IonClob> {
+fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Clob> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonClob::Null),
-        _ => Ok(IonClob::Clob {
+        LengthCode::L15 => Ok(Clob::Null),
+        _ => Ok(Clob::Clob {
             data: typed_value.rep.to_vec(),
         }),
     }
@@ -632,7 +613,6 @@ fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], IonClob> {
 
 /// ### 10: blob
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Blob value |   10    |    L    |
@@ -644,11 +624,10 @@ fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], IonClob> {
 /// This is a sequence of octets with no interpretation (and thus opaque to the application).
 ///
 /// Zero-length blobs are legal, so L may be zero.
-/// ```
-fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], IonBlob> {
+fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Blob> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonBlob::Null),
-        _ => Ok(IonBlob::Blob {
+        LengthCode::L15 => Ok(Blob::Null),
+        _ => Ok(Blob::Blob {
             data: typed_value.rep.to_vec(),
         }),
     }
@@ -656,7 +635,6 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], IonBlob> {
 
 /// ### 11: list
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// List value |   11    |    L    |
@@ -674,25 +652,23 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], IonBlob> {
 ///
 /// Because values indicate their total lengths in octets, it is possible to locate the beginning of
 /// each successive value in constant time.
-/// ```
 fn parse_list<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonList> {
+) -> ParseResult<&'a [u8], List> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonList::Null),
-        LengthCode::L0 => Ok(IonList::List { values: vec![] }),
+        LengthCode::L15 => Ok(List::Null),
+        LengthCode::L0 => Ok(List::List { values: vec![] }),
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
-            Ok(IonList::List { values })
+            Ok(List::List { values })
         }
     }
 }
 
 /// ### 12: sexp
 ///
-/// ```text
 ///             7       4 3       0
 ///            +---------+---------+
 /// Sexp value |   12    |    L    |
@@ -704,25 +680,23 @@ fn parse_list<'a>(
 ///                          ⋮
 ///
 /// Values of type sexp are encoded exactly as are list values, except with a different type code.
-/// ```
 fn parse_sexp<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonSexp> {
+) -> ParseResult<&'a [u8], Sexp> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(IonSexp::Null),
-        LengthCode::L0 => Ok(IonSexp::Sexp { values: vec![] }),
+        LengthCode::L15 => Ok(Sexp::Null),
+        LengthCode::L0 => Ok(Sexp::Sexp { values: vec![] }),
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
-            Ok(IonSexp::Sexp { values })
+            Ok(Sexp::Sexp { values })
         }
     }
 }
 
 /// ### 13: struct
 ///
-/// ```text
 /// Structs are encoded as sequences of symbol/value pairs. Since all symbols are encoded as positive
 /// integers, we can omit the typedesc on the field names and just encode the integer value.
 ///
@@ -783,24 +757,23 @@ fn parse_sexp<'a>(
 ///
 /// //  {$0:name::<NOP>}
 /// 0xD5 0x80 0xE3 0x81 0x84 0x00
-/// ```
 fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonStruct> {
+) -> ParseResult<&'a [u8], Struct> {
     // Get all entries
-    let (_, entries): (_, Vec<(usize, IonValue)>) = match typed_value.length_code {
-        LengthCode::L15 => return Ok(IonStruct::Null),
-        LengthCode::L0 => return Ok(IonStruct::Struct { values: vec![] }),
+    let (_, entries): (_, Vec<(usize, Value)>) = match typed_value.length_code {
+        LengthCode::L15 => return Ok(Struct::Null),
+        LengthCode::L0 => return Ok(Struct::Struct { values: vec![] }),
         _ => parse_struct_entries(symbol_table)(typed_value.rep)?,
     };
 
     // Strip all of the entries with values containing padding
-    let entries: Vec<(usize, IonValue)> = entries
+    let entries: Vec<(usize, Value)> = entries
         .into_iter()
         .filter(|(field_name, value)| {
-            if let IonValue {
-                content: IonData::Null(IonNull::Pad),
+            if let Value {
+                value: Data::Null(Null::Pad),
                 ..
             } = value
             {
@@ -832,7 +805,7 @@ fn parse_struct<'a>(
     }
 
     // Map each symbol_id to its associated symbol token
-    let entries: ParseResult<&'a [u8], Vec<(SymbolToken, IonValue)>> = entries
+    let entries: ParseResult<&'a [u8], Vec<(SymbolToken, Value)>> = entries
         .into_iter()
         .map(|(field_name, value)| {
             let symbol = match symbol_table.lookup_sid(field_name) {
@@ -849,12 +822,12 @@ fn parse_struct<'a>(
         .collect();
 
     let values = entries?;
-    Ok(IonStruct::Struct { values })
+    Ok(Struct::Struct { values })
 }
 
 fn parse_struct_entries(
     symbol_table: &CurrentSymbolTable,
-) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, IonValue)>)> + '_ {
+) -> impl Fn(&[u8]) -> ParseResult<&[u8], (&[u8], Vec<(usize, Value)>)> + '_ {
     move |i: &[u8]| {
         complete(all_consuming(many0(pair(
             take_var_uint_as_usize,
@@ -865,7 +838,6 @@ fn parse_struct_entries(
 
 /// ### 14: Annotations
 ///
-/// ```text
 /// This special type code doesn’t map to an Ion value type,
 /// but instead is a wrapper used to associate annotations with content.
 ///
@@ -903,11 +875,10 @@ fn parse_struct_entries(
 /// 0xE3 0x81 0x84 0x00
 /// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
 /// Instead, that octet signals the start of a binary version marker.
-/// ```
 fn parse_annotation<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], IonValue> {
+) -> ParseResult<&'a [u8], Value> {
     match typed_value.length_code {
         LengthCode::L0 | LengthCode::L1 | LengthCode::L2 | LengthCode::L15 => {
             Err(Err::Failure(IonError::from_format_error(
@@ -930,8 +901,8 @@ fn parse_annotation<'a>(
             }
             let mut value = parse_typed_value(value, symbol_table)?;
             // It is illegal for an annotation to wrap a NOP Pad since they are not Ion values.
-            if let IonValue {
-                content: IonData::Null(IonNull::Pad),
+            if let Value {
+                value: Data::Null(Null::Pad),
                 ..
             } = value
             {
@@ -944,7 +915,7 @@ fn parse_annotation<'a>(
             match annotations
                 .into_iter()
                 .map(|x| match symbol_table.lookup_sid(x) {
-                    Ok(token) => Ok(IonSymbol::Symbol { token }),
+                    Ok(token) => Ok(Symbol::Symbol { token }),
                     Result::Err(error) => Err(error),
                 })
                 .collect()
@@ -966,7 +937,7 @@ fn parse_annotation<'a>(
 ///
 /// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
 
-fn error_reserved(typed_value: TypedValue) -> ParseResult<&[u8], IonValue> {
+fn error_reserved(typed_value: TypedValue) -> ParseResult<&[u8], Value> {
     Err(Err::Failure(IonError::from_format_error(
         typed_value.index,
         FormatError::Binary(BinaryFormatError::ReservedTypeCode),

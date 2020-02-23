@@ -1,9 +1,11 @@
 use crate::error::SymbolError;
 
 /// # Structures
+///
 /// Where Int may be any integer and String may be any string.
 
 /// ## ImportDescriptor
+///
 /// <importName:String, version:Int, max_id:Int>
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportDescriptor {
@@ -13,6 +15,7 @@ pub struct ImportDescriptor {
 }
 
 /// ## ImportLocation
+///
 /// <importName:String, importSID:Int>
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportLocation {
@@ -21,6 +24,7 @@ pub struct ImportLocation {
 }
 
 /// ## SymbolToken
+///
 /// <text:String, importLocation:ImportLocation>
 ///
 /// ### SymbolToken equivalence
@@ -31,9 +35,11 @@ pub struct ImportLocation {
 /// When text is
 ///
 /// #### Defined
+///
 /// SymbolTokens with the same text are equivalent; importLocation is ignored.
 ///
 /// #### Undefined
+///
 /// if importLocation is
 ///
 /// *   Defined: SymbolTokens are equivalent if and only if their importLocations’ importName and importSID are equivalent.
@@ -44,7 +50,7 @@ pub struct ImportLocation {
 ///     representing symbol zero.
 ///
 /// ### Reading SymbolTokens
-/// ```text
+///
 /// Ion readers must support being provided with an optional catalog to use for resolving shared
 /// symbol table imports declared within local symbol tables encountered in the stream.
 /// If a declared import is not found in the catalog,
@@ -80,7 +86,6 @@ pub struct ImportLocation {
 ///             **** SymbolToken APIs, return a SymbolToken with undefined text and an undefined importLocation.
 ///
 /// * Greater than the current local symbol table’s max_id, or less than zero, an error must be raised.
-/// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SymbolToken {
     // All SymbolTokens with identical known text are equivalent, import_location is ignored
@@ -167,11 +172,9 @@ pub struct LocalImport {
 
 /// ## SharedSymbolTable
 ///
-/// ```text
 /// Stores an in-stream symbol table definition.
 /// A local symbol table imports either the symbols from a list of shared symbol tables,
 /// or may import the current symbol table.
-/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedSymbolTable {
     name: String,

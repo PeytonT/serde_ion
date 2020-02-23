@@ -12,18 +12,13 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::cast::ToPrimitive;
 use num_traits::identities::Zero;
 
-/// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
-
 /// ## Basic Field Formats
 ///
-/// ```text
 /// Binary-encoded Ion values are comprised of one or more fields, and the fields use a small number
 /// of basic formats (separate from the Ion types visible to users).
-/// ```
 
 /// ### UInt and Int Fields
 ///
-/// ```text
 /// UInt and Int fields represent fixed-length unsigned and signed integer values.
 /// These field formats are always used in some context that clearly indicates the
 /// number of octets in the field.
@@ -61,7 +56,6 @@ use num_traits::identities::Zero;
 /// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
 /// on the highest-order bit of the first octet). This means that the representations of
 /// 123456 and -123456 should only differ in their sign bit.
-/// ```
 
 pub fn take_int(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     move |i: &[u8]| {
@@ -129,7 +123,6 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 
 /// ## VarUInt and VarInt Fields
 ///
-/// ```text
 /// VarUInt and VarInt fields represent self-delimiting, variable-length unsigned and signed integer
 /// values. These field formats are always used in a context that does not indicate the number of octets
 /// in the field; the last octet (and only the last octet) has its high-order bit set to
@@ -171,7 +164,6 @@ pub fn write_uint(int: num_bigint::BigUint) -> Vec<u8> {
 ///                                 ^
 ///                                 |
 ///                                 +--sign
-/// ```
 
 pub fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;

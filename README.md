@@ -3,9 +3,10 @@ Rust implementation of serialization and deserialization of the Ion data format.
 
 This crate is an incomplete work in progress. 
 
-http://amzn.github.io/ion-docs/
+## Documentation
 
-http://amzn.github.io/ion-docs/docs/binary.html
+The documentation of this crate draws extensively on the [Ion documentation](http://amzn.github.io/ion-docs).
+
 
 ## Testing
 

@@ -4,11 +4,8 @@ use crate::parser::parse_error::{IonError, IonResult};
 use nom::{bytes::complete::take, Err};
 use num_traits::cast::FromPrimitive;
 
-/// Documentation draws extensively on http://amzn.github.io/ion-docs/docs/binary.html.
-
 /// ## Typed Value Formats
 ///
-/// ```text
 /// A value consists of a one-octet type descriptor, possibly followed by a length in octets,
 /// possibly followed by a representation.
 ///
@@ -40,11 +37,9 @@ use num_traits::cast::FromPrimitive;
 /// and the length field is omitted.
 /// If the representation is at least 14 bytes long, then L is set to 14,
 /// and the length field is set to the representation length, encoded as a VarUInt field.
-/// ```
 ///
 /// ## Illegal Type Descriptors
 ///
-/// ```text
 /// The preceding sections define valid type descriptor octets, composed of a type code (T) in the
 /// upper four bits and a length field (L) in the lower four bits. As mentioned,
 /// many possible combinations are illegal and must cause parsing errors.
@@ -65,7 +60,6 @@ use num_traits::cast::FromPrimitive;
 ///                         where a type descriptor is expected should only cause parsing errors when
 ///                         it is not followed by the rest of the BVM octet sequence.
 /// 15	[0-15]	            The type code 15 is illegal in Ion 1.0 data.
-/// ```
 
 /// A partially-processed value from an Ion stream
 ///
