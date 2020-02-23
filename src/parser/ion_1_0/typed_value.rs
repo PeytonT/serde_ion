@@ -48,20 +48,20 @@ use num_traits::cast::FromPrimitive;
 ///
 /// The following table enumerates the illegal type descriptors in Ion 1.0 data.
 ///
-/// T	L	                Reason
-/// 1	[3-14]	            For bool values, L is used to encode the value,
-///                         and may be 0 (false), 1 (true), or 15 (null.bool).
-/// 3	[0]	                The int 0 is always stored with type code 2.
-///                         Thus, type code 3 with L equal to zero is illegal.
-/// 4	[1-3],[5-7],[9-14]	For float values, only 32-bit and 64-bit IEEE-754 values are supported.
-///                         Additionally, 0e0 and null.float are represented with L equal to 0 and 15,
-///                         respectively.
-/// 14	[0]*,[1-2],[15]	    Annotation wrappers must have one annot_length field, at least one annot
-///                         field, and exactly one value field. Null annotation wrappers are illegal.
-///                         *Note: Since 0xE0 signals the start of the BVM, encountering this octet
-///                         where a type descriptor is expected should only cause parsing errors when
-///                         it is not followed by the rest of the BVM octet sequence.
-/// 15	[0-15]	            The type code 15 is illegal in Ion 1.0 data.
+/// T    L                 Reason
+/// 1    [3-14]             For bool values, L is used to encode the value,
+///                             and may be 0 (false), 1 (true), or 15 (null.bool).
+/// 3    [0]                The int 0 is always stored with type code 2.
+///                             Thus, type code 3 with L equal to zero is illegal.
+/// 4    [1-3],[5-7],[9-14] For float values, only 32-bit and 64-bit IEEE-754 values are supported.
+///                             Additionally, 0e0 and null.float are represented with L equal to 0 and 15,
+///                             respectively.
+/// 14    [0]*,[1-2],[15]   Annotation wrappers must have one annot_length field, at least one annot
+///                             field, and exactly one value field. Null annotation wrappers are illegal.
+///                             *Note: Since 0xE0 signals the start of the BVM, encountering this octet
+///                             where a type descriptor is expected should only cause parsing errors when
+///                             it is not followed by the rest of the BVM octet sequence.
+/// 15    [0-15]            The type code 15 is illegal in Ion 1.0 data.
 
 /// A partially-processed value from an Ion stream
 ///
