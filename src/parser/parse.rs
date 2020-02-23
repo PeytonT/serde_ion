@@ -8,6 +8,8 @@ use nom::{
     sequence::tuple,
 };
 
+pub use ion_1_0::text::parse_ion_1_0 as parse_text_1_0;
+
 // Binary Ion streams begin with a four-octet Binary Version Marker
 // BVM_START MAJOR_VERSION MINOR_VERSION BVM_END
 // For version 1.0, this is 0xE0 0x01 0x00 0xEA
@@ -72,6 +74,20 @@ fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
 fn parse_ion_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<Option<Value>>> {
     move |i: &[u8]| many0(ion_1_0::binary::parse(CurrentSymbolTable::SystemV1))(i)
 }
+
+// pub fn parse_text(input: &str) -> IonResult<&str, Vec<IonValue>> {
+//     all_consuming(map(
+//         many0(preceded(opt(tag("$ion_1_0")), _parse_1_0_text())),
+//         |x| x.into_iter().flatten().collect(),
+//     ))(input)
+// }
+
+// fn _parse_1_0_text() -> impl FnMut(&str) -> IonResult<&str, Vec<IonValue>> {
+//     move |i: &str| {
+//         let symbol_table = SymbolTable::SystemV1;
+//         many0(ion_1_0::text::parse(symbol_table))(i)
+//     }
+// }
 
 #[allow(non_snake_case)]
 #[cfg(test)]
@@ -162,7 +178,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -174,7 +190,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_format_error(
                     index_of_error,
                     FormatError::Binary(BinaryFormatError::AnnotatedPadding)
@@ -214,7 +230,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_format_error(
                     index_of_error,
                     FormatError::Binary(BinaryFormatError::BoolValue(3))
@@ -234,7 +250,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_format_error(
                     index_of_error,
                     FormatError::Binary(BinaryFormatError::BoolValue(14))
@@ -392,7 +408,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
             );
         }
@@ -408,7 +424,7 @@ mod tests {
             let index_of_error = &strip_bvm(bytes.as_bytes())[8..];
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -422,7 +438,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_format_error(
                     index_of_error,
                     FormatError::Binary(BinaryFormatError::NegativeZero)
@@ -440,7 +456,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_format_error(
                     index_of_error,
                     FormatError::Binary(BinaryFormatError::NegativeZero)
@@ -479,7 +495,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -620,7 +636,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -636,7 +652,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -805,7 +821,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Failure(IonError::from_symbol_error(
                     index_of_error,
                     SymbolError::AboveMaxId {
@@ -835,7 +851,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -871,7 +887,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -970,7 +986,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -1005,7 +1021,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -1043,7 +1059,7 @@ mod tests {
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
-                dbg!(err),
+                err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
             );
         }
@@ -1412,7 +1428,7 @@ mod tests {
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongScalar.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
-            let err = dbg!(parse(bytes).err().unwrap());
+            let err = parse(bytes).err().unwrap();
             assert_eq!(
                 err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))
@@ -1429,7 +1445,7 @@ mod tests {
                 "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongContainer.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
-            let err = dbg!(parse(bytes).err().unwrap());
+            let err = parse(bytes).err().unwrap();
             assert_eq!(
                 err,
                 Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof,))

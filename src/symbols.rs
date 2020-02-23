@@ -106,6 +106,13 @@ impl SymbolToken {
     }
 }
 
+impl From<&str> for SymbolToken {
+    fn from(symbol: &str) -> Self {
+        let text = symbol.to_string();
+        SymbolToken::Known { text }
+    }
+}
+
 /// ## ImportDescriptor
 ///
 /// <importName:String, version:Int, max_id:Int>
@@ -114,6 +121,16 @@ pub struct ImportDescriptor {
     import_name: String,
     version: u32,
     max_id: u32,
+}
+
+impl ImportDescriptor {
+    pub(crate) fn new(import_name: String, version: u32, max_id: u32) -> Self {
+        Self {
+            import_name,
+            version,
+            max_id,
+        }
+    }
 }
 
 /// ## ImportLocation

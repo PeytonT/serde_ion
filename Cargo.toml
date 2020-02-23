@@ -25,22 +25,28 @@ travis-ci = { repository = "PeytonT/serde_ion", branch = "master" }
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-serde_bytes = "0.10"
+serde_bytes = "0.11"
 serde_derive = "1.0"
 num-bigint = "0.2.2"
 num-traits = "0.2.8"
 num-derive = "0.3"
 bit-vec = "0.6"
-base64 = "0.10.1"
+base64 = "0.11"
 nom = "5.0.0"
 thiserror = "1.0.9"
 lazy_static = "1.4.0"
 itertools = "0.8.2"
-
+bytes = "0.5.4"
+futures = "0.3.4"
+log = "0.4.8"
+hex = "0.4.0"
+bytecount = "0.6.0"
+time = "0.2.6"
+radix_fmt = "1.0.0"
 
 [dev-dependencies]
-hex = "0.4.0"
 pretty_assertions = "0.6.1"
+pretty_env_logger = "0.4.0"
 
 [build-dependencies]
 

@@ -1,3 +1,5 @@
+use num_bigint::ParseBigIntError;
+use std::num::ParseFloatError;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -23,6 +25,14 @@ pub enum SymbolError {
     UnknownSymbolText(usize),
     #[error("the text for SID `{0}` is undefined")]
     UndefinedSymbolText(usize),
+    #[error("the provided symbol table is invalid")]
+    InvalidSymbolTable,
+    #[error("invalid max_id for import in symbol table: {0:?}")]
+    InvalidMaxId(String),
+    #[error("invalid version for import in symbol table: {0:?}")]
+    InvalidVersion(String),
+    #[error("invalid SID (outside numeric range): {0:?}")]
+    InvalidSid(String),
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -65,4 +75,20 @@ pub enum BinaryFormatError {
 pub enum TextFormatError {
     #[error("TODO")]
     TODO,
+    #[error("invalid hex escape: {0}")]
+    HexEscape(String),
+    #[error("unterminated short quoted string")]
+    OpenShortString,
+    #[error("unterminated long quoted string")]
+    OpenLongString,
+    #[error("invalid bigint")]
+    BigUint,
+    #[error("invalid bigint: {0}")]
+    BigInt(ParseBigIntError, String),
+    #[error("unable to decode Base64 value")]
+    Base64Decode,
+    #[error("unable to parse float value: {0}, {1}")]
+    FloatParse(String, ParseFloatError),
+    #[error("date out of range (invalid day)")]
+    DateOutOfRange,
 }

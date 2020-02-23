@@ -1,8 +1,11 @@
 use crate::error::SymbolError;
-use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
-use crate::value::{Data, List, Struct};
-use std::collections::hash_map::HashMap;
+use crate::symbols::{ImportDescriptor, SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
+use crate::value::{safe_key_map, Data, List, Struct};
+use itertools::Itertools;
+use num_bigint::BigInt;
+use num_traits::{One, ToPrimitive, Zero};
 
+#[derive(Debug)]
 pub enum CurrentSymbolTable {
     Local { symbols: Vec<SymbolToken> },
     SystemV1,
@@ -28,6 +31,19 @@ impl CurrentSymbolTable {
                     max_id: 9,
                 }),
             },
+        }
+    }
+
+    pub(crate) fn add_symbol(&mut self, token: &SymbolToken) {
+        if !self.contains(&token) {
+            append_symbols_to_current_table(self, vec![token.clone()]);
+        }
+    }
+
+    pub(crate) fn contains(&self, token: &SymbolToken) -> bool {
+        match self {
+            CurrentSymbolTable::SystemV1 => SYSTEM_SYMBOL_TABLE_V1.symbols.contains(token),
+            CurrentSymbolTable::Local { symbols } => symbols.contains(token),
         }
     }
 }
@@ -65,37 +81,40 @@ impl CurrentSymbolTable {
 pub(crate) fn update_current_symbol_table(
     current: &mut CurrentSymbolTable,
     encountered: &Option<Struct>,
-) {
+) -> Result<(), SymbolError> {
     let (imports, symbols): (TableImport, Vec<SymbolToken>) = match encountered {
         None => (TableImport::None, vec![]),
-        Some(Struct { fields: values }) => {
-            let keys: HashMap<&str, usize> = values
-                .iter()
-                .enumerate()
-                .filter_map(|(i, val)| match &val.0 {
-                    SymbolToken::Known { text } => Some((text.as_str(), i)),
-                    SymbolToken::Unknown { .. } => None,
-                    SymbolToken::Zero => None,
-                })
-                .collect();
+        Some(Struct { fields }) => {
+            // Confirm there are no duplicate imports/etc.
+            let keys = safe_key_map(fields).map_err(|_| SymbolError::InvalidSymbolTable)?;
             // The imports field should be the symbol $ion_symbol_table or a list as specified.
             let imports = match keys.get("imports") {
                 None => TableImport::None,
-                Some(index) => match &values.get(*index).unwrap().1.value {
+                Some(index) => match &fields.get(*index).unwrap().1.value {
                     Data::List(list) => match list {
                         None => TableImport::None,
-                        Some(List { values }) => TableImport::Imports(
-                            values
-                                .iter()
-                                // each element of the list must be a struct;
-                                // each element that is null or is not a struct is ignored.
-                                .filter_map(|value| match &value.value {
-                                    Data::Struct(Some(val)) => Some(val.clone()),
-                                    _ => None,
-                                })
-                                .collect(),
-                        ),
+                        Some(List { values }) => {
+                            TableImport::Imports(
+                                values
+                                    .iter()
+                                    // each element of the list must be a struct;
+                                    // each element that is null or is not a struct is ignored.
+                                    .filter_map(|value| match &value.value {
+                                        Data::Struct(Some(val)) => Some(val.clone()),
+                                        _ => None,
+                                    })
+                                    .collect(),
+                            )
+                        }
                     },
+                    Data::Symbol(Some(SymbolToken::Known { text })) => {
+                        if text == "$ion_symbol_table" {
+                            TableImport::IonSymbolTable
+                        } else {
+                            // Should we throw an error here?
+                            TableImport::None
+                        }
+                    }
                     _ => TableImport::None,
                 },
             };
@@ -106,7 +125,7 @@ pub(crate) fn update_current_symbol_table(
             // Any SIDs that refer to null slots in a local symbol table are equivalent to symbol zero.
             let symbols = match keys.get("symbols") {
                 None => vec![],
-                Some(index) => match &values.get(*index).unwrap().1.value {
+                Some(index) => match &fields.get(*index).unwrap().1.value {
                     Data::List(list) => match list {
                         None => vec![],
                         Some(List { values }) => values
@@ -132,31 +151,57 @@ pub(crate) fn update_current_symbol_table(
         TableImport::None => {
             if symbols.is_empty() {
                 *current = CurrentSymbolTable::SystemV1;
-                return;
+                return Ok(());
             }
             append_symbols_to_system_table(current, symbols);
         }
-        TableImport::IonSymbolTable => match current {
-            CurrentSymbolTable::Local {
-                symbols: existing_symbols,
-            } => {
-                existing_symbols.extend(symbols);
-            }
-            CurrentSymbolTable::SystemV1 => {
-                append_symbols_to_system_table(current, symbols);
-            }
-        },
-        TableImport::Imports(imports) => todo!(),
+        TableImport::IonSymbolTable => {
+            append_symbols_to_current_table(current, symbols);
+        }
+        TableImport::Imports(imports) => {
+            *current = CurrentSymbolTable::SystemV1;
+            handle_imports(current, imports)?;
+            append_symbols_to_current_table(current, symbols);
+        }
     }
+
+    Ok(())
 }
 
 fn append_symbols_to_system_table(table: &mut CurrentSymbolTable, symbols: Vec<SymbolToken>) {
-    let mut symbol_vec: Vec<SymbolToken> = Vec::new();
+    let mut symbol_vec: Vec<SymbolToken> =
+        Vec::with_capacity(SYSTEM_SYMBOL_TABLE_V1.symbols.len() + symbols.len());
     symbol_vec.extend(SYSTEM_SYMBOL_TABLE_V1.symbols.iter().cloned());
     symbol_vec.extend(symbols);
     *table = CurrentSymbolTable::Local {
         symbols: symbol_vec,
     };
+}
+
+fn append_symbol_to_system_table(table: &mut CurrentSymbolTable, symbol: SymbolToken) {
+    let mut symbol_vec = SYSTEM_SYMBOL_TABLE_V1.symbols.iter().cloned().collect_vec();
+    symbol_vec.push(symbol);
+    *table = CurrentSymbolTable::Local {
+        symbols: symbol_vec,
+    };
+}
+
+fn append_symbols_to_current_table(table: &mut CurrentSymbolTable, symbols: Vec<SymbolToken>) {
+    match table {
+        CurrentSymbolTable::SystemV1 => append_symbols_to_system_table(table, symbols),
+        CurrentSymbolTable::Local {
+            symbols: current_symbols,
+        } => current_symbols.extend(symbols.into_iter()),
+    }
+}
+
+fn append_symbol_to_current_table(table: &mut CurrentSymbolTable, symbol: SymbolToken) {
+    match table {
+        CurrentSymbolTable::SystemV1 => append_symbol_to_system_table(table, symbol),
+        CurrentSymbolTable::Local {
+            symbols: current_symbols,
+        } => current_symbols.push(symbol),
+    }
 }
 
 /// Imports
@@ -177,6 +222,7 @@ fn append_symbols_to_system_table(table: &mut CurrentSymbolTable, symbols: Vec<S
 /// each import starts one past the end of the previous import, and the local symbols start
 /// immediately after the last import. The size of each import’s subsequence is defined by the
 /// max_id on the import statement, regardless of the actual size of the referenced table.
+#[derive(Debug)]
 enum TableImport {
     None,
     IonSymbolTable,
@@ -222,6 +268,70 @@ enum TableImport {
 /// The system table is always consulted first.
 /// Each imported table is consulted in the order of import.
 /// Local symbols are last.
-fn handle_imports() {
-    todo!()
+fn handle_imports(
+    current: &mut CurrentSymbolTable,
+    imports: Vec<Struct>,
+) -> Result<(), SymbolError> {
+    for Struct { fields } in imports {
+        let keys = safe_key_map(&fields).map_err(|_| SymbolError::InvalidSymbolTable)?;
+
+        let import_name = match keys.get("name") {
+            Some(key) => {
+                let data = &fields.get(*key).unwrap().1.value;
+                match data {
+                    Data::String(Some(value)) if value == "$ion" => continue,
+                    Data::String(Some(value)) => value,
+                    _ => continue,
+                }
+            }
+            None => continue,
+        };
+
+        let version: u32 = match keys.get("version") {
+            None => One::one(),
+            Some(key) => {
+                let data = &fields.get(*key).unwrap().1.value;
+                if let Data::Int(Some(value)) = data {
+                    if value < &One::one() {
+                        One::one()
+                    } else if value > &BigInt::from(std::u32::MAX) {
+                        return Err(SymbolError::InvalidVersion(data.to_text()));
+                    } else {
+                        value.to_u32().expect("verified above")
+                    }
+                } else {
+                    One::one()
+                }
+            }
+        };
+
+        const MAX_ID_ERR: &str = "an import must have a defined integer max_id of zero or greater";
+        let max_id: u32 = match keys.get("max_id") {
+            None => return Err(SymbolError::InvalidMaxId("None".to_string())),
+            Some(key) => {
+                let data = &fields.get(*key).unwrap().1.value;
+                if let Data::Int(Some(value)) = data {
+                    if &BigInt::zero() > value || value > &BigInt::from(std::u32::MAX) {
+                        return Err(SymbolError::InvalidMaxId(data.to_text()));
+                    } else {
+                        value.to_u32().expect("confirmed max_id in range above")
+                    }
+                } else {
+                    return Err(SymbolError::InvalidMaxId(data.to_text()));
+                }
+            }
+        };
+
+        // In lieu of looking up the symbol tables in a catalog we'll just add that many
+        // items to the list.
+        // TODO: do something better (track max_id, use a sparse vec, etc.)
+        let filler_symbols = std::iter::repeat_with(|| SymbolToken::Unknown {
+            import_location: ImportDescriptor::new(import_name.clone(), max_id, version),
+        })
+        .take(max_id as usize)
+        .collect_vec();
+        append_symbols_to_current_table(current, filler_symbols)
+    }
+
+    Ok(())
 }

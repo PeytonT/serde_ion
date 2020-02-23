@@ -19,3 +19,6 @@ Cargo.lock
 # Intellij Files
 .idea/
 serde_ion.iml
+
+# VSCode Files
+.vscode/

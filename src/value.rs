@@ -6,13 +6,49 @@ use std::str;
 
 use crate::symbols::SymbolToken;
 use base64::encode;
+use core::fmt;
 use num_bigint::BigInt;
 use num_bigint::BigUint;
+use std::collections::HashMap;
+use time::ComponentRangeError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Value {
     pub value: Data,
     pub annotations: Option<Vec<Option<SymbolToken>>>,
+}
+
+impl Value {
+    pub(crate) fn has_annotations(&self) -> bool {
+        if let Some(vec) = &self.annotations {
+            !vec.is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn has_annotation(&self, annotation: &str) -> bool {
+        if let Some(annotations) = &self.annotations {
+            for token in annotations {
+                if let Some(SymbolToken::Known { text }) = token {
+                    if text == annotation {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+}
+
+impl From<Data> for Value {
+    fn from(value: Data) -> Self {
+        Self {
+            value,
+            annotations: None,
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -118,6 +154,143 @@ impl Decimal {
     }
 }
 
+#[derive(Clone, PartialEq)]
+pub enum Date {
+    Year { year: i32 },
+    Month { year: i32, month: u8 },
+    Day { date: time::Date },
+}
+
+impl Date {
+    pub(crate) fn day(year: i32, month: u8, day: u8) -> Result<Self, ComponentRangeError> {
+        let date = time::Date::try_from_ymd(year, month, day)?;
+        Ok(Date::Day { date })
+    }
+    pub(crate) fn month(year: i32, month: u8) -> Self {
+        Date::Month { year, month }
+    }
+    pub(crate) fn year(year: i32) -> Self {
+        Date::Year { year }
+    }
+}
+
+impl fmt::Debug for Date {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Date::Year { year } => format!("{:04}", year).fmt(f),
+            Date::Month { year, month } => format!("{:04}-{:02}", year, month).fmt(f),
+            Date::Day { date } => date.format("%Y-%m-%d").fmt(f),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub enum Time {
+    Minute {
+        hour: u32,
+        minute: u32,
+        offset: time::UtcOffset,
+    },
+    Second {
+        hour: u32,
+        minute: u32,
+        second: u32,
+        offset: time::UtcOffset,
+    },
+    FractionalSecond {
+        hour: u32,
+        minute: u32,
+        second: u32,
+        fractional: BigInt,
+        offset: time::UtcOffset,
+    },
+}
+
+impl Time {
+    pub(crate) fn minute(hour: u32, minute: u32, offset: time::UtcOffset) -> Self {
+        Time::Minute {
+            hour,
+            minute,
+            offset,
+        }
+    }
+    pub(crate) fn second(hour: u32, minute: u32, second: u32, offset: time::UtcOffset) -> Self {
+        Time::Second {
+            hour,
+            minute,
+            second,
+            offset,
+        }
+    }
+    pub(crate) fn fractional_second(
+        hour: u32,
+        minute: u32,
+        second: u32,
+        fractional: BigInt,
+        offset: time::UtcOffset,
+    ) -> Self {
+        Time::FractionalSecond {
+            hour,
+            minute,
+            second,
+            fractional,
+            offset,
+        }
+    }
+}
+
+impl fmt::Debug for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Time::Minute {
+                hour,
+                minute,
+                offset,
+            } => format!("{:02}:{:02}{}", hour, minute, offset.format("%z")).fmt(f),
+            Time::Second {
+                hour,
+                minute,
+                second,
+                offset,
+            } => format!(
+                "{:02}:{:02}:{:02}{}",
+                hour,
+                minute,
+                second,
+                offset.format("%z")
+            )
+            .fmt(f),
+            Time::FractionalSecond {
+                hour,
+                minute,
+                second,
+                fractional,
+                offset,
+            } => format!(
+                "{:02}:{:02}:{:02}.{}{:?}",
+                hour,
+                minute,
+                second,
+                fractional.to_string(),
+                offset.format("%z")
+            )
+            .fmt(f),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextTimestamp {
+    date: Date,
+    time: Option<Time>,
+}
+
+impl TextTimestamp {
+    pub fn new(date: Date, time: Option<Time>) -> Self {
+        Self { date, time }
+    }
+}
+
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
@@ -125,6 +298,7 @@ impl Decimal {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
+    Text(TextTimestamp),
     Year {
         offset: BigInt,
         year: BigUint,
@@ -221,6 +395,24 @@ impl Struct {
     pub fn to_text(&self) -> String {
         todo!()
     }
+}
+
+pub(crate) fn safe_key_map(map: &[(SymbolToken, Value)]) -> Result<HashMap<&str, usize>, String> {
+    let mut keys = HashMap::new();
+    log::info!("creating key map from: {:?}", map);
+    for (i, value) in map.iter().enumerate() {
+        log::info!(" - {:?}", value);
+        match &value.0 {
+            SymbolToken::Known { text } => match keys.insert(text.as_str(), i) {
+                None => (),
+                Some(_) => return Err(format!("duplicate key found: {}", text)),
+            },
+            SymbolToken::Unknown { .. } => continue,
+            SymbolToken::Zero => continue,
+        }
+    }
+    log::info!("returning keys: {:?}", keys);
+    Ok(keys)
 }
 
 // list - Ordered collections of values
