@@ -1,4 +1,4 @@
-use crate::parser::error::{IonError, IonResult};
+use crate::parser::parse_error::{IonError, IonResult};
 use nom::error::ParseError;
 use nom::InputLength;
 use nom::{error::ErrorKind, Err};

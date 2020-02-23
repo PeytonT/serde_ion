@@ -1,8 +1,8 @@
 use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
 use crate::ion_types::IonValue;
-use crate::parser::error::IonResult;
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
+use crate::parser::parse_error::IonResult;
 use nom::{
     bytes::complete::{tag, take},
     sequence::tuple,
@@ -51,7 +51,7 @@ impl BinaryVersionMarker {
     }
 }
 
-pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
+fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
     let (input, (start, major, minor, end)) =
         tuple((tag(BVM_START), take(1usize), take(1usize), tag(BVM_END)))(input)?;
     Ok((
@@ -63,13 +63,13 @@ pub fn take_ion_version(input: &[u8]) -> IonResult<&[u8], IonVersion> {
     ))
 }
 
-pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
-    all_consuming(map(many0(preceded(tag(BVM_1_0), _parse_1_0())), |x| {
+fn parse(input: &[u8]) -> IonResult<&[u8], Vec<IonValue>> {
+    all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
         x.into_iter().flatten().collect()
     }))(input)
 }
 
-fn _parse_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<IonValue>> {
+fn parse_ion_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<IonValue>> {
     move |i: &[u8]| {
         let symbol_table = CurrentSymbolTable::SystemV1;
         many0(ion_1_0::binary::parse(symbol_table))(i)
@@ -82,7 +82,7 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use crate::error::{BinaryFormatError, FormatError};
-    use crate::parser::error::IonError;
+    use crate::parser::parse_error::IonError;
     use crate::{
         ion_types::{
             IonBlob, IonBool, IonClob, IonData, IonDecimal, IonFloat, IonInt, IonList, IonNull,

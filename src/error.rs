@@ -1,5 +1,15 @@
 use thiserror::Error;
 
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum Error {
+    #[error("invalid symbol")]
+    Symbol(SymbolError),
+    #[error("invalid format")]
+    Format(FormatError),
+}
+
 #[derive(Error, Debug, PartialEq)]
 pub enum SymbolError {
     #[error("invalid symbol_id {symbol_id:?} is greater than local max_id {max_id:?})")]
@@ -33,15 +43,15 @@ pub enum BinaryFormatError {
     AnnotatedPadding,
     #[error("annotation length code of `{0}` is not allowed")]
     AnnotationLength(u8),
-    #[error("int 0 is stored with type code T == 2 and L == 0, other encodings are invalid.")]
+    #[error("int 0 is stored with type code T == 2, negative encodings are invalid.")]
     NegativeZero,
     #[error("bool value `{0}` is not allowed")]
     BoolValue(u8),
-    #[error("float length code of `{0}` is not allowed")]
+    #[error("floats may only have lengths of 4 or 8 bytes, length code `{0}` is not allowed")]
     FloatLength(u8),
-    #[error("timestamp length code of `{0}` is not allowed")]
+    #[error("timestamps must contain an offset and a year, length code of `{0}` is not allowed")]
     TimestampLength(u8),
-    #[error("string encoding must be utf8")]
+    #[error("strings must be encoded using utf8")]
     StringEncoding,
     #[error("structs with length_code L1 cannot be empty")]
     StructEmpty,
