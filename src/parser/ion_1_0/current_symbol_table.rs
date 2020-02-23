@@ -1,6 +1,6 @@
 use crate::error::SymbolError;
-use crate::ion_types::{Data, List, String, Struct};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
+use crate::value::{Data, List, Struct};
 use std::collections::hash_map::HashMap;
 
 pub enum CurrentSymbolTable {
@@ -62,10 +62,13 @@ impl CurrentSymbolTable {
 /// Any other field (including, for example, name or version) is ignored.
 
 // Modify the current symbol table according to the encountered local symbol table.
-pub(crate) fn update_current_symbol_table(current: &mut CurrentSymbolTable, encountered: &Struct) {
+pub(crate) fn update_current_symbol_table(
+    current: &mut CurrentSymbolTable,
+    encountered: &Option<Struct>,
+) {
     let (imports, symbols): (TableImport, Vec<SymbolToken>) = match encountered {
-        Struct::Null => (TableImport::None, vec![]),
-        Struct::Struct { values } => {
+        None => (TableImport::None, vec![]),
+        Some(Struct { fields: values }) => {
             let keys: HashMap<&str, usize> = values
                 .iter()
                 .enumerate()
@@ -80,12 +83,14 @@ pub(crate) fn update_current_symbol_table(current: &mut CurrentSymbolTable, enco
                 None => TableImport::None,
                 Some(index) => match &values.get(*index).unwrap().1.value {
                     Data::List(list) => match list {
-                        List::Null => TableImport::None,
-                        List::List { values } => TableImport::Imports(
+                        None => TableImport::None,
+                        Some(List { values }) => TableImport::Imports(
                             values
                                 .iter()
+                                // each element of the list must be a struct;
+                                // each element that is null or is not a struct is ignored.
                                 .filter_map(|value| match &value.value {
-                                    Data::Struct(val) => Some(val.clone()),
+                                    Data::Struct(Some(val)) => Some(val.clone()),
                                     _ => None,
                                 })
                                 .collect(),
@@ -103,14 +108,14 @@ pub(crate) fn update_current_symbol_table(current: &mut CurrentSymbolTable, enco
                 None => vec![],
                 Some(index) => match &values.get(*index).unwrap().1.value {
                     Data::List(list) => match list {
-                        List::Null => vec![],
-                        List::List { values } => values
+                        None => vec![],
+                        Some(List { values }) => values
                             .iter()
                             .map(|value| match &value.value {
                                 Data::String(string) => match string {
-                                    String::Null => SymbolToken::Zero,
-                                    String::String { value } => SymbolToken::Known {
-                                        text: value.clone(),
+                                    None => SymbolToken::Zero,
+                                    Some(string) => SymbolToken::Known {
+                                        text: string.clone(),
                                     },
                                 },
                                 _ => SymbolToken::Zero,

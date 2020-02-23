@@ -1,27 +1,23 @@
 use crate::error::SymbolError;
 
+/// # symbol - Interned, Unicode symbolic atoms (aka identifiers)
+///
+/// symbol - Interned, Unicode symbolic atoms (aka identifiers)
+/// A subset of symbols called identifiers can be denoted in text without single-quotes.
+/// An identifier is a sequence of ASCII letters, digits, or the
+/// characters $ (dollar sign) or _ (underscore), not starting with a digit.
+///
+/// Ion symbols may have text that is unknown. That is, there is no binding to a (potentially empty) sequence of text.
+/// This can happen as a result of not having access to a shared symbol table being imported,
+/// or having a symbol table (shared or local) that contains a null slot.
+///
+/// A processor encountering a symbol with unknown text and a valid SID other than $0 MAY produce an error
+/// because this means that the context of the data is missing.
+/// Note: serde_ion does not support symbols other than $0 with unknown text.
+
 /// # Structures
 ///
 /// Where Int may be any integer and String may be any string.
-
-/// ## ImportDescriptor
-///
-/// <importName:String, version:Int, max_id:Int>
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ImportDescriptor {
-    import_name: String,
-    version: u32,
-    max_id: u32,
-}
-
-/// ## ImportLocation
-///
-/// <importName:String, importSID:Int>
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ImportLocation {
-    import_name: String,
-    import_sid: u32,
-}
 
 /// ## SymbolToken
 ///
@@ -98,6 +94,35 @@ pub enum SymbolToken {
     Unknown { import_location: ImportDescriptor },
     // Special symbol zero denotes unknown text in any symbol table
     Zero,
+}
+
+impl SymbolToken {
+    pub fn to_text(&self) -> String {
+        match self {
+            SymbolToken::Known { text } => text.to_string(),
+            SymbolToken::Unknown { .. } => todo!(), // should error, but how?
+            SymbolToken::Zero => "$0".to_string(),
+        }
+    }
+}
+
+/// ## ImportDescriptor
+///
+/// <importName:String, version:Int, max_id:Int>
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ImportDescriptor {
+    import_name: String,
+    version: u32,
+    max_id: u32,
+}
+
+/// ## ImportLocation
+///
+/// <importName:String, importSID:Int>
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ImportLocation {
+    import_name: String,
+    import_sid: u32,
 }
 
 /// ## SymbolTable

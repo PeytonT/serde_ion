@@ -2,13 +2,10 @@ use super::current_symbol_table::*;
 use super::subfield::*;
 use super::typed_value::*;
 use crate::error::{BinaryFormatError, FormatError};
-use crate::ion_types::{
-    Blob, Bool, Clob, Data, Decimal, Float, Int, List, Sexp, String, Struct, Symbol, Timestamp,
-    Value,
-};
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::parser::parse_error::{IonError, IonResult};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
+use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use itertools::Itertools;
 use nom::{
     combinator::{all_consuming, complete},
@@ -21,7 +18,6 @@ use nom::{
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::identities::Zero;
 use num_traits::ToPrimitive;
-use std::string::String as StdString;
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
@@ -50,7 +46,7 @@ fn parse_top_level_value<'a, 'b>(
                     // And the annotations vector contains a first annotation (i.e. is non-empty)...
                     if let Some(symbol) = annotations.first() {
                         // And the first annotation is not a null symbol...
-                        if let Symbol::Symbol { token } = symbol {
+                        if let Some(token) = symbol {
                             // And the value of the annotation is "$ion_symbol_table"...
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
                                 // Then it is an update to the local symbol table. Apply it.
@@ -189,11 +185,11 @@ fn parse_null(typed_value: TypedValue) -> Option<()> {
 /// Values of type bool always have empty lengths, and their representation is stored in the typedesc
 /// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 /// means true; and a representation of 15 means null.bool.
-fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Bool> {
+fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Option<bool>> {
     match typed_value.length_code {
-        LengthCode::L0 => Ok(Bool::False),
-        LengthCode::L1 => Ok(Bool::True),
-        LengthCode::L15 => Ok(Bool::Null),
+        LengthCode::L0 => Ok(Some(false)),
+        LengthCode::L1 => Ok(Some(true)),
+        LengthCode::L15 => Ok(None),
         catch_invalid => Err(Err::Failure(IonError::from_format_error(
             typed_value.index,
             FormatError::Binary(BinaryFormatError::BoolValue(catch_invalid as u8)),
@@ -224,17 +220,13 @@ fn parse_bool(typed_value: TypedValue) -> ParseResult<&[u8], Bool> {
 ///
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
-fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
+fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Option<BigInt>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Int::Null),
-        LengthCode::L0 => Ok(Int::Integer {
-            value: BigInt::zero(),
-        }),
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(BigInt::zero())),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
-            Ok(Int::Integer {
-                value: BigInt::from_biguint(Sign::Plus, magnitude),
-            })
+            Ok(Some(BigInt::from_biguint(Sign::Plus, magnitude)))
         }
     }
 }
@@ -262,9 +254,10 @@ fn parse_positive_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
 ///
 /// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 /// Note that this implies there are two equivalent binary representations of null integer values.
-fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
+fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Option<BigInt>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Int::Null),
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(BigInt::zero())),
         _ => {
             let magnitude = BigUint::from_bytes_be(typed_value.rep);
             if magnitude == BigUint::zero() {
@@ -273,9 +266,7 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
                     FormatError::Binary(BinaryFormatError::NegativeZero),
                 )));
             }
-            Ok(Int::Integer {
-                value: BigInt::from_biguint(Sign::Minus, magnitude),
-            })
+            Ok(Some(BigInt::from_biguint(Sign::Minus, magnitude)))
         }
     }
 }
@@ -305,20 +296,18 @@ fn parse_negative_int(typed_value: TypedValue) -> ParseResult<&[u8], Int> {
 /// If L is 15, then the value is null.float and the representation is empty.
 /// Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 /// of the standard may support 16-bit and 128-bit float values.
-fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Float> {
+fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Option<f64>> {
     match typed_value.length_code {
-        LengthCode::L0 => Ok(Float::Float { value: 0e0 }),
+        LengthCode::L0 => Ok(Some(0e0)),
         LengthCode::L4 => {
             let (_, value) = float(typed_value.rep)?;
-            Ok(Float::Float {
-                value: f64::from(value),
-            })
+            Ok(Some(f64::from(value)))
         }
         LengthCode::L8 => {
             let (_, value) = double(typed_value.rep)?;
-            Ok(Float::Float { value })
+            Ok(Some(value))
         }
-        LengthCode::L15 => Ok(Float::Null),
+        LengthCode::L15 => Ok(None),
         catch_invalid => Err(Err::Failure(IonError::from_format_error(
             typed_value.index,
             FormatError::Binary(BinaryFormatError::FloatLength(catch_invalid as u8)),
@@ -350,23 +339,23 @@ fn parse_float(typed_value: TypedValue) -> ParseResult<&[u8], Float> {
 ///
 /// If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 /// entire value is encoded as the single byte 0x50.
-fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Decimal> {
+fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Decimal::Null),
-        LengthCode::L0 => Ok(Decimal::Decimal {
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(Decimal {
             coefficient: BigInt::zero(),
             exponent: BigInt::zero(),
-        }),
+        })),
         _ => {
             let (coefficient_index, exponent) = take_var_int(typed_value.rep)?;
             let (_, coefficient) = match coefficient_index.len() {
                 0 => (coefficient_index, BigInt::zero()),
                 remaining_bytes => take_int(remaining_bytes)(coefficient_index)?,
             };
-            Ok(Decimal::Decimal {
+            Ok(Some(Decimal {
                 exponent,
                 coefficient,
-            })
+            }))
         }
     }
 }
@@ -434,39 +423,39 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Decimal> {
 /// Note: The component values in the binary encoding are always in UTC, while components in the
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
-fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
+fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timestamp>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Timestamp::Null),
+        LengthCode::L15 => Ok(None),
         _ => {
             let (rest, offset) = take_var_int(typed_value.rep)?;
             let (rest, year) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
-                return Ok(Timestamp::Year { offset, year });
+                return Ok(Some(Timestamp::Year { offset, year }));
             }
 
             let (rest, month) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
-                return Ok(Timestamp::Month {
+                return Ok(Some(Timestamp::Month {
                     offset,
                     year,
                     month,
-                });
+                }));
             }
 
             let (rest, day) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
-                return Ok(Timestamp::Day {
+                return Ok(Some(Timestamp::Day {
                     offset,
                     year,
                     month,
                     day,
-                });
+                }));
             }
 
             let (rest, hour) = take_var_uint(rest)?;
@@ -474,21 +463,21 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
 
             // Parsing complete with precision of Minute
             if rest.is_empty() {
-                return Ok(Timestamp::Minute {
+                return Ok(Some(Timestamp::Minute {
                     offset,
                     year,
                     month,
                     day,
                     hour,
                     minute,
-                });
+                }));
             }
 
             let (rest, second) = take_var_uint(rest)?;
 
             // Parsing complete with precision of Second
             if rest.is_empty() {
-                return Ok(Timestamp::Second {
+                return Ok(Some(Timestamp::Second {
                     offset,
                     year,
                     month,
@@ -496,7 +485,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
                     hour,
                     minute,
                     second,
-                });
+                }));
             }
 
             let (rest, fraction_exponent) = take_var_int_as_i32(rest)?;
@@ -521,7 +510,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
 
             // Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
             if fraction_coefficient.is_zero() && fraction_exponent > -1 {
-                return Ok(Timestamp::Second {
+                return Ok(Some(Timestamp::Second {
                     offset,
                     year,
                     month,
@@ -529,11 +518,11 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
                     hour,
                     minute,
                     second,
-                });
+                }));
             }
 
             // Parsing complete with precision of FractionalSecond
-            Ok(Timestamp::FractionalSecond {
+            Ok(Some(Timestamp::FractionalSecond {
                 offset,
                 year,
                 month,
@@ -543,7 +532,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
                 second,
                 fraction_coefficient,
                 fraction_exponent,
-            })
+            }))
         }
     }
 }
@@ -569,12 +558,10 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Timestamp> {
 fn parse_symbol<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], Symbol> {
+) -> ParseResult<&'a [u8], Option<SymbolToken>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Symbol::Null),
-        LengthCode::L0 => Ok(Symbol::Symbol {
-            token: SymbolToken::Zero,
-        }),
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(SymbolToken::Zero)),
         _ => {
             let symbol_id = parse_uint(typed_value.rep);
             // FIXME: This constraint on symbol_id size should probably be made uniform
@@ -593,7 +580,7 @@ fn parse_symbol<'a>(
                     )))
                 }
             };
-            Ok(Symbol::Symbol { token })
+            Ok(Some(token))
         }
     }
 }
@@ -612,9 +599,9 @@ fn parse_symbol<'a>(
 /// ```
 ///
 /// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
-fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
+fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], Option<String>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(String::Null),
+        LengthCode::L15 => Ok(None),
         _ => {
             let representation = match std::str::from_utf8(typed_value.rep) {
                 Ok(value) => value,
@@ -625,9 +612,7 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
                     )))
                 }
             };
-            Ok(String::String {
-                value: StdString::from(representation),
-            })
+            Ok(Some(String::from(representation)))
         }
     }
 }
@@ -649,12 +634,12 @@ fn parse_string(typed_value: TypedValue) -> ParseResult<&[u8], String> {
 /// an unknown encoding (and thus opaque to the application).
 ///
 /// Zero-length clobs are legal, so L may be zero.
-fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Clob> {
+fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Option<Clob>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Clob::Null),
-        _ => Ok(Clob::Clob {
+        LengthCode::L15 => Ok(None),
+        _ => Ok(Some(Clob {
             data: typed_value.rep.to_vec(),
-        }),
+        })),
     }
 }
 
@@ -674,12 +659,12 @@ fn parse_clob(typed_value: TypedValue) -> ParseResult<&[u8], Clob> {
 /// This is a sequence of octets with no interpretation (and thus opaque to the application).
 ///
 /// Zero-length blobs are legal, so L may be zero.
-fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Blob> {
+fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Option<Blob>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Blob::Null),
-        _ => Ok(Blob::Blob {
+        LengthCode::L15 => Ok(None),
+        _ => Ok(Some(Blob {
             data: typed_value.rep.to_vec(),
-        }),
+        })),
     }
 }
 
@@ -707,10 +692,10 @@ fn parse_blob(typed_value: TypedValue) -> ParseResult<&[u8], Blob> {
 fn parse_list<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], List> {
+) -> ParseResult<&'a [u8], Option<List>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(List::Null),
-        LengthCode::L0 => Ok(List::List { values: vec![] }),
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(List { values: vec![] })),
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
@@ -721,7 +706,7 @@ fn parse_list<'a>(
                     Some(value) => Some(value),
                 })
                 .collect();
-            Ok(List::List { values })
+            Ok(Some(List { values }))
         }
     }
 }
@@ -744,10 +729,10 @@ fn parse_list<'a>(
 fn parse_sexp<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], Sexp> {
+) -> ParseResult<&'a [u8], Option<Sexp>> {
     match typed_value.length_code {
-        LengthCode::L15 => Ok(Sexp::Null),
-        LengthCode::L0 => Ok(Sexp::Sexp { values: vec![] }),
+        LengthCode::L15 => Ok(None),
+        LengthCode::L0 => Ok(Some(Sexp { values: vec![] })),
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
@@ -758,7 +743,7 @@ fn parse_sexp<'a>(
                     Some(value) => Some(value),
                 })
                 .collect();
-            Ok(Sexp::Sexp { values })
+            Ok(Some(Sexp { values }))
         }
     }
 }
@@ -830,11 +815,11 @@ fn parse_sexp<'a>(
 fn parse_struct<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
-) -> ParseResult<&'a [u8], Struct> {
+) -> ParseResult<&'a [u8], Option<Struct>> {
     // Get all entries
     let (_, entries): (_, Vec<(usize, Option<Value>)>) = match typed_value.length_code {
-        LengthCode::L15 => return Ok(Struct::Null),
-        LengthCode::L0 => return Ok(Struct::Struct { values: vec![] }),
+        LengthCode::L15 => return Ok(None),
+        LengthCode::L0 => return Ok(Some(Struct { fields: vec![] })),
         _ => parse_struct_entries(symbol_table)(typed_value.rep)?,
     };
 
@@ -886,7 +871,7 @@ fn parse_struct<'a>(
         .collect();
 
     let values = entries?;
-    Ok(Struct::Struct { values })
+    Ok(Some(Struct { fields: values }))
 }
 
 fn parse_struct_entries(
@@ -979,7 +964,7 @@ fn parse_annotation<'a>(
             match annotations
                 .into_iter()
                 .map(|x| match symbol_table.lookup_sid(x) {
-                    Ok(token) => Ok(Symbol::Symbol { token }),
+                    Ok(token) => Ok(Some(token)),
                     Result::Err(error) => Err(error),
                 })
                 .collect()

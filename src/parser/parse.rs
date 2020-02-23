@@ -1,8 +1,8 @@
 use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
-use crate::ion_types::Value;
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::parser::parse_error::IonResult;
+use crate::value::Value;
 use nom::{
     bytes::complete::{tag, take},
     sequence::tuple,
@@ -81,11 +81,8 @@ mod tests {
     use crate::error::{BinaryFormatError, FormatError};
     use crate::parser::parse_error::IonError;
     use crate::{
-        ion_types::{
-            Blob, Bool, Clob, Data, Decimal, Float, Int, List, Sexp, String, Struct, Symbol,
-            Timestamp, Value,
-        },
         symbols::SymbolToken,
+        value::{Clob, Data, Decimal, Struct, Timestamp, Value},
     };
     use nom::error::{ErrorKind, ParseError};
     use nom::{AsBytes, Err};
@@ -199,7 +196,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Bool(Bool::Null),
+                    value: Data::Bool(None),
                     annotations: None,
                 }]
             );
@@ -259,7 +256,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Int(Int::Null),
+                    value: Data::Int(None),
                     annotations: None,
                 }]
             );
@@ -273,7 +270,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Int(Int::Null),
+                    value: Data::Int(None),
                     annotations: None,
                 }]
             );
@@ -287,7 +284,7 @@ mod tests {
             assert_eq!(value.len(), 1usize);
             match value[0].clone() {
                 Value {
-                    value: Data::Int(Int::Integer { value: x }),
+                    value: Data::Int(Some(x)),
                     annotations: None,
                 } => {}
                 _ => panic!("expected Integer"),
@@ -302,7 +299,7 @@ mod tests {
             assert_eq!(value.len(), 1usize);
             match value[0].clone() {
                 Value {
-                    value: Data::Int(Int::Integer { value: x }),
+                    value: Data::Int(Some(x)),
                     annotations: None,
                 } => {}
                 _ => panic!("expected Integer"),
@@ -317,7 +314,7 @@ mod tests {
             assert_eq!(value.len(), 1usize);
             match value[0].clone() {
                 Value {
-                    value: Data::Int(Int::Integer { value: x }),
+                    value: Data::Int(Some(x)),
                     annotations: None,
                 } => {}
                 _ => panic!("expected Integer"),
@@ -332,7 +329,7 @@ mod tests {
             assert_eq!(value.len(), 1usize);
             match value[0].clone() {
                 Value {
-                    value: Data::Int(Int::Integer { value: x }),
+                    value: Data::Int(Some(x)),
                     annotations: None,
                 } => {}
                 _ => panic!("expected Integer"),
@@ -347,7 +344,7 @@ mod tests {
             assert_eq!(value.len(), 1usize);
             match value[0].clone() {
                 Value {
-                    value: Data::Int(Int::Integer { value: x }),
+                    value: Data::Int(Some(x)),
                     annotations: None,
                 } => {}
                 _ => panic!("expected Integer"),
@@ -363,9 +360,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Int(Int::Integer {
-                        value: BigInt::from_str("9223372036854775808").unwrap()
-                    }),
+                    value: Data::Int(Some(BigInt::from_str("9223372036854775808").unwrap())),
                     annotations: None,
                 }]
             );
@@ -380,9 +375,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Int(Int::Integer {
-                        value: BigInt::from_str("-9223372036854775808").unwrap()
-                    }),
+                    value: Data::Int(Some(BigInt::from_str("-9223372036854775808").unwrap())),
                     annotations: None,
                 }]
             );
@@ -469,7 +462,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Float(Float::Null),
+                    value: Data::Float(None),
                     annotations: None,
                 }]
             );
@@ -505,7 +498,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Null),
+                    value: Data::Decimal(None),
                     annotations: None,
                 }]
             );
@@ -521,10 +514,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Decimal {
+                    value: Data::Decimal(Some(Decimal {
                         coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
                         exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -539,10 +532,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Decimal {
+                    value: Data::Decimal(Some(Decimal {
                         coefficient: BigInt::zero(),
                         exponent: BigInt::zero(),
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -558,10 +551,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Decimal {
+                    value: Data::Decimal(Some(Decimal {
                         coefficient: BigInt::zero(),
                         exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -576,10 +569,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Decimal {
+                    value: Data::Decimal(Some(Decimal {
                         coefficient: BigInt::from_str_radix("10", 10).unwrap(),
                         exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -593,10 +586,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Decimal(Decimal::Decimal {
+                    value: Data::Decimal(Some(Decimal {
                         coefficient: BigInt::zero(),
                         exponent: BigInt::zero(),
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -662,7 +655,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Timestamp(Timestamp::Null),
+                    value: Data::Timestamp(None),
                     annotations: None,
                 }]
             );
@@ -678,10 +671,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Timestamp(Timestamp::Year {
+                    value: Data::Timestamp(Some(Timestamp::Year {
                         offset: BigInt::zero(),
                         year: BigUint::from(2011u32)
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -697,11 +690,11 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Timestamp(Timestamp::Month {
+                    value: Data::Timestamp(Some(Timestamp::Month {
                         offset: BigInt::zero(),
                         year: BigUint::from(2011u32),
                         month: BigUint::from(2u32)
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -717,12 +710,12 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Timestamp(Timestamp::Day {
+                    value: Data::Timestamp(Some(Timestamp::Day {
                         offset: BigInt::zero(),
                         year: BigUint::from(2011u32),
                         month: BigUint::from(2u32),
                         day: BigUint::from(20u32)
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -738,7 +731,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Timestamp(Timestamp::FractionalSecond {
+                    value: Data::Timestamp(Some(Timestamp::FractionalSecond {
                         offset: BigInt::from(-480i32),
                         year: BigUint::from(2011u32),
                         month: BigUint::from(2u32),
@@ -748,7 +741,7 @@ mod tests {
                         second: BigUint::from(59u32),
                         fraction_coefficient: BigUint::from(100u32),
                         fraction_exponent: -3,
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -769,7 +762,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Symbol(Symbol::Null),
+                    value: Data::Symbol(None),
                     annotations: None,
                 }]
             );
@@ -784,9 +777,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Symbol(Symbol::Symbol {
-                        token: SymbolToken::Zero
-                    }),
+                    value: Data::Symbol(Some(SymbolToken::Zero)),
                     annotations: None,
                 }]
             );
@@ -801,9 +792,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Symbol(Symbol::Symbol {
-                        token: SymbolToken::Zero
-                    }),
+                    value: Data::Symbol(Some(SymbolToken::Zero)),
                     annotations: None,
                 }]
             );
@@ -865,7 +854,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::String(String::Null),
+                    value: Data::String(None),
                     annotations: None,
                 }]
             );
@@ -920,7 +909,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Clob(Clob::Null),
+                    value: Data::Clob(None),
                     annotations: None,
                 }]
             );
@@ -934,7 +923,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Clob(Clob::Clob { data: vec![127u8] }),
+                    value: Data::Clob(Some(Clob { data: vec![127u8] })),
                     annotations: None,
                 }]
             );
@@ -950,7 +939,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Clob(Clob::Clob { data: vec![128u8] }),
+                    value: Data::Clob(Some(Clob { data: vec![128u8] })),
                     annotations: None,
                 }]
             );
@@ -965,7 +954,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Clob(Clob::Clob { data: vec![0u8] }),
+                    value: Data::Clob(Some(Clob { data: vec![0u8] })),
                     annotations: None,
                 }]
             );
@@ -1000,7 +989,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Blob(Blob::Null),
+                    value: Data::Blob(None),
                     annotations: None,
                 }]
             );
@@ -1038,7 +1027,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::List(List::Null),
+                    value: Data::List(None),
                     annotations: None,
                 }]
             );
@@ -1073,7 +1062,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Sexp(Sexp::Null),
+                    value: Data::Sexp(None),
                     annotations: None,
                 }]
             );
@@ -1084,8 +1073,7 @@ mod tests {
     mod r#struct {
         use self::assert_eq;
         use super::*;
-        use crate::ion_types::Symbol;
-        use std::string::String as StdString;
+        use std::string::String;
 
         // Good
 
@@ -1097,7 +1085,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Null),
+                    value: Data::Struct(None),
                     annotations: None,
                 }]
             );
@@ -1113,7 +1101,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct { values: vec![] }),
+                    value: Data::Struct(Some(Struct { fields: vec![] })),
                     annotations: None,
                 }]
             );
@@ -1129,7 +1117,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct { values: vec![] }),
+                    value: Data::Struct(Some(Struct { fields: vec![] })),
                     annotations: None,
                 }]
             );
@@ -1145,17 +1133,17 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![(
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![(
                             SymbolToken::Known {
-                                text: StdString::from("name")
+                                text: String::from("name")
                             },
                             Value {
-                                value: Data::Bool(Bool::True),
+                                value: Data::Bool(Some(true)),
                                 annotations: None,
                             }
                         )]
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -1171,17 +1159,17 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![(
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![(
                             SymbolToken::Known {
-                                text: StdString::from("name")
+                                text: String::from("name")
                             },
                             Value {
-                                value: Data::Bool(Bool::True),
+                                value: Data::Bool(Some(true)),
                                 annotations: None,
                             }
                         )]
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -1196,12 +1184,10 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct { values: vec![] }),
-                    annotations: Some(vec![Symbol::Symbol {
-                        token: SymbolToken::Known {
-                            text: StdString::from("max_id")
-                        },
-                    }])
+                    value: Data::Struct(Some(Struct { fields: vec![] })),
+                    annotations: Some(vec![Some(SymbolToken::Known {
+                        text: String::from("max_id")
+                    }),])
                 }]
             );
         }
@@ -1214,7 +1200,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct { values: vec![] }),
+                    value: Data::Struct(Some(Struct { fields: vec![] })),
                     annotations: None,
                 }]
             );
@@ -1228,19 +1214,17 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![(
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![(
                             SymbolToken::Known {
-                                text: StdString::from("name")
+                                text: String::from("name")
                             },
                             Value {
-                                value: Data::String(String::String {
-                                    value: StdString::from("123456789AB")
-                                }),
+                                value: Data::String(Some(String::from("123456789AB"))),
                                 annotations: None,
                             }
                         )]
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -1254,19 +1238,17 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![(
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![(
                             SymbolToken::Known {
-                                text: StdString::from("name")
+                                text: String::from("name")
                             },
                             Value {
-                                value: Data::String(String::String {
-                                    value: StdString::from("123456789ABC")
-                                }),
+                                value: Data::String(Some(String::from("123456789ABC"))),
                                 annotations: None,
                             }
                         )]
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -1280,19 +1262,17 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![(
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![(
                             SymbolToken::Known {
-                                text: StdString::from("name")
+                                text: String::from("name")
                             },
                             Value {
-                                value: Data::String(String::String {
-                                    value: StdString::from("123456789ABCD")
-                                }),
+                                value: Data::String(Some(String::from("123456789ABCD"))),
                                 annotations: None,
                             }
                         )]
-                    }),
+                    })),
                     annotations: None,
                 }]
             );
@@ -1306,11 +1286,11 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("name")
+                                    text: String::from("name")
                                 },
                                 Value {
                                     value: Data::Null,
@@ -1319,24 +1299,24 @@ mod tests {
                             ),
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("version")
+                                    text: String::from("version")
                                 },
                                 Value {
-                                    value: Data::Bool(Bool::False),
+                                    value: Data::Bool(Some(false)),
                                     annotations: None,
                                 }
                             ),
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("imports")
+                                    text: String::from("imports")
                                 },
                                 Value {
-                                    value: Data::Bool(Bool::True),
+                                    value: Data::Bool(Some(true)),
                                     annotations: None,
                                 }
                             )
                         ]
-                    }),
+                    })),
                     annotations: None
                 }],
             );
@@ -1351,11 +1331,11 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Value {
-                    value: Data::Struct(Struct::Struct {
-                        values: vec![
+                    value: Data::Struct(Some(Struct {
+                        fields: vec![
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("name")
+                                    text: String::from("name")
                                 },
                                 Value {
                                     value: Data::Null,
@@ -1364,35 +1344,31 @@ mod tests {
                             ),
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("version")
+                                    text: String::from("version")
                                 },
                                 Value {
-                                    value: Data::Bool(Bool::False),
+                                    value: Data::Bool(Some(false)),
                                     annotations: None,
                                 }
                             ),
                             (
                                 SymbolToken::Known {
-                                    text: StdString::from("imports")
+                                    text: String::from("imports")
                                 },
                                 Value {
-                                    value: Data::Bool(Bool::True),
+                                    value: Data::Bool(Some(true)),
                                     annotations: None,
                                 }
                             )
                         ]
-                    }),
+                    })),
                     annotations: Some(vec![
-                        Symbol::Symbol {
-                            token: SymbolToken::Known {
-                                text: StdString::from("symbols")
-                            }
-                        },
-                        Symbol::Symbol {
-                            token: SymbolToken::Known {
-                                text: StdString::from("max_id")
-                            }
-                        }
+                        Some(SymbolToken::Known {
+                            text: String::from("symbols")
+                        }),
+                        Some(SymbolToken::Known {
+                            text: String::from("max_id")
+                        })
                     ]),
                 }],
             );
