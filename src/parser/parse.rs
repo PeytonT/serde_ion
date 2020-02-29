@@ -1,14 +1,14 @@
 use super::combinators::{all_consuming, many0, map, preceded};
 use super::ion_1_0;
 use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
-use crate::parser::parse_error::IonResult;
+use crate::parser::ion_1_0::text::ValueIterator;
+use crate::parser::parse_error::{IonError, IonResult};
 use crate::value::Value;
 use nom::{
     bytes::complete::{tag, take},
     sequence::tuple,
+    Err,
 };
-
-pub use ion_1_0::text::parse_ion_1_0 as parse_text_1_0;
 
 // Binary Ion streams begin with a four-octet Binary Version Marker
 // BVM_START MAJOR_VERSION MINOR_VERSION BVM_END
@@ -75,19 +75,20 @@ fn parse_ion_1_0() -> impl FnMut(&[u8]) -> IonResult<&[u8], Vec<Option<Value>>> 
     move |i: &[u8]| many0(ion_1_0::binary::parse(CurrentSymbolTable::SystemV1))(i)
 }
 
-// pub fn parse_text(input: &str) -> IonResult<&str, Vec<IonValue>> {
-//     all_consuming(map(
-//         many0(preceded(opt(tag("$ion_1_0")), _parse_1_0_text())),
-//         |x| x.into_iter().flatten().collect(),
-//     ))(input)
-// }
+/// Ion text streams consist of zero or more top level values (TLVs).
+///
+/// It is assumed that each one starts with the Ion Version Marker (or IVM) if not otherwise
+/// marked. The IVM can also be used to reset the symbol table if later encountered as a TLV.
+pub fn parse_ion_text_1_0(input: &str) -> IonResult<&str, Vec<Value>> {
+    let values: Result<Vec<Value>, Err<IonError<&str>>> = ValueIterator::new(input)
+        .map(|result| match result {
+            Ok((_, v)) => Ok(v),
+            Err(e) => Err(e),
+        })
+        .collect();
 
-// fn _parse_1_0_text() -> impl FnMut(&str) -> IonResult<&str, Vec<IonValue>> {
-//     move |i: &str| {
-//         let symbol_table = SymbolTable::SystemV1;
-//         many0(ion_1_0::text::parse(symbol_table))(i)
-//     }
-// }
+    values.map(|v| (&input[input.len().saturating_sub(1)..], v))
+}
 
 #[allow(non_snake_case)]
 #[cfg(test)]

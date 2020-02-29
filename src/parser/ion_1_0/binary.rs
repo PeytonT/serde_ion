@@ -50,7 +50,8 @@ fn parse_top_level_value<'a, 'b>(
                             // And the value of the annotation is "$ion_symbol_table"...
                             if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
                                 // Then it is an update to the local symbol table. Apply it.
-                                update_current_symbol_table(symbol_table, ion_struct);
+                                update_current_symbol_table(symbol_table, ion_struct)
+                                    .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
                                 // And return no Value
                                 return Ok((rest, None));
                             }

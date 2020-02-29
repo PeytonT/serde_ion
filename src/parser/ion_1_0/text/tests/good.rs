@@ -1258,7 +1258,7 @@ fn test_struct_field_annotations_unquoted_then_quoted() {
 
     let expected = vec![map(vec![(
         "f".into(),
-        value(ion::Data::Null.into(), Some(vec![annot("a"), annot("b")])),
+        value(ion::Data::Null, Some(vec![annot("a"), annot("b")])),
     )])];
 
     verify_tlvs(expected, result);

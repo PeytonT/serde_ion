@@ -104,21 +104,6 @@ where
 /// TODO: Use FnMut combinators to get rid of the Rc<RefCell<_>>
 type Table = Rc<RefCell<CurrentSymbolTable>>;
 
-/// Ion streams consist of zero or more top level values (TLVs).
-///
-/// It is assumed that each one starts with the Ion Version Marker (or IVM) if not otherwise
-/// marked. The IVM can also be used to reset the symbol table if later encountered as a TLV.
-pub fn parse_ion_1_0(input: &str) -> Result<Vec<ion::Value>, String> {
-    let mut values = vec![];
-    for result in ValueIterator::new(input) {
-        match result {
-            Ok(value) => values.push(value),
-            Err(e) => return Err(e),
-        }
-    }
-    Ok(values)
-}
-
 /// Parses the top level values of the Ion string.
 ///
 /// Some values are delimited by values other than whitespace. For example, (1+1) is four
@@ -128,14 +113,14 @@ pub fn parse_ion_1_0(input: &str) -> Result<Vec<ion::Value>, String> {
 /// The last parsed value allows the final value to be parsed without the same delimiting rules.
 ///
 /// Encoding: top_level
-struct ValueIterator<'a> {
-    remaining: &'a str,
+pub struct ValueIterator<'a> {
+    pub(crate) remaining: &'a str,
+    pub(crate) current_table: Table,
     next: Option<ion::Value>,
-    current_table: Table,
 }
 
 impl<'a> ValueIterator<'a> {
-    fn new(ion: &'a str) -> Self {
+    pub(crate) fn new(ion: &'a str) -> Self {
         Self {
             remaining: ion,
             next: None,
@@ -193,25 +178,20 @@ impl<'a> ValueIterator<'a> {
         }
     }
 
-    fn handle_ivm(&mut self, ivm: Ivm) -> Result<(), String> {
+    fn handle_ivm(&mut self, ivm: Ivm) -> Result<(), TextFormatError> {
         if ivm.0 == 1 && ivm.1 == 0 {
             self.current_table.replace(CurrentSymbolTable::SystemV1);
             Ok(())
         } else {
-            // IVMs for versions of ION we don't support must trigger an error according to the
-            // tests.
-            Err(format!(
-                "IonVersionMarker found for an unknown version of Ion: {}.{}",
-                ivm.0, ivm.1
-            ))
+            Err(TextFormatError::UnsupportedVersion(ivm.0, ivm.1))
         }
     }
 
-    fn handle_tlvs(
+    fn handle_meta_values(
         &mut self,
         value: ion::Value,
         next: Option<ion::Value>,
-    ) -> Option<Result<ion::Value, String>> {
+    ) -> Option<<Self as Iterator>::Item> {
         let value = if is_system_value(&value) {
             None
         } else if let Some(table) = self.as_local_symbol_table(&value) {
@@ -220,14 +200,17 @@ impl<'a> ValueIterator<'a> {
                 &Some(table.clone()),
             ) {
                 Ok(_) => None,
-                Err(e) => Some(Err(e.to_string())),
+                Err(e) => Some(Err(Err::Failure(IonError::from_symbol_error(
+                    self.remaining,
+                    e,
+                )))),
             }
         } else if let Some(_table) = self.as_shared_symbol_table(&value) {
             // TODO: handle shared symbol tables
-            self.next()
+            None
         } else {
             self.next = next;
-            Some(Ok(value))
+            Some(Ok((self.remaining, value)))
         };
 
         match value {
@@ -237,11 +220,18 @@ impl<'a> ValueIterator<'a> {
     }
 }
 
+/// ValueIterator contains the logic for top_level within the next method.
+///
+/// note that EOF is a concept for the grammar, technically Ion streams
+/// are infinite
+/// top_level
+///     : (ws* top_level_value)* ws* value? EOF
+///     ;
 impl<'a> Iterator for ValueIterator<'a> {
-    type Item = Result<ion::Value, String>;
+    type Item = IonResult<&'a str, ion::Value>;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.next.take() {
-            return Some(Ok(next));
+            return Some(Ok((self.remaining, next)));
         }
 
         if self.remaining.is_empty() {
@@ -249,11 +239,19 @@ impl<'a> Iterator for ValueIterator<'a> {
         }
 
         let maybe_ivm = take_ivm(self.remaining);
-        if let Ok((remaining, ivm)) = maybe_ivm {
-            self.remaining = remaining;
-            if let Err(e) = self.handle_ivm(ivm) {
-                return Some(Err(e));
+        match maybe_ivm {
+            Ok((remaining, ivm)) => {
+                self.remaining = remaining;
+                return match self.handle_ivm(ivm) {
+                    Ok(_) => self.next(),
+                    Err(e) => Some(Err(Err::Failure(IonError::from_format_error(
+                        self.remaining,
+                        FormatError::Text(e),
+                    )))),
+                };
             }
+            Err(Err::Failure(e)) => return Some(Err(Err::Failure(e))),
+            _ => (),
         }
 
         let maybe_tlv =
@@ -261,34 +259,35 @@ impl<'a> Iterator for ValueIterator<'a> {
         match maybe_tlv {
             Ok((remaining, (value, next))) => {
                 self.remaining = remaining;
-                return self.handle_tlvs(value, next);
+                return self.handle_meta_values(value, next);
             }
-            Err(Err::Failure(e)) => return Some(Err(format!("{:?}", e))),
+            Err(Err::Failure(e)) => return Some(Err(Err::Failure(e))),
             _ => (),
-        }
+        };
 
         let maybe_last = preceded(
             eat_ws,
             terminated(opt(take_value(self.current_table.clone())), eof),
         )(self.remaining);
-        match maybe_last {
+        let last_err = match maybe_last {
             Ok((remaining, value)) => {
                 self.remaining = remaining;
-                if let Some(value) = value {
-                    return self.handle_tlvs(value, None);
-                }
+                return if let Some(value) = value {
+                    self.handle_meta_values(value, None)
+                } else {
+                    self.next()
+                };
             }
-            Err(Err::Failure(e)) => return Some(Err(format!("{:?}", e))),
-            _ => (),
-        }
+            Err(Err::Failure(e)) => {
+                return Some(Err(Err::Failure(e)));
+            }
+            Err(e) => e,
+        };
 
         if self.remaining.is_empty() {
             None
         } else {
-            Some(Err(format!(
-                "unable to parse remaining data: {:x?}",
-                self.remaining
-            )))
+            Some(Err(last_err))
         }
     }
 }
@@ -522,10 +521,9 @@ fn take_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
 /// LOB_END. Since these are allowed in all the same places, this method is a single
 /// entry-point into LOB parsing.
 ///
-/// Both forms of LOBs consist of ASCII characters and are parsed as bytes. This method handles
-/// transforming the parser from utf-8 parsing to &[u8] parsing and back again. This is necessary
+/// Both forms of LOBs consist of ASCII characters and are parsed as bytes. This is necessary
 /// in certain situations, such as expanding an escape for a character that takes an additional byte
-/// when encoded in utf-8.
+/// when encoded in UTF-8.
 fn take_lob(i: &str) -> IonResult<&str, ion::Data> {
     let b = i.as_bytes();
 
@@ -541,7 +539,7 @@ fn take_lob(i: &str) -> IonResult<&str, ion::Data> {
         Ok((i2, r)) => {
             let offset =
                 i.offset(from_utf8(i2).expect(
-                    "parser should return a reference to the same utf-8 slice it was given",
+                    "parser should return a reference to the same UTF-8 slice it was given",
                 ));
             Ok((&i[offset..], r))
         }
@@ -603,9 +601,6 @@ fn take_keyword_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&s
 fn take_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
     move |i: &str| {
         alt((
-            take_any_null,
-            map(take_bool, |b| ion::Data::Bool(Some(b))),
-            map(take_special_float, |f| ion::Data::Float(Some(f))),
             map_res(take_identifier_symbol, |s| {
                 let result = get_or_make_symbol(table.clone(), s.to_owned());
                 match result {
@@ -613,6 +608,9 @@ fn take_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Da
                     Err(e) => Err(Err::Failure(IonError::from_symbol_error(i, e))),
                 }
             }),
+            take_any_null,
+            map(take_bool, |b| ion::Data::Bool(Some(b))),
+            map(take_special_float, |f| ion::Data::Float(Some(f))),
         ))(i)
     }
 }

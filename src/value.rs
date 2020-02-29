@@ -399,9 +399,7 @@ impl Struct {
 
 pub(crate) fn safe_key_map(map: &[(SymbolToken, Value)]) -> Result<HashMap<&str, usize>, String> {
     let mut keys = HashMap::new();
-    log::info!("creating key map from: {:?}", map);
     for (i, value) in map.iter().enumerate() {
-        log::info!(" - {:?}", value);
         match &value.0 {
             SymbolToken::Known { text } => match keys.insert(text.as_str(), i) {
                 None => (),
@@ -411,7 +409,6 @@ pub(crate) fn safe_key_map(map: &[(SymbolToken, Value)]) -> Result<HashMap<&str,
             SymbolToken::Zero => continue,
         }
     }
-    log::info!("returning keys: {:?}", keys);
     Ok(keys)
 }
 
@@ -424,6 +421,15 @@ pub struct List {
 impl List {
     pub fn to_text(&self) -> String {
         todo!()
+    }
+}
+
+impl IntoIterator for List {
+    type Item = Value;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.into_iter()
     }
 }
 
@@ -443,5 +449,14 @@ pub struct Sexp {
 impl Sexp {
     pub fn to_text(&self) -> String {
         todo!()
+    }
+}
+
+impl IntoIterator for Sexp {
+    type Item = Value;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.into_iter()
     }
 }

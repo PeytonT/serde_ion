@@ -91,4 +91,6 @@ pub enum TextFormatError {
     FloatParse(String, ParseFloatError),
     #[error("date out of range (invalid day)")]
     DateOutOfRange,
+    #[error("Ion Version Marker indicates an unsupported version of Ion: {0}.{1}")]
+    UnsupportedVersion(u32, u32),
 }

@@ -1,9 +1,9 @@
 mod bad;
 mod equivalencies;
 mod good;
-mod non_equivalencies;
 
 use super::*;
+use crate::parser::parse::parse_ion_text_1_0;
 use itertools::{EitherOrBoth, Itertools};
 use log::error;
 use std::{
@@ -21,11 +21,11 @@ fn test_path(test: &str) -> PathBuf {
 }
 
 fn parse_file(file: &Path) -> Result<Vec<ion::Value>, String> {
-    // just in case
-    pretty_env_logger::try_init().ok();
-    let data = fs::read_to_string(file);
-    match data {
-        Ok(data) => parse_ion_1_0(&data),
+    match fs::read_to_string(file) {
+        Ok(data) => match parse_ion_text_1_0(&data) {
+            Ok((_, v)) => Ok(v),
+            Err(e) => Err(e.to_string()),
+        },
         Err(e) => Err(e.to_string()),
     }
 }
@@ -53,8 +53,6 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
         panic!("test failed: {}", e)
     }
 
-    let mut completed = 0;
-
     for (count, result) in expected
         .into_iter()
         .zip_longest(actuals.unwrap().into_iter())
@@ -78,11 +76,7 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
                 panic!("expected/actuals lists differ in length (short one ends at {}), all good until here", count + 1)
             }
         }
-
-        completed += 1;
     }
-
-    log::info!("Success. Verified {} top level values.", completed);
 }
 
 // a set of panicky helpers for quickly creating types as values
