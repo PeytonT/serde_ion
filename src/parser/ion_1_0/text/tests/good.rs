@@ -1,10 +1,12 @@
-use crate::parser::ion_1_0::text::tests::{
-    annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
-    int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data, string, symbol,
-    symbol_data, test_path, timestamp, value, verify_tlvs,
+use crate::{
+    parser::ion_1_0::text::tests::{
+        annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal,
+        float, int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data,
+        string, symbol, symbol_data, test_path, timestamp, value, verify_tlvs,
+    },
+    symbols::SymbolToken,
+    value::{self as ion},
 };
-use crate::symbols::SymbolToken;
-use crate::value::{self as ion};
 use core::iter;
 use num_bigint::BigInt;
 use time::UtcOffset;
@@ -466,11 +468,11 @@ fn test_field_name_quoted_nan() {
     verify_tlvs(vec![expected], result);
 }
 
-// TODO: file issue for test having bad data
 #[test]
 fn test_field_name_quoted_neg_inf() {
     let result = parse_file(&test_path("good/fieldNameQuotedNegInf.ion"));
 
+    // TODO(amzn/ion-tests#64): when this is fixed the test will fail. s/+/-/.
     let expected = map(vec![("+inf".into(), boolean(false))]);
 
     verify_tlvs(vec![expected], result);
@@ -608,32 +610,32 @@ fn test_float_dbl_min() {
 fn test_float_specials() {
     let result = parse_file(&test_path("good/floatSpecials.ion"));
 
-    if let Some(ion::Value {
-        value: ion::Data::List(Some(ion::List { values: list })),
-        ..
-    }) = result.unwrap().iter().next()
-    {
-        let mut values = list.iter();
+    match result.unwrap().iter().next() {
+        Some(ion::Value {
+            value: ion::Data::List(Some(ion::List { values: list })),
+            ..
+        }) => {
+            let mut values = list.iter();
 
-        let mut next_float = || match values.next() {
-            Some(ion::Value {
-                value: ion::Data::Float(Some(value)),
-                ..
-            }) => value,
-            other => {
-                log::error!("not what we're looking for: {:?}", other);
-                panic!("aaah");
-            }
-        };
+            let mut next_float = || match values.next() {
+                Some(ion::Value {
+                    value: ion::Data::Float(Some(value)),
+                    ..
+                }) => value,
+                other => {
+                    log::error!("not what we're looking for: {:?}", other);
+                    panic!("aaah");
+                }
+            };
 
-        let first = next_float();
-        assert!(first.is_nan());
-        let second = next_float();
-        assert!(second.is_infinite() && second.is_sign_positive());
-        let third = next_float();
-        assert!(third.is_infinite() && third.is_sign_negative());
-    } else {
-        panic!("aaaaaaahhhhhhhhhh");
+            let first = next_float();
+            assert!(first.is_nan());
+            let second = next_float();
+            assert!(second.is_infinite() && second.is_sign_positive());
+            let third = next_float();
+            assert!(third.is_infinite() && third.is_sign_negative());
+        }
+        _ => panic!("aaaaaaahhhhhhhhhh"),
     }
 }
 
@@ -1462,7 +1464,7 @@ fn test_subfield_var_int() {
     verify_tlvs(expected, result);
 }
 
-// TODO: need a sparse data structure for symbol tables before this test is reasonable.
+// TODO(#13): need a sparse data structure for symbol tables before this test is reasonable.
 #[ignore]
 #[test]
 fn test_subfield_var_uint() {

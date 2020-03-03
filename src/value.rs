@@ -7,9 +7,7 @@ use std::str;
 use crate::symbols::SymbolToken;
 use base64::encode;
 use core::fmt;
-use num_bigint::BigInt;
-use num_bigint::BigUint;
-use std::collections::HashMap;
+use num_bigint::{BigInt, BigUint};
 use time::ComponentRangeError;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -395,21 +393,6 @@ impl Struct {
     pub fn to_text(&self) -> String {
         todo!()
     }
-}
-
-pub(crate) fn safe_key_map(map: &[(SymbolToken, Value)]) -> Result<HashMap<&str, usize>, String> {
-    let mut keys = HashMap::new();
-    for (i, value) in map.iter().enumerate() {
-        match &value.0 {
-            SymbolToken::Known { text } => match keys.insert(text.as_str(), i) {
-                None => (),
-                Some(_) => return Err(format!("duplicate key found: {}", text)),
-            },
-            SymbolToken::Unknown { .. } => continue,
-            SymbolToken::Zero => continue,
-        }
-    }
-    Ok(keys)
 }
 
 // list - Ordered collections of values

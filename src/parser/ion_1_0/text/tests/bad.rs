@@ -14,19 +14,21 @@ fn test_bad() {
     let succeeded = results.iter().filter(|(_, r)| r.is_err()).collect_vec();
 
     if !failed.is_empty() {
-        log::debug!(
+        pretty_env_logger::try_init().ok();
+
+        log::info!(
             "Good news first. Correctly failed to read {} files.",
             succeeded.len()
         );
-        log::debug!("Read {} invalid .ion files:", failed.len());
+        log::info!("Read {} invalid .ion files:", failed.len());
         for (path, _) in &failed {
-            log::debug!(" - {:?}", path.file_name());
+            log::info!(" - {:?}", path.file_name());
         }
     }
 
     assert!(
         failed.is_empty(),
-        "Accidentally parsed {} bad Ion files",
+        "Accidentally parsed {} bad Ion files. Set RUST_LOG=info for a list.",
         failed.len()
     );
 }

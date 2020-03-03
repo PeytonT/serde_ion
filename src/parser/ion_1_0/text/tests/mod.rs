@@ -14,6 +14,19 @@ use std::{
     str::FromStr,
 };
 
+/// This file includes some machinery for handling the variety of tests we put the text parser
+/// through. Namely, it abstracts away the test file location as well as the comparison between
+/// expected and actual values. Following is an example of how a simple test might look:
+///
+/// #[test]
+/// fn test_example() {
+///     let result = parse_file(&test_path("good/<someTest>.ion"));
+///
+///     let expected = vec![];
+///
+///     verify_tlvs(expected, result);
+/// }
+
 const TEST_ROOT: &str = "tests/ion-tests/iontestdata/";
 
 fn test_path(test: &str) -> PathBuf {
@@ -186,14 +199,4 @@ fn map_data(fields: Vec<(SymbolToken, ion::Value)>) -> ion::Data {
 
 fn map(fields: Vec<(SymbolToken, ion::Value)>) -> ion::Value {
     map_data(fields).into()
-}
-
-#[ignore]
-#[test]
-fn test_example() {
-    let result = parse_file(&test_path("good/<someTest>.ion"));
-
-    let expected = vec![];
-
-    verify_tlvs(expected, result);
 }

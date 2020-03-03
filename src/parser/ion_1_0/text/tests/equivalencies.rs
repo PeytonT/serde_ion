@@ -1,48 +1,54 @@
-use crate::parser::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
-use crate::parser::parse::parse_ion_text_1_0;
-use crate::value::{self as ion, Value};
+use crate::{
+    parser::ion_1_0::text::tests::{find_ion_text, parse_file, test_path},
+    parser::parse::parse_ion_text_1_0,
+    value::{self as ion, Value},
+};
 use itertools::Itertools;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn test_equivs() {
-    comparison_test(&test_path("good/equivs"), equivalent);
+    fn equivalent(values: &[Vec<ion::Value>]) -> Result<(), String> {
+        for mut vec in values.iter().combinations(2) {
+            let a = vec.pop().unwrap();
+            let b = vec.pop().unwrap();
+            if a != b {
+                return Err(format!(
+                    "Failed equivalency:\n{:?} should equal \n{:?}",
+                    a, b
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    comparison_test(&test_path("good/fquivs"), equivalent);
 }
 
 #[test]
 fn test_non_equivs() {
+    fn non_equivalent(values: &[Vec<ion::Value>]) -> Result<(), String> {
+        for mut vec in values.iter().combinations(2) {
+            let a = vec.pop().unwrap();
+            let b = vec.pop().unwrap();
+            if a == b {
+                return Err(format!(
+                    "Failed equivalency:\n{:?} should not equal \n{:?}",
+                    a, b
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     comparison_test(&test_path("good/non-equivs"), non_equivalent);
 }
 
-fn equivalent(values: &[Vec<ion::Value>]) -> bool {
-    for mut vec in values.iter().combinations(2) {
-        let a = vec.pop().unwrap();
-        let b = vec.pop().unwrap();
-        if a != b {
-            log::error!("Failed equivalency:\n{:?}\n{:?}", a, b);
-            return false;
-        }
-    }
-
-    true
-}
-
-fn non_equivalent(values: &[Vec<ion::Value>]) -> bool {
-    for mut vec in values.iter().combinations(2) {
-        let a = vec.pop().unwrap();
-        let b = vec.pop().unwrap();
-        if a == b {
-            log::error!("Failed equivalency:\n{:?}\n{:?}", a, b);
-            return false;
-        }
-    }
-
-    true
-}
-
-fn comparison_test<A>(path: &Path, equivalence_predicate: A)
+fn comparison_test<P>(path: &Path, equivalence_predicate: P)
 where
-    A: Fn(&[Vec<Value>]) -> bool,
+    P: Fn(&[Vec<Value>]) -> Result<(), String>,
 {
     pretty_env_logger::try_init().ok();
 
@@ -55,89 +61,86 @@ where
 
     let parsed_test_data = paths
         .into_iter()
-        .map(|path| {
-            (
-                path.clone(),
-                parse_file(&path)
-                    .unwrap_or_else(|_| panic!("Test at {:?} should be parseable.", &path)),
-            )
-        })
+        .map(|path| (path.clone(), parse_file(&path)))
         .collect_vec();
 
-    let mut failed = vec![];
-    let mut succeeded = vec![];
+    let mut failed: Vec<(PathBuf, String)> = vec![];
+    let mut succeeded: Vec<PathBuf> = vec![];
 
-    for (path, tlvs) in parsed_test_data {
-        for (tlv_idx, tlv) in tlvs.into_iter().enumerate() {
-            // This means that the equivalency has embedded strings which should be parsed prior
-            // to comparison.
-            let embedded = tlv.has_annotation("embedded_documents");
+    for (path, result) in parsed_test_data {
+        match result {
+            Ok(tlvs) => {
+                for (tlv_idx, tlv) in tlvs.into_iter().enumerate() {
+                    // This means that the equivalency has embedded strings which should be parsed prior
+                    // to comparison.
+                    let embedded = tlv.has_annotation("embedded_documents");
 
-            match tlv {
-                ion::Value {
-                    value: ion::Data::Sexp(Some(ion::Sexp { values })),
-                    ..
-                }
-                | ion::Value {
-                    value: ion::Data::List(Some(ion::List { values })),
-                    ..
-                } => {
-                    let values = if embedded {
-                        values
-                            .into_iter()
-                            .enumerate()
-                            .filter_map(|(idx, v)| {
-                                if let ion::Value {
-                                    value: ion::Data::String(Some(value)),
-                                    ..
-                                } = v
-                                {
-                                    let (_, values) = parse_ion_text_1_0(value.as_str())
-                                        .unwrap_or_else(|e| {
+                    match tlv {
+                        ion::Value {
+                            value: ion::Data::Sexp(Some(ion::Sexp { values })),
+                            ..
+                        }
+                        | ion::Value {
+                            value: ion::Data::List(Some(ion::List { values })),
+                            ..
+                        } => {
+                            let values = if embedded {
+                                values
+                                    .into_iter()
+                                    .enumerate()
+                                    .filter_map(|(idx, v)| {
+                                        if let ion::Value {
+                                            value: ion::Data::String(Some(value)),
+                                            ..
+                                        } = v
+                                        {
+                                            match parse_ion_text_1_0(value.as_str()) {
+                                                Ok((_, values)) => Some(values),
+                                                Err(e) => panic!(
+                                                    "{:?}: embedded document {}:{} should be parseable: {:?}, {:?}",
+                                                    path, tlv_idx, idx, value.as_str(), e
+                                                )
+                                            }
+                                        } else {
                                             panic!(
-                                            "{:?}: embedded document {}:{} should be parseable: {:?}, {:?}",
-                                            path, tlv_idx, idx, value.as_str(), e
-                                        )
-                                        });
-                                    Some(values)
-                                } else {
-                                    panic!(
-                                        "{:?}: embedded document {}:{} contains non-string values",
-                                        path, tlv_idx, idx
-                                    )
-                                }
-                            })
-                            .collect_vec()
-                    } else {
-                        vec![values]
+                                                "{:?}: embedded document {}:{} contains non-string values",
+                                                path, tlv_idx, idx
+                                            )
+                                        }
+                                    })
+                                    .collect_vec()
+                            } else {
+                                vec![values]
+                            };
+
+                            match equivalence_predicate(&values) {
+                                Ok(_) => succeeded.push(path.clone()),
+                                Err(e) => failed.push((path.clone(), e)),
+                            }
+                        }
+                        value => panic!("Top level value {:?} is not a list or sexp.", value),
                     };
-
-                    if equivalence_predicate(&values) {
-                        succeeded.push(path.clone())
-                    } else {
-                        failed.push(path.clone())
-                    }
                 }
-                value => panic!("Top level value {:?} is not a list or sexp.", value),
-            };
+            }
+            Err(e) => failed.push((path.clone(), format!("failed to parse test file: {}", e))),
         }
-    }
 
-    if !failed.is_empty() {
-        log::debug!(
-            "Good news first. Correctly processed equivalencies for {} files.",
-            succeeded.len()
+        if !failed.is_empty() {
+            log::debug!(
+                "Good news first. Correctly processed equivalencies for {} files.",
+                succeeded.len()
+            );
+            log::debug!("Failed the following equivalencies:");
+            for (path, error) in &failed {
+                log::debug!(" - {:?}: {}", path.file_name(), error);
+            }
+        }
+
+        assert!(
+            failed.is_empty(),
+            "Failed {} of {} equivalencies",
+            failed.len(),
+            succeeded.len() + failed.len()
         );
-        log::debug!("Failed the following equivalencies:");
-        for path in &failed {
-            log::debug!(" - {:?}", path.file_name());
-        }
     }
-
-    assert!(
-        failed.is_empty(),
-        "Failed {} of {} equivalencies",
-        failed.len(),
-        succeeded.len() + failed.len()
-    );
 }

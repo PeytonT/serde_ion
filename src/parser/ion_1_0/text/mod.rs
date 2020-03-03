@@ -2,18 +2,17 @@
 #[cfg(test)]
 mod tests;
 
-use crate::error::SymbolError;
-use crate::parser::ion_1_0::current_symbol_table::update_current_symbol_table;
 use crate::{
-    error::{FormatError, TextFormatError},
+    error::{FormatError, SymbolError, TextFormatError},
     parser::{
-        ion_1_0::current_symbol_table::CurrentSymbolTable,
+        combinators::{eof, one_if},
+        ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable},
         parse_error::{IonError, IonResult},
     },
     symbols::SymbolToken,
     value::{self as ion},
 };
-use log::{debug, warn};
+use log::warn;
 use nom::{
     self,
     branch::alt,
@@ -28,12 +27,11 @@ use nom::{
     error::{ErrorKind, ParseError},
     multi::{many0, many1, separated_list, separated_nonempty_list},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
-    AsBytes, AsChar, Compare, Err, ExtendInto, IResult, InputIter, InputLength, InputTake,
+    AsBytes, AsChar, Compare, Err, ExtendInto, InputIter, InputLength, InputTake,
     InputTakeAtPosition, Offset, Slice,
 };
 use num_bigint::{BigInt, Sign};
 use num_traits::{pow, Num, One, Zero};
-use std::num::ParseIntError;
 use std::{
     cell::RefCell,
     convert::TryFrom,
@@ -45,57 +43,6 @@ use std::{
     str::{self, from_utf8},
 };
 use time::UtcOffset;
-
-fn eof(i: &str) -> IonResult<&str, &str> {
-    if i.is_empty() {
-        Ok((i, i))
-    } else {
-        Err(Err::Error(IonError::from_error_kind(i, ErrorKind::Eof)))
-    }
-}
-
-fn one_if<I, F, Error: ParseError<I>>(
-    f: F,
-) -> impl Fn(I) -> IResult<I, <I as InputIter>::Item, Error>
-where
-    I: Slice<RangeFrom<usize>> + InputIter,
-    <I as InputIter>::Item: AsChar + Copy,
-    F: Fn(<I as InputIter>::Item) -> bool,
-{
-    move |i: I| match (i).iter_elements().next().filter(|c| f(*c)) {
-        Some(c) => Ok((i.slice(c.len()..), c)),
-        _ => Err(Err::Error(Error::from_error_kind(i, ErrorKind::OneOf))),
-    }
-}
-
-#[allow(dead_code)]
-fn dbg_dmp<Input, F, Output>(
-    context: &'static str,
-    f: F,
-) -> impl Fn(Input) -> IonResult<Input, Output>
-where
-    Input: Clone + Slice<RangeTo<usize>> + AsBytes + Debug + InputLength,
-    Output: Debug,
-    F: Fn(Input) -> IonResult<Input, Output>,
-{
-    move |i: Input| {
-        debug!(" {}: -> {:?}", context, &i);
-        match f(i.clone()) {
-            Err(e) => {
-                match &e {
-                    Err::Failure(e) => debug!("{}: Failure({:?}) at: {:?}", context, e.kind, &i),
-                    Err::Error(e) => debug!("{}: Error({:?}) at: {:?}", context, e.kind, &i),
-                    Err::Incomplete(n) => debug!("{}: Err::Incomplete({:?}) at:", context, n),
-                }
-                Err(e)
-            }
-            Ok((i, v)) => {
-                debug!(" {}: <- {:?}", context, &v);
-                Ok((i, v))
-            }
-        }
-    }
-}
 
 /// Follows the following documents:
 /// Ion Text Encoding: http://amzn.github.io/ion-docs/docs/text.html
@@ -128,57 +75,7 @@ impl<'a> ValueIterator<'a> {
         }
     }
 
-    fn as_shared_symbol_table<'v>(&self, value: &'v ion::Value) -> Option<&'v ion::Struct> {
-        let table = if let ion::Data::Struct(Some(s)) = &value.value {
-            s
-        } else {
-            return None;
-        };
-
-        let tagged_as_shared_symbol_table: bool =
-            value
-                .annotations
-                .as_ref()
-                .map_or(false, |annotations| match annotations.get(0) {
-                    Some(Some(SymbolToken::Known { text }))
-                        if text == "$ion_shared_symbol_table" =>
-                    {
-                        true
-                    }
-                    _ => false,
-                });
-
-        if tagged_as_shared_symbol_table {
-            Some(table)
-        } else {
-            None
-        }
-    }
-
-    fn as_local_symbol_table<'v>(&self, value: &'v ion::Value) -> Option<&'v ion::Struct> {
-        let table = if let ion::Data::Struct(Some(s)) = &value.value {
-            s
-        } else {
-            return None;
-        };
-
-        let tagged_as_local_symbol_table: bool =
-            value
-                .annotations
-                .as_ref()
-                .map_or(false, |annotations| match annotations.get(0) {
-                    Some(Some(SymbolToken::Known { text })) if text == "$ion_symbol_table" => true,
-                    _ => false,
-                });
-
-        if tagged_as_local_symbol_table {
-            Some(table)
-        } else {
-            None
-        }
-    }
-
-    fn handle_ivm(&mut self, ivm: Ivm) -> Result<(), TextFormatError> {
+    fn handle_ivm(&mut self, ivm: IonVersionMarker) -> Result<(), TextFormatError> {
         if ivm.0 == 1 && ivm.1 == 0 {
             self.current_table.replace(CurrentSymbolTable::SystemV1);
             Ok(())
@@ -194,7 +91,7 @@ impl<'a> ValueIterator<'a> {
     ) -> Option<<Self as Iterator>::Item> {
         let value = if is_system_value(&value) {
             None
-        } else if let Some(table) = self.as_local_symbol_table(&value) {
+        } else if let Some(table) = as_local_symbol_table(&value) {
             match update_current_symbol_table(
                 &mut self.current_table.borrow_mut(),
                 &Some(table.clone()),
@@ -205,8 +102,28 @@ impl<'a> ValueIterator<'a> {
                     e,
                 )))),
             }
-        } else if let Some(_table) = self.as_shared_symbol_table(&value) {
-            // TODO: handle shared symbol tables
+        } else if let Some(_table) = as_shared_symbol_table(&value) {
+            // TODO: get clarity on whether shared_symbol_tables should show up in a token stream.
+
+            // Test testfile35.ion includes a struct that should be processed as a shared symbol
+            // table. As such this seems to fall into the following paragraph:
+
+            // Certain top-level values such as IVMs and local symbol tables are referred to as
+            // system values; all other values are referred to as user values. An Ion implementation
+            // may give applications the ability to “skip over” the system values, since they are
+            // generally irrelevant to the semantics of the user data.
+
+            // The current implementation treats shared symbol tables as a system value. This is due
+            // to the following paragraph of the spec:
+
+            // This section defines the serialized form of shared symbol tables. Unlike local symbol
+            // tables, the Ion parser does not intrinsically recognize or process this data; it is
+            // up to higher-level specifications or conventions to define how shared symbol tables
+            // are communicated.
+
+            // This implies that even if a shared symbol table shows up in a token stream, there is
+            // no obligation to recognize it as anything other than user data. However, because it
+            // shows up in the test, it seems there may be some intent to test this use case.
             None
         } else {
             self.next = next;
@@ -217,6 +134,54 @@ impl<'a> ValueIterator<'a> {
             Some(v) => Some(v),
             None => self.next(),
         }
+    }
+}
+
+fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
+    let table = if let ion::Data::Struct(Some(s)) = &value.value {
+        s
+    } else {
+        return None;
+    };
+
+    let tagged_as_shared_symbol_table: bool =
+        value
+            .annotations
+            .as_ref()
+            .map_or(false, |annotations| match annotations.get(0) {
+                Some(Some(SymbolToken::Known { text })) if text == "$ion_shared_symbol_table" => {
+                    true
+                }
+                _ => false,
+            });
+
+    if tagged_as_shared_symbol_table {
+        Some(table)
+    } else {
+        None
+    }
+}
+
+fn as_local_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
+    let table = if let ion::Data::Struct(Some(s)) = &value.value {
+        s
+    } else {
+        return None;
+    };
+
+    let tagged_as_local_symbol_table: bool =
+        value
+            .annotations
+            .as_ref()
+            .map_or(false, |annotations| match annotations.get(0) {
+                Some(Some(SymbolToken::Known { text })) if text == "$ion_symbol_table" => true,
+                _ => false,
+            });
+
+    if tagged_as_local_symbol_table {
+        Some(table)
+    } else {
+        None
     }
 }
 
@@ -251,31 +216,31 @@ impl<'a> Iterator for ValueIterator<'a> {
                 };
             }
             Err(Err::Failure(e)) => return Some(Err(Err::Failure(e))),
-            _ => (),
+            Err(_) => (), // fall through if this parser cannot be applied (Err::Error/Incomplete)
         }
 
         let maybe_tlv =
-            preceded(eat_ws, take_top_level_value(self.current_table.clone()))(self.remaining);
+            preceded(eat_opt_ws, take_top_level_value(self.current_table.clone()))(self.remaining);
         match maybe_tlv {
             Ok((remaining, (value, next))) => {
                 self.remaining = remaining;
                 return self.handle_meta_values(value, next);
             }
             Err(Err::Failure(e)) => return Some(Err(Err::Failure(e))),
-            _ => (),
+            Err(_) => (), // fall through if this parser cannot be applied (Err::Error/Incomplete)
         };
 
+        // TODO: ensure this parser is only applied once per token stream.
         let maybe_last = preceded(
-            eat_ws,
+            eat_opt_ws,
             terminated(opt(take_value(self.current_table.clone())), eof),
         )(self.remaining);
         let last_err = match maybe_last {
             Ok((remaining, value)) => {
                 self.remaining = remaining;
-                return if let Some(value) = value {
-                    self.handle_meta_values(value, None)
-                } else {
-                    self.next()
+                return match value {
+                    Some(value) => self.handle_meta_values(value, None),
+                    None => self.next(),
                 };
             }
             Err(Err::Failure(e)) => {
@@ -293,7 +258,7 @@ impl<'a> Iterator for ValueIterator<'a> {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Ivm(u32, u32);
+struct IonVersionMarker(u32, u32);
 
 /// System values are NOPs, currently triggered by a symbol which matches the IVM.
 fn is_system_value(value: &ion::Value) -> bool {
@@ -304,9 +269,9 @@ fn is_system_value(value: &ion::Value) -> bool {
             }))
 }
 
-fn take_ivm(i: &str) -> IonResult<&str, Ivm> {
+fn take_ivm(i: &str) -> IonResult<&str, IonVersionMarker> {
     let (i, ivm) = preceded(
-        eat_ws,
+        eat_opt_ws,
         terminated(
             preceded(
                 tag("$ion_"),
@@ -316,19 +281,22 @@ fn take_ivm(i: &str) -> IonResult<&str, Ivm> {
                     take_while1(is_dec_digit),
                 ),
             ),
+            // TODO: confirm that valid IVMs end with a newline
             nl,
         ),
     )(i)?;
 
-    let parse_version_number = |_: ParseIntError| -> nom::Err<IonError<&str>> {
-        Err::Failure(IonError::from_format_error(
-            i,
-            FormatError::Text(TextFormatError::TODO),
-        ))
+    let (major, minor) = match (ivm.0.parse::<u32>(), ivm.1.parse::<u32>()) {
+        (Ok(major), Ok(minor)) => (major, minor),
+        (_, _) => {
+            return Err(Err::Failure(IonError::from_format_error(
+                i,
+                FormatError::Text(TextFormatError::IvmParseError),
+            )))
+        }
     };
-    let major = ivm.0.parse::<u32>().map_err(parse_version_number)?;
-    let minor = ivm.1.parse::<u32>().map_err(parse_version_number)?;
-    Ok((i, Ivm(major, minor)))
+
+    Ok((i, IonVersionMarker(major, minor)))
 }
 
 /// top_level_value
@@ -356,6 +324,7 @@ fn take_top_level_value(
             many0(map(take_annotation(table.clone()), Some)),
             take_top_level_data(table.clone()),
         )(i)?;
+
         let annotations = if annotations.is_empty() {
             None
         } else {
@@ -410,9 +379,9 @@ fn take_top_level_keyword_entity(
 /// Handles the awkward-to-implement top level value and sexp value delimiting rules.
 ///
 /// Most values are delimited by whitespace. Some are not, particularly in s-expressions. Since
-/// delimiting rules within s-expressions there are even more combinations. This method encapsulates
-/// value delimiting and returns one or two values, depending on if the next value was necessary
-/// for delimiting the first.
+/// delimiting rules within s-expressions are different there are even more combinations. This
+/// function encapsulates value delimiting and returns one or two values, depending on if parsing
+/// the next value was necessary for delimiting the first.
 ///
 /// It would be an improvement to peek at the next character and just execute based on that,
 /// especially if we are dealing with any kind of token stream. That approach is more error prone,
@@ -461,9 +430,8 @@ where
                     annotations: None,
                 })
             }),
-            // Addition (not from encoding):
-            // Inspired by 'good/timestamp/timestampWithTerminatingEof.ion'.
-            // A parsed value was terminated by the end of the file.
+            // TODO: do some more analysis of the ANTLR grammar to determine if this is covered by
+            //  the spec or not (an eof is not explicitly mentioned at this item).
             value(None, peek(eof)),
         )))(i)?;
 
@@ -528,10 +496,10 @@ fn take_lob(i: &str) -> IonResult<&str, ion::Data> {
     let b = i.as_bytes();
 
     let result = preceded(
-        terminated(tag(LOB_START), eat_whitespace),
+        terminated(tag(LOB_START), eat_opt_whitespace),
         cut(terminated(
             take_lob_body,
-            preceded(eat_whitespace, tag(LOB_END)),
+            preceded(eat_opt_whitespace, tag(LOB_END)),
         )),
     )(b);
 
@@ -646,8 +614,8 @@ fn take_numeric_entity(i: &str) -> IonResult<&str, ion::Data> {
 fn take_annotation(table: Table) -> impl Fn(&str) -> IonResult<&str, SymbolToken> {
     move |i: &str| {
         terminated(
-            terminated(take_symbol(table.clone()), eat_ws),
-            terminated(tag("::"), eat_ws),
+            terminated(take_symbol(table.clone()), eat_opt_ws),
+            terminated(tag("::"), eat_opt_ws),
         )(i)
     }
 }
@@ -659,8 +627,8 @@ fn take_quoted_annotation(table: Table) -> impl Fn(&str) -> IonResult<&str, Symb
     move |i: &str| {
         let (i, result) = map(
             terminated(
-                terminated(take_quoted_symbol, eat_ws),
-                terminated(tag("::"), eat_ws),
+                terminated(take_quoted_symbol, eat_opt_ws),
+                terminated(tag("::"), eat_opt_ws),
             ),
             |s| make_symbol(table.clone(), s),
         )(i)?;
@@ -680,13 +648,13 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
     move |i: &str| {
         map(
             preceded(
-                terminated(char(L_BRACKET), eat_ws),
+                terminated(char(L_BRACKET), eat_opt_ws),
                 cut(terminated(
                     separated_list(
-                        pair(char(COMMA), eat_ws),
-                        terminated(take_value(table.clone()), eat_ws),
+                        pair(char(COMMA), eat_opt_ws),
+                        terminated(take_value(table.clone()), eat_opt_ws),
                     ),
-                    preceded(opt(pair(char(COMMA), eat_ws)), char(R_BRACKET)),
+                    preceded(opt(pair(char(COMMA), eat_opt_ws)), char(R_BRACKET)),
                 )),
             ),
             |values| ion::List { values },
@@ -700,10 +668,10 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
 fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Sexp> {
     move |i: &str| {
         let (i, grouped_values) = preceded(
-            terminated(char(L_PAREN), eat_ws),
+            terminated(char(L_PAREN), eat_opt_ws),
             cut(terminated(
-                many0(preceded(eat_ws, take_sexp_value(table.clone()))),
-                preceded(eat_ws, char(R_PAREN)),
+                many0(preceded(eat_opt_ws, take_sexp_value(table.clone()))),
+                preceded(eat_opt_ws, char(R_PAREN)),
             )),
         )(i)?;
 
@@ -874,13 +842,13 @@ fn take_sexp_keyword(i: &str) -> IonResult<&str, ion::Data> {
 
 fn take_sexp_type(i: &str) -> IonResult<&str, ion::Data> {
     let (i, null_type) = take_type(i)?;
-    if null_type == "null" {
+    if null_type == NullType::Null {
         peek(not(char('.')))(i)?;
     }
     Ok((
         i,
         ion::Data::Symbol(Some(SymbolToken::Known {
-            text: null_type.to_string(),
+            text: null_type.as_str().to_string(),
         })),
     ))
 }
@@ -937,18 +905,18 @@ fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Struct> {
     move |i: &str| {
         map(
             preceded(
-                terminated(char(L_CURLY), eat_ws),
+                terminated(char(L_CURLY), eat_opt_ws),
                 cut(alt((
                     value(vec![], char(R_CURLY)),
                     terminated(
                         verify(
                             separated_list(
-                                pair(char(','), eat_ws),
-                                terminated(take_field(table.clone()), eat_ws),
+                                pair(char(','), eat_opt_ws),
+                                terminated(take_field(table.clone()), eat_opt_ws),
                             ),
                             |list: &[_]| !list.is_empty(),
                         ),
-                        preceded(opt(pair(char(','), eat_ws)), char(R_CURLY)),
+                        preceded(opt(pair(char(','), eat_opt_ws)), char(R_CURLY)),
                     ),
                 ))),
             ),
@@ -965,7 +933,7 @@ fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, io
         map(
             separated_pair(
                 take_field_name(table.clone()),
-                tuple((eat_ws, char(COLON), eat_ws)),
+                tuple((eat_opt_ws, char(COLON), eat_opt_ws)),
                 pair(
                     many0(map(take_annotation(table.clone()), Some)),
                     take_entity(table.clone()),
@@ -996,32 +964,29 @@ fn take_any_null(i: &str) -> IonResult<&str, ion::Data> {
 ///     | NULL DOT TYPE
 ///     ;
 fn take_typed_null(i: &str) -> IonResult<&str, ion::Data> {
-    let (i, null_type) = preceded(take_null, preceded(char(DOT), alt((take_type, take_null))))(i)?;
+    let (i, null_type) = preceded(take_null, preceded(char(DOT), take_type))(i)?;
 
     let data = {
         match null_type {
-            "null" => ion::Data::Null,
-            "bool" => ion::Data::Bool(None),
-            "int" => ion::Data::Int(None),
-            "float" => ion::Data::Float(None),
-            "decimal" => ion::Data::Decimal(None),
-            "timestamp" => ion::Data::Timestamp(None),
-            "string" => ion::Data::String(None),
-            "symbol" => ion::Data::Symbol(None),
-            "blob" => ion::Data::Blob(None),
-            "clob" => ion::Data::Clob(None),
-            "struct" => ion::Data::Struct(None),
-            "list" => ion::Data::List(None),
-            "sexp" => ion::Data::Sexp(None),
-            _ => unreachable!("condition covers all possible parsed results"),
+            NullType::Null => ion::Data::Null,
+            NullType::Bool => ion::Data::Bool(None),
+            NullType::Int => ion::Data::Int(None),
+            NullType::Float => ion::Data::Float(None),
+            NullType::Decimal => ion::Data::Decimal(None),
+            NullType::Timestamp => ion::Data::Timestamp(None),
+            NullType::String => ion::Data::String(None),
+            NullType::Symbol => ion::Data::Symbol(None),
+            NullType::Blob => ion::Data::Blob(None),
+            NullType::Clob => ion::Data::Clob(None),
+            NullType::Struct => ion::Data::Struct(None),
+            NullType::List => ion::Data::List(None),
+            NullType::Sexp => ion::Data::Sexp(None),
         }
     };
 
     Ok((i, data))
 }
 
-/// TODO: add field names parsed as strings to the symbol table.
-///
 /// field_name
 ///     : symbol
 ///     | SHORT_QUOTED_STRING
@@ -1032,7 +997,7 @@ fn take_field_name(table: Table) -> impl Fn(&str) -> IonResult<&str, SymbolToken
         alt((
             take_symbol(table.clone()),
             map(take_short_quoted_string, |text| SymbolToken::Known { text }),
-            map(many1(preceded(eat_ws, take_long_quoted_string)), |v| {
+            map(many1(preceded(eat_opt_ws, take_long_quoted_string)), |v| {
                 SymbolToken::Known { text: v.concat() }
             }),
         ))(i)
@@ -1051,7 +1016,7 @@ fn take_quoted_text(i: &str) -> IonResult<&str, ion::Data> {
         }),
         map(take_short_quoted_string, |s| ion::Data::String(Some(s))),
         map(
-            map(many1(preceded(eat_ws, take_long_quoted_string)), |v| {
+            map(many1(preceded(eat_opt_ws, take_long_quoted_string)), |v| {
                 v.concat()
             }),
             |s| ion::Data::String(Some(s)),
@@ -1063,7 +1028,7 @@ fn get_or_make_symbol(table: Table, text: String) -> Result<SymbolToken, SymbolE
     if let Ok((_, s)) = take_sid(&text) {
         let sid = s
             .parse::<usize>()
-            .map_err(|_| SymbolError::InvalidSid(s.to_string()))?;
+            .map_err(|_| SymbolError::SidTooLarge(s.to_string()))?;
         match table.borrow().lookup_sid(sid) {
             Ok(token) => Ok(token),
             Err(e) => Err(e),
@@ -1108,7 +1073,7 @@ fn take_sid(i: &str) -> IonResult<&str, &str> {
     preceded(char('$'), take_while1(is_dec_digit))(i)
 }
 
-fn eat_ws(i: &str) -> IonResult<&str, &str> {
+fn eat_opt_ws(i: &str) -> IonResult<&str, &str> {
     recognize(many0(ws))(i)
 }
 
@@ -1152,7 +1117,8 @@ const COLON: char = ':';
 /// DOT       : '.';
 const DOT: char = '.';
 
-/// Note: test 'bad/sexpBackslashNL.ion' suggest that \ is not a valid operator character.
+/// Note: in an ANTLR v4 char set (such as the one found below) the - is a special character and
+/// requires the preceding \ as an escape. It is not a valid operator character.
 ///
 /// NON_DOT_OPERATOR
 ///     : [!#%&*+\-/;<=>?@^`|~]
@@ -1169,7 +1135,7 @@ fn is_non_dot_operator(c: char) -> bool {
 ///
 
 /// Consumes whitespace (not comments). Used in LOBs.
-fn eat_whitespace<Input>(i: Input) -> IonResult<Input, Input>
+fn eat_opt_whitespace<Input>(i: Input) -> IonResult<Input, Input>
 where
     Input: Clone
         + PartialEq
@@ -1216,6 +1182,43 @@ fn take_block_comment(i: &str) -> IonResult<&str, &str> {
 /// Encoding Section: Ion Null
 ///
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum NullType {
+    Null,
+    Bool,
+    Int,
+    Float,
+    Decimal,
+    Timestamp,
+    String,
+    Symbol,
+    Blob,
+    Clob,
+    Struct,
+    List,
+    Sexp,
+}
+
+impl NullType {
+    fn as_str(&self) -> &str {
+        match self {
+            NullType::Null => "null",
+            NullType::Bool => "bool",
+            NullType::Int => "int",
+            NullType::Float => "float",
+            NullType::Decimal => "decimal",
+            NullType::Timestamp => "timestamp",
+            NullType::String => "string",
+            NullType::Symbol => "symbol",
+            NullType::Blob => "blob",
+            NullType::Clob => "clob",
+            NullType::Struct => "struct",
+            NullType::List => "list",
+            NullType::Sexp => "sexp",
+        }
+    }
+}
+
 /// NULL
 ///     : 'null'
 ///     ;
@@ -1238,21 +1241,21 @@ fn take_null(i: &str) -> IonResult<&str, &str> {
 ///     | 'sexp'
 ///     | 'struct'
 ///     ;
-fn take_type(i: &str) -> IonResult<&str, &str> {
+fn take_type(i: &str) -> IonResult<&str, NullType> {
     alt((
-        tag("null"),
-        tag("bool"),
-        tag("int"),
-        tag("float"),
-        tag("decimal"),
-        tag("timestamp"),
-        tag("string"),
-        tag("symbol"),
-        tag("blob"),
-        tag("clob"),
-        tag("struct"),
-        tag("list"),
-        tag("sexp"),
+        value(NullType::Null, tag("null")),
+        value(NullType::Bool, tag("bool")),
+        value(NullType::Int, tag("int")),
+        value(NullType::Float, tag("float")),
+        value(NullType::Decimal, tag("decimal")),
+        value(NullType::Timestamp, tag("timestamp")),
+        value(NullType::String, tag("string")),
+        value(NullType::Symbol, tag("symbol")),
+        value(NullType::Blob, tag("blob")),
+        value(NullType::Clob, tag("clob")),
+        value(NullType::Struct, tag("struct")),
+        value(NullType::List, tag("list")),
+        value(NullType::Sexp, tag("sexp")),
     ))(i)
 }
 
@@ -1533,9 +1536,9 @@ fn str_to_bigint<'a, T: AsRef<str>>(
 ) -> Result<BigInt, Err<IonError<&'a str>>> {
     match BigInt::from_str_radix(digits.as_ref(), radix) {
         Ok(bigint) => Ok(bigint),
-        Err(e) => Err(Err::Failure(IonError::from_format_error(
+        Err(_) => Err(Err::Failure(IonError::from_format_error(
             "",
-            FormatError::Text(TextFormatError::BigInt(e, digits.as_ref().to_string())),
+            FormatError::Text(TextFormatError::BigInt(digits.as_ref().to_string())),
         ))),
     }
 }
@@ -1678,9 +1681,9 @@ fn assemble_float<'a>(
 
     match float.parse::<f64>() {
         Ok(f) => Ok((i, ion::Data::Float(Some(f)))),
-        Err(e) => Err(Err::Failure(IonError::from_format_error(
+        Err(_) => Err(Err::Failure(IonError::from_format_error(
             i,
-            FormatError::Text(TextFormatError::FloatParse(float, e)),
+            FormatError::Text(TextFormatError::FloatParse(float)),
         ))),
     }
 }
@@ -2032,7 +2035,7 @@ fn take_short_quoted_clob(i: &[u8]) -> IonResult<&[u8], ion::Clob> {
 ///     : LOB_START (WS* LONG_QUOTE CLOB_LONG_TEXT*? LONG_QUOTE)+ WS* LOB_END
 ///     ;
 fn take_long_quoted_clob(i: &[u8]) -> IonResult<&[u8], ion::Clob> {
-    let (i, vec) = many1(preceded(eat_whitespace, take_clob_long_text))(i)?;
+    let (i, vec) = many1(preceded(eat_opt_whitespace, take_clob_long_text))(i)?;
     let data = vec.concat();
     Ok((i, ion::Clob { data }))
 }
@@ -2158,11 +2161,11 @@ fn take_blob_body(i: &[u8]) -> IonResult<&[u8], ion::Blob> {
 fn take_base_64(i: &[u8]) -> IonResult<&[u8], Vec<u8>> {
     let (i, (quartets, pad)) = pair(
         many0(delimited(
-            eat_whitespace,
+            eat_opt_whitespace,
             take_base_64_quartet,
-            eat_whitespace,
+            eat_opt_whitespace,
         )),
-        terminated(opt(take_base_64_pad), eat_whitespace),
+        terminated(opt(take_base_64_pad), eat_opt_whitespace),
     )(i)?;
 
     let mut bytes = quartets.iter().fold(0, |acc, _| acc + 4);
@@ -2208,9 +2211,9 @@ fn take_base_64_pad(i: &[u8]) -> IonResult<&[u8], (u8, u8, Option<u8>)> {
 ///     ;
 fn take_base_64_quartet(i: &[u8]) -> IonResult<&[u8], (u8, u8, u8, u8)> {
     let (i, ((s1, s2), (s3, s4))) = separated_pair(
-        separated_pair(take_base_64_char, eat_whitespace, take_base_64_char),
-        eat_whitespace,
-        separated_pair(take_base_64_char, eat_whitespace, take_base_64_char),
+        separated_pair(take_base_64_char, eat_opt_whitespace, take_base_64_char),
+        eat_opt_whitespace,
+        separated_pair(take_base_64_char, eat_opt_whitespace, take_base_64_char),
     )(i)?;
     Ok((i, (s1, s2, s3, s4)))
 }
@@ -2221,9 +2224,9 @@ fn take_base_64_quartet(i: &[u8]) -> IonResult<&[u8], (u8, u8, u8, u8)> {
 ///     ;
 fn take_base_64_pad1(i: &[u8]) -> IonResult<&[u8], (u8, u8, u8)> {
     let (i, ((s1, s2), (s3, _))) = separated_pair(
-        separated_pair(take_base_64_char, eat_whitespace, take_base_64_char),
-        eat_whitespace,
-        separated_pair(take_base_64_char, eat_whitespace, tag(b"=")),
+        separated_pair(take_base_64_char, eat_opt_whitespace, take_base_64_char),
+        eat_opt_whitespace,
+        separated_pair(take_base_64_char, eat_opt_whitespace, tag(b"=")),
     )(i)?;
     Ok((i, (s1, s2, s3)))
 }
@@ -2234,9 +2237,9 @@ fn take_base_64_pad1(i: &[u8]) -> IonResult<&[u8], (u8, u8, u8)> {
 ///     ;
 fn take_base_64_pad2(i: &[u8]) -> IonResult<&[u8], (u8, u8)> {
     let (i, ((s1, s2), _)) = separated_pair(
-        separated_pair(take_base_64_char, eat_whitespace, take_base_64_char),
-        eat_whitespace,
-        separated_pair(tag(b"="), eat_whitespace, tag(b"=")),
+        separated_pair(take_base_64_char, eat_opt_whitespace, take_base_64_char),
+        eat_opt_whitespace,
+        separated_pair(tag(b"="), eat_opt_whitespace, tag(b"=")),
     )(i)?;
     Ok((i, (s1, s2)))
 }

@@ -1,9 +1,14 @@
-use super::combinators::{all_consuming, many0, map, preceded};
-use super::ion_1_0;
-use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
-use crate::parser::ion_1_0::text::ValueIterator;
-use crate::parser::parse_error::{IonError, IonResult};
-use crate::value::Value;
+use super::{
+    combinators::{all_consuming, many0, map, preceded},
+    ion_1_0,
+};
+use crate::{
+    parser::{
+        ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator},
+        parse_error::{IonError, IonResult},
+    },
+    value::Value,
+};
 use nom::{
     bytes::complete::{tag, take},
     sequence::tuple,
