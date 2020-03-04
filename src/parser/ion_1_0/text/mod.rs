@@ -1518,7 +1518,8 @@ fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
         .parse::<u8>()
         .expect("parser verified seconds should be valid u8");
     if let Some(f) = f {
-        let fractional = str_to_bigint(f, 10)?;
+        let fractional =
+            str_to_bigint(f, 10).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
         Ok((i, (seconds, Some(fractional))))
     } else {
         Ok((i, (seconds, None)))
@@ -1530,21 +1531,19 @@ fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
 ///
 
 /// Helper for turning Vec<&str>s into BigInts. Or failing miserably.
-fn str_to_bigint<'a, T: AsRef<str>>(
-    digits: T,
-    radix: u32,
-) -> Result<BigInt, Err<IonError<&'a str>>> {
+/// TODO: this should not pretend to be a parser, it should be mapped over parse results
+///  see take_keyword_entity for an example
+fn str_to_bigint<'a, T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatError> {
     match BigInt::from_str_radix(digits.as_ref(), radix) {
         Ok(bigint) => Ok(bigint),
-        Err(_) => Err(Err::Failure(IonError::from_format_error(
-            "",
-            FormatError::Text(TextFormatError::BigInt(digits.as_ref().to_string())),
+        Err(_) => Err(FormatError::Text(TextFormatError::BigInt(
+            digits.as_ref().to_string(),
         ))),
     }
 }
 
 /// Helper for turning Vec<&str>s into BigUints. Or failing miserably.
-fn str_vec_to_bigint(vec: Vec<&str>, radix: u32) -> Result<BigInt, Err<IonError<&str>>> {
+fn str_vec_to_bigint(vec: Vec<&str>, radix: u32) -> Result<BigInt, FormatError> {
     let digits: String = vec.concat();
     Ok(str_to_bigint(digits, radix)?)
 }
@@ -1568,7 +1567,10 @@ fn take_bin_integer(i: &str) -> IonResult<&str, BigInt> {
 
     segments.into_iter().for_each(|s| number.push_str(s));
 
-    Ok((i, str_to_bigint(number, 2)?))
+    let integer =
+        str_to_bigint(number, 2).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
+
+    Ok((i, integer))
 }
 
 /// Encoding: DEC_INTEGER
@@ -1610,8 +1612,10 @@ fn take_hex_integer(i: &str) -> IonResult<&str, BigInt> {
     }
 
     segments.iter().for_each(|s| number.push_str(s));
+    let integer =
+        str_to_bigint(number, 16).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
 
-    Ok((i, str_to_bigint(number, 16)?))
+    Ok((i, integer))
 }
 
 ///
@@ -1648,13 +1652,17 @@ fn take_float_or_decimal(i: &str) -> IonResult<&str, ion::Data> {
         return Err(Err::Error(IonError::from_error_kind(i, ErrorKind::Digit)));
     }
 
-    match exponent {
-        Some(FloatOrDecimal::Float(exponent)) => assemble_float(i, integer, fractional, exponent),
-        Some(FloatOrDecimal::Decimal(exponent)) => {
-            assemble_decimal(i, integer, fractional, Some(exponent))
+    let numeric = match exponent {
+        Some(FloatOrDecimal::Float(exponent)) => {
+            ion::Data::Float(Some(assemble_float(i, integer, fractional, exponent)?.1))
         }
-        None => assemble_decimal(i, integer, fractional, None),
-    }
+        Some(FloatOrDecimal::Decimal(exponent)) => ion::Data::Decimal(Some(
+            assemble_decimal(i, integer, fractional, Some(exponent))?.1,
+        )),
+        None => ion::Data::Decimal(Some(assemble_decimal(i, integer, fractional, None)?.1)),
+    };
+
+    Ok((i, numeric))
 }
 
 /// Note: number parsing consolidated to avoid parsing DEC_INTEGER multiple times when deciding
@@ -1668,7 +1676,7 @@ fn assemble_float<'a>(
     integer: String,
     fractional: Option<Vec<&'a str>>,
     exponent: String,
-) -> IonResult<&'a str, ion::Data> {
+) -> IonResult<&'a str, f64> {
     let mut float = integer;
 
     if let Some(fractional) = fractional {
@@ -1680,7 +1688,7 @@ fn assemble_float<'a>(
     float.push_str(&exponent);
 
     match float.parse::<f64>() {
-        Ok(f) => Ok((i, ion::Data::Float(Some(f)))),
+        Ok(f) => Ok((i, f)),
         Err(_) => Err(Err::Failure(IonError::from_format_error(
             i,
             FormatError::Text(TextFormatError::FloatParse(float)),
@@ -1729,14 +1737,15 @@ fn assemble_decimal<'a>(
     integer: String,
     fractional: Option<Vec<&'a str>>,
     exponent: Option<String>,
-) -> IonResult<&'a str, ion::Data> {
+) -> IonResult<&'a str, ion::Decimal> {
     // coefficient drops -0
     let sign = if integer.starts_with('-') {
         Sign::Minus
     } else {
         Sign::Plus
     };
-    let mut coefficient = str_to_bigint(integer, 10)?;
+    let mut coefficient =
+        str_to_bigint(integer, 10).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
 
     // If we have a fractional value we have to normalize it so the value is an integer so
     // the values can be represented with the BigInt library via two integers like so:
@@ -1746,7 +1755,8 @@ fn assemble_decimal<'a>(
     let exponent_shift: usize = if let Some(fractional) = fractional {
         let shift_digits = fractional.iter().fold(0, |sum, s| sum + s.chars().count());
         if shift_digits > 0 {
-            let fractional = str_vec_to_bigint(fractional, 10)?;
+            let fractional = str_vec_to_bigint(fractional, 10)
+                .map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
 
             coefficient *= pow(BigInt::one() * 10, shift_digits);
             match sign {
@@ -1761,7 +1771,7 @@ fn assemble_decimal<'a>(
     };
 
     let mut exponent = if let Some(exp_str) = exponent {
-        str_to_bigint(&exp_str, 10)?
+        str_to_bigint(&exp_str, 10).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?
     } else {
         BigInt::zero()
     };
@@ -1772,10 +1782,10 @@ fn assemble_decimal<'a>(
 
     Ok((
         i,
-        ion::Data::Decimal(Some(ion::Decimal {
+        ion::Decimal {
             coefficient,
             exponent,
-        })),
+        },
     ))
 }
 
@@ -2260,12 +2270,10 @@ fn is_base_64_char(b: u8) -> bool {
 /// Encoding Section: Common Lexer Primitives
 ///
 
-/// The encoding spec does not correctly define LOB_START and LOB_END.
-
-/// fragment LOB_START    : ';
+/// fragment LOB_START    : '{{';
 const LOB_START: &str = "{{";
 
-/// fragment LOB_END      : ';
+/// fragment LOB_END      : '}}';
 const LOB_END: &str = "}}";
 
 /// fragment SYMBOL_QUOTE : '\'';
@@ -2484,7 +2492,7 @@ where
 
 /// Helper for mapping a successfully parsed hex string to an Escape
 ///
-/// Note: unsafe to call from anywhere but map_parser - does not properly consume
+/// Note: only for use via map_parser.
 fn hex_digits_to_escape<Input>(i: Input) -> IonResult<Input, Escape>
 where
     Input: Clone + AsBytes,
