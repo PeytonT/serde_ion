@@ -1403,11 +1403,11 @@ fn take_day(i: &str) -> IonResult<&str, u8> {
     )(i)
 }
 
-fn take_hour_and_minute(i: &str) -> IonResult<&str, (u32, u32)> {
+fn take_hour_and_minute(i: &str) -> IonResult<&str, (u8, u8)> {
     separated_pair(take_hour, char(COLON), take_minute)(i)
 }
 
-type ParsedTime = ((u32, u32), Option<(u32, Option<BigInt>)>, UtcOffset);
+type ParsedTime = ((u8, u8), Option<(u8, Option<BigInt>)>, UtcOffset);
 
 fn assemble_time(((hour, minute), maybe_second, offset): ParsedTime) -> ion::Time {
     let (second, maybe_fractional) = if maybe_second.is_none() {
@@ -1479,15 +1479,15 @@ fn take_offset(i: &str) -> IonResult<&str, UtcOffset> {
 ///     : [01] DEC_DIGIT
 ///     | '2' [0-3]
 ///     ;
-fn take_hour(i: &str) -> IonResult<&str, u32> {
+fn take_hour(i: &str) -> IonResult<&str, u8> {
     map(
         alt((
             recognize(pair(one_of("01"), one_if(is_dec_digit))),
             recognize(pair(char('2'), one_of("0123"))),
         )),
         |s: &str| {
-            s.parse::<u32>()
-                .expect("parser verified hour should be valid u32")
+            s.parse::<u8>()
+                .expect("parser verified hour should be valid u8")
         },
     )(i)
 }
@@ -1496,11 +1496,11 @@ fn take_hour(i: &str) -> IonResult<&str, u32> {
 /// MINUTE
 ///     : [0-5] DEC_DIGIT
 ///     ;
-fn take_minute(i: &str) -> IonResult<&str, u32> {
+fn take_minute(i: &str) -> IonResult<&str, u8> {
     map(
         recognize(pair(one_of("012345"), one_if(is_dec_digit))),
         |s: &str| {
-            s.parse::<u32>()
+            s.parse::<u8>()
                 .expect("parser verified minute should be valid u32")
         },
     )(i)
@@ -1511,12 +1511,12 @@ fn take_minute(i: &str) -> IonResult<&str, u32> {
 /// SECOND
 ///     : [0-5] DEC_DIGIT ('.' DEC_DIGIT+)?
 ///     ;
-fn take_second(i: &str) -> IonResult<&str, (u32, Option<BigInt>)> {
+fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
     let (i, s) = recognize(pair(one_of("012345"), one_if(is_dec_digit)))(i)?;
     let (i, f) = opt(preceded(char('.'), take_while1(is_dec_digit)))(i)?;
     let seconds = s
-        .parse::<u32>()
-        .expect("parser verified seconds should be valid u32");
+        .parse::<u8>()
+        .expect("parser verified seconds should be valid u8");
     if let Some(f) = f {
         let fractional = str_to_bigint(f, 10)?;
         Ok((i, (seconds, Some(fractional))))

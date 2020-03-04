@@ -185,34 +185,34 @@ impl fmt::Debug for Date {
 #[derive(Clone, PartialEq)]
 pub enum Time {
     Minute {
-        hour: u32,
-        minute: u32,
+        hour: u8,
+        minute: u8,
         offset: time::UtcOffset,
     },
     Second {
-        hour: u32,
-        minute: u32,
-        second: u32,
+        hour: u8,
+        minute: u8,
+        second: u8,
         offset: time::UtcOffset,
     },
     FractionalSecond {
-        hour: u32,
-        minute: u32,
-        second: u32,
+        hour: u8,
+        minute: u8,
+        second: u8,
         fractional: BigInt,
         offset: time::UtcOffset,
     },
 }
 
 impl Time {
-    pub(crate) fn minute(hour: u32, minute: u32, offset: time::UtcOffset) -> Self {
+    pub(crate) fn minute(hour: u8, minute: u8, offset: time::UtcOffset) -> Self {
         Time::Minute {
             hour,
             minute,
             offset,
         }
     }
-    pub(crate) fn second(hour: u32, minute: u32, second: u32, offset: time::UtcOffset) -> Self {
+    pub(crate) fn second(hour: u8, minute: u8, second: u8, offset: time::UtcOffset) -> Self {
         Time::Second {
             hour,
             minute,
@@ -221,9 +221,9 @@ impl Time {
         }
     }
     pub(crate) fn fractional_second(
-        hour: u32,
-        minute: u32,
-        second: u32,
+        hour: u8,
+        minute: u8,
+        second: u8,
         fractional: BigInt,
         offset: time::UtcOffset,
     ) -> Self {
