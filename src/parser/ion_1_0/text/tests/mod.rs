@@ -43,6 +43,7 @@ fn parse_file(file: &Path) -> Result<Vec<ion::Value>, String> {
     }
 }
 
+/// Recursively locates .ion test files in the provided directory
 fn find_ion_text(dir: &Path) -> io::Result<Vec<PathBuf>> {
     let mut tests = vec![];
 
@@ -60,7 +61,7 @@ fn find_ion_text(dir: &Path) -> io::Result<Vec<PathBuf>> {
     Ok(tests)
 }
 
-// Verifies a list of ion:: values against a list of retrieved top level values.
+/// Verifies a list of expected values against a list of actual parsed top level values.
 fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, String>) {
     if let Err(e) = actuals {
         panic!("test failed: {}", e)
@@ -92,8 +93,7 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
     }
 }
 
-// a set of panicky helpers for quickly creating types as values
-
+// A set of helpers to remove boiler plate for the massive number of tests below.
 fn value(value: ion::Data, annotations: Vec<Option<SymbolToken>>) -> ion::Value {
     ion::Value { value, annotations }
 }
@@ -123,7 +123,7 @@ fn decimal(coefficient: &str, exponent: &str) -> ion::Value {
 }
 
 fn float(s: &str) -> ion::Value {
-    ion::Data::Float(Some(s.parse::<f64>().unwrap())).into()
+    ion::Data::Float(Some(lexical_core::parse(s.as_bytes()).unwrap())).into()
 }
 
 fn int_i64_data(i: i64) -> ion::Data {

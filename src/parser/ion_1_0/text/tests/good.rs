@@ -11,6 +11,8 @@ use core::iter;
 use num_bigint::BigInt;
 use time::UtcOffset;
 
+// TODO: find a way to guarantee that all good test files are checked
+
 #[test]
 fn test_all_nulls() {
     let result = parse_file(&test_path("good/allNulls.ion"));
@@ -598,6 +600,7 @@ fn test_float_dbl_min() {
         float("0.00022250738585072012e-304"),
         float("2.225073858507201200000e-308"),
         float("2.2250738585072012e-00308"),
+        float("2.2250738585072012997800001e-308"),
     ];
 
     // TODO determine if this is a legitimate float or not.

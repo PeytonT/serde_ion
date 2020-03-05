@@ -4,6 +4,7 @@ use crate::{
     value::{self as ion, Value},
 };
 use itertools::Itertools;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 #[test]
@@ -23,7 +24,8 @@ fn test_equivs() {
         Ok(())
     }
 
-    comparison_test(&test_path("good/fquivs"), equivalent);
+    // TODO: assert all equivalency tests were executed (glob filename count/test count?)
+    comparison_test(&test_path("good/equivs"), equivalent);
 }
 
 #[test]
@@ -43,6 +45,7 @@ fn test_non_equivs() {
         Ok(())
     }
 
+    // TODO: assert all equivalency tests were executed (glob filename count/test count?)
     comparison_test(&test_path("good/non-equivs"), non_equivalent);
 }
 
@@ -61,6 +64,18 @@ where
 
     let parsed_test_data = paths
         .into_iter()
+        // TODO(amzn/ion-tests#65): remove this filter when the test is valid
+        //
+        // Despite being called stringUtf8.ion, this file contains invalid UTF-8 characters.
+        //
+        // On page 5 of RFC3629:
+        //
+        //    The definition of UTF-8 prohibits encoding character numbers between
+        //    U+D800 and U+DFFF, which are reserved for use with the UTF-16
+        //    encoding form (as surrogate pairs) and do not directly represent
+        //    characters.
+        //
+        .filter(|path| path.file_name() != Some(OsStr::new("stringUtf8.ion")))
         .map(|path| (path.clone(), parse_file(&path)))
         .collect_vec();
 

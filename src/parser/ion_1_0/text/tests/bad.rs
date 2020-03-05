@@ -1,6 +1,8 @@
 use crate::parser::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
 use itertools::Itertools;
 
+// TODO: find a way to guarantee that all bad test files are checked
+
 #[test]
 fn test_bad() {
     let bad_ion_files = find_ion_text(&test_path("bad"))

@@ -38,6 +38,7 @@ lazy_static = "1.4.0"
 itertools = "0.8.2"
 log = "0.4.8"
 time = "0.2.6"
+lexical-core = "0.7.4"
 
 [dev-dependencies]
 hex = "0.4.0"

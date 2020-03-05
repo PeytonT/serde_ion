@@ -1611,6 +1611,19 @@ fn take_float_or_decimal(i: &str) -> IonResult<&str, ion::Data> {
     Ok((i, numeric))
 }
 
+// Floats are tricky. Ion uses IEEE-754 floats. Additionally:
+//
+//   When encoding a decimal real number that is irrational in base-2 or has more precision than can
+//   be stored in binary64, the exact binary64 value is determined by using the IEEE-754
+//   round-to-nearest mode with a round-half-to-even (sic: ties-to-even) as the tie-break.
+//
+// When attempting to parse the final float in good/floatDblMin.ion with the stdlib Rust f64, we
+// fail. This may be due to https://github.com/rust-lang/rust/issues/31407
+//
+// The lexical crate solves this problem for us. It defaults to the same documented rounding mode
+// and tie breaker. Additionally, the default parse format appears to be a near-perfect match,
+// though that can be configured if necessary.
+
 /// Note: number parsing consolidated to avoid parsing DEC_INTEGER multiple times when deciding
 /// the numeric type to apply.
 ///
@@ -1623,21 +1636,23 @@ fn assemble_float<'a>(
     fractional: Option<Vec<&'a str>>,
     exponent: String,
 ) -> IonResult<&'a str, f64> {
-    let mut float = integer;
+    let mut float = integer.as_bytes().to_vec();
 
     if let Some(fractional) = fractional {
-        float.push('.');
-        fractional.iter().for_each(|s| float.push_str(s));
+        float.push(b'.');
+        fractional.iter().for_each(|s| float.extend(s.as_bytes()));
     }
 
-    float.push('e');
-    float.push_str(&exponent);
+    float.push(b'e');
+    float.extend(exponent.as_bytes());
 
-    match float.parse::<f64>() {
+    match lexical_core::parse(&float) {
         Ok(f) => Ok((i, f)),
         Err(_) => Err(Err::Failure(IonError::from_format_error(
             i,
-            FormatError::Text(TextFormatError::FloatParse(float)),
+            FormatError::Text(TextFormatError::FloatParse(
+                String::from_utf8(float).expect("it was already a string."),
+            )),
         ))),
     }
 }
