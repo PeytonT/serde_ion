@@ -168,6 +168,7 @@ fn as_local_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
 ///     ;
 impl<'a> Iterator for ValueIterator<'a> {
     type Item = IonResult<&'a str, ion::Value>;
+
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.next.take() {
             return Some(Ok((self.remaining, next)));
@@ -204,7 +205,6 @@ impl<'a> Iterator for ValueIterator<'a> {
             Err(_) => (), // fall through if this parser cannot be applied (Err::Error/Incomplete)
         };
 
-        // TODO: ensure this parser is only applied once per token stream.
         let maybe_last = preceded(
             eat_opt_ws,
             terminated(opt(take_value(self.current_table.clone())), eof),
@@ -1351,36 +1351,35 @@ fn take_hour_and_minute(i: &str) -> IonResult<&str, (u8, u8)> {
     separated_pair(take_hour, char(COLON), take_minute)(i)
 }
 
-type ParsedTime = ((u8, u8), Option<(u8, Option<BigInt>)>, UtcOffset);
+fn assemble_time_hm(hour: u8, minute: u8, offset: UtcOffset) -> ion::Time {
+    ion::Time::Minute {
+        hour,
+        minute,
+        offset,
+    }
+}
 
-fn assemble_time(((hour, minute), maybe_second, offset): ParsedTime) -> ion::Time {
-    let (second, maybe_fractional) = if maybe_second.is_none() {
-        return ion::Time::Minute {
+fn assemble_time_hms(
+    hour: u8,
+    minute: u8,
+    second: u8,
+    maybe_fractional: Option<BigInt>,
+    offset: UtcOffset,
+) -> ion::Time {
+    match maybe_fractional {
+        Some(fractional) => ion::Time::FractionalSecond {
             hour,
             minute,
+            second,
+            fractional,
             offset,
-        };
-    } else {
-        maybe_second.expect("is not none")
-    };
-
-    let fractional = if maybe_fractional.is_none() {
-        return ion::Time::Second {
+        },
+        None => ion::Time::Second {
             hour,
             minute,
             second,
             offset,
-        };
-    } else {
-        maybe_fractional.expect("is not none")
-    };
-
-    ion::Time::FractionalSecond {
-        hour,
-        minute,
-        second,
-        fractional,
-        offset,
+        },
     }
 }
 
@@ -1389,14 +1388,18 @@ fn assemble_time(((hour, minute), maybe_second, offset): ParsedTime) -> ion::Tim
 ///     : HOUR ':' MINUTE (':' SECOND)? OFFSET
 ///     ;
 fn take_time(i: &str) -> IonResult<&str, ion::Time> {
-    map(
-        tuple((
-            take_hour_and_minute,
-            opt(preceded(char(COLON), take_second)),
-            take_offset,
-        )),
-        assemble_time,
-    )(i)
+    let (i, ((hour, minute), second, offset)) = tuple((
+        take_hour_and_minute,
+        opt(preceded(char(COLON), take_second)),
+        take_offset,
+    ))(i)?;
+
+    let time = match second {
+        Some((second, fractional)) => assemble_time_hms(hour, minute, second, fractional, offset),
+        None => assemble_time_hm(hour, minute, offset),
+    };
+
+    Ok((i, time))
 }
 
 /// fragment
