@@ -39,7 +39,7 @@ fn test_all_nulls() {
 fn test_annotation_quoted_false() {
     let result = parse_file(&test_path("good/annotationQuotedFalse.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("false")]));
+    let expected = value(int_i64_data(23), vec![annot("false")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -48,7 +48,7 @@ fn test_annotation_quoted_false() {
 fn test_annotation_quoted_nan() {
     let result = parse_file(&test_path("good/annotationQuotedNan.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("nan")]));
+    let expected = value(int_i64_data(23), vec![annot("nan")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -57,7 +57,7 @@ fn test_annotation_quoted_nan() {
 fn test_annotation_quoted_neg_inf() {
     let result = parse_file(&test_path("good/annotationQuotedNegInf.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("-inf")]));
+    let expected = value(int_i64_data(23), vec![annot("-inf")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -66,7 +66,7 @@ fn test_annotation_quoted_neg_inf() {
 fn test_annotation_quoted_null() {
     let result = parse_file(&test_path("good/annotationQuotedNull.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("null")]));
+    let expected = value(int_i64_data(23), vec![annot("null")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -75,7 +75,7 @@ fn test_annotation_quoted_null() {
 fn test_annotation_quoted_null_int() {
     let result = parse_file(&test_path("good/annotationQuotedNullInt.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("null.int")]));
+    let expected = value(int_i64_data(23), vec![annot("null.int")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -84,7 +84,7 @@ fn test_annotation_quoted_null_int() {
 fn test_annotation_quoted_operator() {
     let result = parse_file(&test_path("good/annotationQuotedOperator.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("@")]));
+    let expected = value(int_i64_data(23), vec![annot("@")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -93,7 +93,7 @@ fn test_annotation_quoted_operator() {
 fn test_annotation_quoted_pos_inf() {
     let result = parse_file(&test_path("good/annotationQuotedPosInf.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("+inf")]));
+    let expected = value(int_i64_data(23), vec![annot("+inf")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -102,7 +102,7 @@ fn test_annotation_quoted_pos_inf() {
 fn test_annotation_quoted_true() {
     let result = parse_file(&test_path("good/annotationQuotedTrue.ion"));
 
-    let expected = value(int_i64_data(23), Some(vec![annot("true")]));
+    let expected = value(int_i64_data(23), vec![annot("true")]);
 
     verify_tlvs(vec![expected], result);
 }
@@ -678,15 +678,15 @@ fn test_inner_version_identifiers() {
         sexp(vec![
             symbol("$ion_1_0"),
             symbol("$ion_2300_34"),
-            value(symbol_data("$ion_1_0"), Some(vec![annot("foo")])),
-            value(symbol_data("$ion_1_0"), Some(vec![annot("$ion_1_0")])),
+            value(symbol_data("$ion_1_0"), vec![annot("foo")]),
+            value(symbol_data("$ion_1_0"), vec![annot("$ion_1_0")]),
             sexp(vec![symbol("$ion_1_0")]),
         ]),
         list(vec![
             symbol("$ion_1_0"),
             symbol("$ion_2300_34"),
-            value(symbol_data("$ion_1_0"), Some(vec![annot("foo")])),
-            value(symbol_data("$ion_1_0"), Some(vec![annot("$ion_1_0")])),
+            value(symbol_data("$ion_1_0"), vec![annot("foo")]),
+            value(symbol_data("$ion_1_0"), vec![annot("$ion_1_0")]),
             list(vec![symbol("$ion_1_0")]),
         ]),
         map(vec![
@@ -694,11 +694,11 @@ fn test_inner_version_identifiers() {
             ("b".into(), symbol("$ion_2300_34")),
             (
                 "c".into(),
-                value(symbol_data("$ion_1_0"), Some(vec![annot("foo")])),
+                value(symbol_data("$ion_1_0"), vec![annot("foo")]),
             ),
             (
                 "d".into(),
-                value(symbol_data("$ion_1_0"), Some(vec![annot("$ion_1_0")])),
+                value(symbol_data("$ion_1_0"), vec![annot("$ion_1_0")]),
             ),
             ("e".into(), map(vec![("f".into(), symbol("$ion_1_0"))])),
         ]),
@@ -923,7 +923,7 @@ fn test_message_2() {
                 ]),
             ),
         ]),
-        Some(vec![annot("contribution")]),
+        vec![annot("contribution")],
     )];
 
     verify_tlvs(expected, result);
@@ -935,7 +935,7 @@ fn test_multiple_annotations() {
 
     let expected = vec![value(
         symbol_data("value"),
-        Some(vec![annot("annot1"), annot("annot2")]),
+        vec![annot("annot1"), annot("annot2")],
     )];
 
     verify_tlvs(expected, result);
@@ -967,17 +967,14 @@ fn test_not_version_marker() {
     let result = parse_file(&test_path("good/notVersionMarkers.ion"));
 
     let expected = vec![
-        value(symbol_data("$ion_1_0"), Some(vec![annot("a1")])),
-        value(symbol_data("$ion_1234_1"), Some(vec![annot("a2")])),
-        value(symbol_data("$ion_1_0"), Some(vec![annot("$ion_1_0")])),
+        value(symbol_data("$ion_1_0"), vec![annot("a1")]),
+        value(symbol_data("$ion_1234_1"), vec![annot("a2")]),
+        value(symbol_data("$ion_1_0"), vec![annot("$ion_1_0")]),
         value(
             symbol_data("$ion_1_0"),
-            Some(vec![annot("a3"), annot("$ion_1234_2")]),
+            vec![annot("a3"), annot("$ion_1234_2")],
         ),
-        value(
-            symbol_data("$ion_1_0"),
-            Some(vec![annot("$ion_symbol_table")]),
-        ),
+        value(symbol_data("$ion_1_0"), vec![annot("$ion_symbol_table")]),
     ];
 
     verify_tlvs(expected, result);
@@ -1058,7 +1055,7 @@ fn test_operators() {
 fn test_sexp_annotation_quoted_operator() {
     let result = parse_file(&test_path("good/sexpAnnotationQuotedOperator.ion"));
 
-    let expected = vec![sexp(vec![value(int_i64_data(23), Some(vec![annot("@")]))])];
+    let expected = vec![sexp(vec![value(int_i64_data(23), vec![annot("@")])])];
 
     verify_tlvs(expected, result);
 }
@@ -1134,22 +1131,16 @@ fn test_sexps() {
         ]),
         sexp(vec![symbol("op1"), symbol("."), symbol("op2")]),
         sexp(vec![
-            value(
-                symbol_data("+++"),
-                Some(vec![annot("a_plus_plus_plus_operator")]),
-            ),
-            value(int_i64_data(3), Some(vec![annot("a_3")])),
+            value(symbol_data("+++"), vec![annot("a_plus_plus_plus_operator")]),
+            value(int_i64_data(3), vec![annot("a_3")]),
         ]),
         sexp(vec![
-            value(
-                symbol_data("+++"),
-                Some(vec![annot("a_plus_plus_plus_operator")]),
-            ),
-            value(int_i64_data(3), Some(vec![annot("a_3")])),
+            value(symbol_data("+++"), vec![annot("a_plus_plus_plus_operator")]),
+            value(int_i64_data(3), vec![annot("a_3")]),
         ]),
         sexp(vec![value(
             symbol_data("+++"),
-            Some(vec![annot("a_plus_plus_plus_operator")]),
+            vec![annot("a_plus_plus_plus_operator")],
         )]),
     ];
 
@@ -1260,7 +1251,7 @@ fn test_struct_field_annotations_unquoted_then_quoted() {
 
     let expected = vec![map(vec![(
         "f".into(),
-        value(ion::Data::Null, Some(vec![annot("a"), annot("b")])),
+        value(ion::Data::Null, vec![annot("a"), annot("b")]),
     )])];
 
     verify_tlvs(expected, result);
@@ -1471,18 +1462,18 @@ fn test_subfield_var_uint() {
     let result = parse_file(&test_path("good/subfieldVarUInt.ion"));
 
     let expected = vec![
-        value(int_i64_data(1), Some(vec![annot("boundary-1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary")])),
-        value(int_i64_data(1), Some(vec![annot("boundary+1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary-1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary")])),
-        value(int_i64_data(1), Some(vec![annot("boundary+1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary-1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary")])),
-        value(int_i64_data(1), Some(vec![annot("boundary+1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary-1")])),
-        value(int_i64_data(1), Some(vec![annot("boundary")])),
-        value(int_i64_data(1), Some(vec![annot("boundary+1")])),
+        value(int_i64_data(1), vec![annot("boundary-1")]),
+        value(int_i64_data(1), vec![annot("boundary")]),
+        value(int_i64_data(1), vec![annot("boundary+1")]),
+        value(int_i64_data(1), vec![annot("boundary-1")]),
+        value(int_i64_data(1), vec![annot("boundary")]),
+        value(int_i64_data(1), vec![annot("boundary+1")]),
+        value(int_i64_data(1), vec![annot("boundary-1")]),
+        value(int_i64_data(1), vec![annot("boundary")]),
+        value(int_i64_data(1), vec![annot("boundary+1")]),
+        value(int_i64_data(1), vec![annot("boundary-1")]),
+        value(int_i64_data(1), vec![annot("boundary")]),
+        value(int_i64_data(1), vec![annot("boundary+1")]),
     ];
 
     verify_tlvs(expected, result);
@@ -1528,13 +1519,10 @@ fn test_symbol_empty() {
     let expected = vec![
         symbol(""),
         map(vec![("".into(), symbol("abc"))]),
-        value(symbol_data("abc"), Some(vec![annot("")])),
-        value(symbol_data(""), Some(vec![annot("")])),
-        map(vec![(
-            "".into(),
-            value(symbol_data(""), Some(vec![annot("")])),
-        )]),
-        value(symbol_data(""), Some(vec![annot("abc")])),
+        value(symbol_data("abc"), vec![annot("")]),
+        value(symbol_data(""), vec![annot("")]),
+        map(vec![("".into(), value(symbol_data(""), vec![annot("")]))]),
+        value(symbol_data(""), vec![annot("abc")]),
         map(vec![("".into(), symbol("abc"))]),
     ];
 
@@ -1638,25 +1626,25 @@ fn test_symbol_zero() {
     let result = parse_file(&test_path("good/symbolZero.ion"));
 
     let expected = vec![
-        value(ion::Data::Symbol(Some(SymbolToken::Zero)), None),
-        value(symbol_data("abc"), Some(vec![Some(SymbolToken::Zero)])),
+        ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
+        value(symbol_data("abc"), vec![Some(SymbolToken::Zero)]),
         map(vec![(SymbolToken::Zero, symbol("abc"))]),
         map(vec![(
             SymbolToken::Zero,
-            value(symbol_data("abc"), Some(vec![Some(SymbolToken::Zero)])),
+            value(symbol_data("abc"), vec![Some(SymbolToken::Zero)]),
         )]),
         map(vec![(
             SymbolToken::Zero,
             value(
                 ion::Data::Symbol(Some(SymbolToken::Zero)),
-                Some(vec![Some(SymbolToken::Zero)]),
+                vec![Some(SymbolToken::Zero)],
             ),
         )]),
         sexp(vec![
             ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
             value(
                 ion::Data::Symbol(Some(SymbolToken::Zero)),
-                Some(vec![Some(SymbolToken::Zero)]),
+                vec![Some(SymbolToken::Zero)],
             ),
         ]),
     ];
@@ -1689,7 +1677,7 @@ fn test_testfile0() {
             ),
             ("age".into(), string("6483020949")),
         ]),
-        Some(vec![annot("contact")]),
+        vec![annot("contact")],
     )];
 
     verify_tlvs(expected, result);
@@ -1704,7 +1692,7 @@ fn test_testfile1() {
             ("name".into(), string("widgets")),
             ("quantity".into(), string("6483021036")),
         ]),
-        Some(vec![annot("PurchaseOrder")]),
+        vec![annot("PurchaseOrder")],
     )];
 
     verify_tlvs(expected, result);
@@ -1736,7 +1724,7 @@ fn test_testfile3() {
                 )]),
             ),
         ]),
-        Some(vec![annot("Envelope")]),
+        vec![annot("Envelope")],
     )];
 
     verify_tlvs(expected, result);
@@ -1748,7 +1736,7 @@ fn test_testfile4() {
 
     let expected = vec![value(
         map_data(vec![("v".into(), string(""))]),
-        Some(vec![annot("b")]),
+        vec![annot("b")],
     )];
 
     verify_tlvs(expected, result);
@@ -1760,7 +1748,7 @@ fn test_testfile5() {
 
     let expected = vec![value(
         map_data(vec![("v".into(), string(""))]),
-        Some(vec![annot("b")]),
+        vec![annot("b")],
     )];
 
     verify_tlvs(expected, result);
@@ -1781,7 +1769,7 @@ fn test_testfile6() {
                 })
                 .collect(),
         ),
-        Some(vec![annot("b")]),
+        vec![annot("b")],
     )];
 
     verify_tlvs(expected, result);
@@ -1800,7 +1788,7 @@ fn test_testfile7() {
                 map(vec![("attributeFormDefault".into(), string("qualified"))]),
             ),
         ]),
-        Some(vec![annot("root5678901234")]),
+        vec![annot("root5678901234")],
     )];
 
     verify_tlvs(expected, result);
@@ -1840,7 +1828,7 @@ fn test_testfile8() {
                 ]),
             ),
         ]),
-        Some(vec![annot("root")]),
+        vec![annot("root")],
     )];
 
     verify_tlvs(expected, result);
@@ -1850,7 +1838,7 @@ fn test_testfile8() {
 fn test_testfile9() {
     let result = parse_file(&test_path("good/testfile9.ion"));
 
-    let expected = vec![value(map_data(vec![]), Some(vec![annot("b")]))];
+    let expected = vec![value(map_data(vec![]), vec![annot("b")])];
 
     verify_tlvs(expected, result);
 }
@@ -1869,7 +1857,7 @@ fn test_testfile10() {
             ("id".into(), symbol("hi")),
             ("id2".into(), symbol("by")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1892,7 +1880,7 @@ fn test_testfile11() {
             ("id".into(), symbol("hi")),
             ("id2".into(), symbol("by")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1914,7 +1902,7 @@ fn test_testfile12() {
             ("id".into(), symbol("hi")),
             ("id2".into(), symbol("by")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1932,7 +1920,7 @@ fn test_testfile13() {
             ("d".into(), decimal("0", "-1")),
             ("e".into(), float("0.0e0")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1950,7 +1938,7 @@ fn test_testfile14() {
             ("f4".into(), float("1.0e5")),
             ("f5".into(), float("123456789012345.0e0")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1969,7 +1957,7 @@ fn test_testfile15() {
             ("f4".into(), float("1.0e5")),
             ("f5".into(), float("123456789012345.0e0")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -1988,7 +1976,7 @@ fn test_testfile16() {
             ("f4".into(), float("1.0e5")),
             ("f5".into(), float("123456789012345.0e0")),
         ]),
-        Some(vec![annot("m")]),
+        vec![annot("m")],
     )];
 
     verify_tlvs(expected, result);
@@ -2023,7 +2011,7 @@ fn test_testfile19() {
             symbol("an"),
             symbol("expression"),
         ]),
-        Some(vec![annot("testexpr")]),
+        vec![annot("testexpr")],
     )];
 
     verify_tlvs(expected, result);
@@ -2035,7 +2023,7 @@ fn test_testfile20() {
 
     let expected = vec![value(
         sexp_data(vec![symbol("aa"), string("ss"), symbol("bb")]),
-        Some(vec![annot("te2")]),
+        vec![annot("te2")],
     )];
 
     verify_tlvs(expected, result);
@@ -2059,7 +2047,7 @@ fn test_testfile21() {
             list(vec![symbol("some"), symbol("data")]),
             map(vec![("a".into(), int_i64(1)), ("b".into(), int_i64(3))]),
         ]),
-        Some(vec![annot("te3")]),
+        vec![annot("te3")],
     )];
 
     verify_tlvs(expected, result);
@@ -2217,7 +2205,7 @@ fn test_testfile28() {
 
     let expected = vec![sexp(vec![value(
         clob_data(b"2007-\x00sdf-11-20"),
-        Some(vec![annot("sjis")]),
+        vec![annot("sjis")],
     )])];
 
     verify_tlvs(expected, result);
@@ -2229,7 +2217,7 @@ fn test_testfile29() {
 
     let expected = vec![sexp(vec![value(
         blob_encoded_data(b"2dDSGZ/0az07+sdf+11+230="),
-        Some(vec![annot("ablob")]),
+        vec![annot("ablob")],
     )])];
 
     verify_tlvs(expected, result);
@@ -2309,7 +2297,7 @@ fn test_testfile33() {
                 ),
             ),
         ]),
-        Some(vec![annot("dates")]),
+        vec![annot("dates")],
     )];
 
     verify_tlvs(expected, result);
@@ -2389,7 +2377,7 @@ fn test_testfile35() {
                 ),
             ),
         ]),
-        Some(vec![annot("dates")]),
+        vec![annot("dates")],
     )];
 
     verify_tlvs(expected, result);

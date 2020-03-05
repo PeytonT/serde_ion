@@ -94,7 +94,7 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
 
 // a set of panicky helpers for quickly creating types as values
 
-fn value(value: ion::Data, annotations: Option<Vec<Option<SymbolToken>>>) -> ion::Value {
+fn value(value: ion::Data, annotations: Vec<Option<SymbolToken>>) -> ion::Value {
     ion::Value { value, annotations }
 }
 

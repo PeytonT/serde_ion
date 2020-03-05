@@ -144,13 +144,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Null,
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Null.into()]);
         }
 
         #[test]
@@ -215,13 +209,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Bool(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Bool(None).into()]);
         }
 
         //        boolWithInvalidLength_1.10n
@@ -275,13 +263,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Int(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Int(None).into()]);
         }
 
         #[test]
@@ -289,13 +271,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Int(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Int(None).into()]);
         }
 
         #[test]
@@ -307,8 +283,8 @@ mod tests {
             match value[0].clone() {
                 Value {
                     value: Data::Int(Some(x)),
-                    annotations: None,
-                } => {}
+                    annotations,
+                } if annotations.is_empty() => {}
                 _ => panic!("expected Integer"),
             }
         }
@@ -322,8 +298,8 @@ mod tests {
             match value[0].clone() {
                 Value {
                     value: Data::Int(Some(x)),
-                    annotations: None,
-                } => {}
+                    annotations,
+                } if annotations.is_empty() => {}
                 _ => panic!("expected Integer"),
             }
         }
@@ -337,8 +313,8 @@ mod tests {
             match value[0].clone() {
                 Value {
                     value: Data::Int(Some(x)),
-                    annotations: None,
-                } => {}
+                    annotations,
+                } if annotations.is_empty() => {}
                 _ => panic!("expected Integer"),
             }
         }
@@ -352,8 +328,8 @@ mod tests {
             match value[0].clone() {
                 Value {
                     value: Data::Int(Some(x)),
-                    annotations: None,
-                } => {}
+                    annotations,
+                } if annotations.is_empty() => {}
                 _ => panic!("expected Integer"),
             }
         }
@@ -367,8 +343,8 @@ mod tests {
             match value[0].clone() {
                 Value {
                     value: Data::Int(Some(x)),
-                    annotations: None,
-                } => {}
+                    annotations,
+                } if annotations.is_empty() => {}
                 _ => panic!("expected Integer"),
             }
         }
@@ -381,10 +357,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Int(Some(BigInt::from_str("9223372036854775808").unwrap())),
-                    annotations: None,
-                }]
+                vec![Data::Int(Some(BigInt::from_str("9223372036854775808").unwrap())).into()]
             );
         }
 
@@ -396,10 +369,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Int(Some(BigInt::from_str("-9223372036854775808").unwrap())),
-                    annotations: None,
-                }]
+                vec![Data::Int(Some(BigInt::from_str("-9223372036854775808").unwrap())).into()]
             );
         }
 
@@ -481,13 +451,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullFloat.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Float(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Float(None).into()]);
         }
 
         //        floatLenTooLarge.10n
@@ -517,13 +481,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullDecimal.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Decimal(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Decimal(None).into()]);
         }
 
         #[test]
@@ -535,13 +493,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Decimal(Some(Decimal {
-                        coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
-                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Decimal(Some(Decimal {
+                    coefficient: BigInt::from_str_radix("-10", 10).unwrap(),
+                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                }))
+                .into()]
             );
         }
 
@@ -553,13 +509,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Decimal(Some(Decimal {
-                        coefficient: BigInt::zero(),
-                        exponent: BigInt::zero(),
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Decimal(Some(Decimal {
+                    coefficient: BigInt::zero(),
+                    exponent: BigInt::zero(),
+                }))
+                .into()]
             );
         }
 
@@ -572,13 +526,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Decimal(Some(Decimal {
-                        coefficient: BigInt::zero(),
-                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Decimal(Some(Decimal {
+                    coefficient: BigInt::zero(),
+                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                }))
+                .into()]
             );
         }
 
@@ -590,13 +542,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Decimal(Some(Decimal {
-                        coefficient: BigInt::from_str_radix("10", 10).unwrap(),
-                        exponent: BigInt::from_str_radix("-1", 10).unwrap(),
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Decimal(Some(Decimal {
+                    coefficient: BigInt::from_str_radix("10", 10).unwrap(),
+                    exponent: BigInt::from_str_radix("-1", 10).unwrap(),
+                }))
+                .into()]
             );
         }
 
@@ -607,13 +557,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Decimal(Some(Decimal {
-                        coefficient: BigInt::zero(),
-                        exponent: BigInt::zero(),
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Decimal(Some(Decimal {
+                    coefficient: BigInt::zero(),
+                    exponent: BigInt::zero(),
+                }))
+                .into()]
             );
         }
 
@@ -674,13 +622,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Timestamp(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Timestamp(None).into()]);
         }
 
         #[test]
@@ -692,13 +634,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Timestamp(Some(Timestamp::Year {
-                        offset: BigInt::zero(),
-                        year: BigUint::from(2011u32)
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Timestamp(Some(Timestamp::Year {
+                    offset: BigInt::zero(),
+                    year: BigUint::from(2011u32)
+                }))
+                .into()]
             );
         }
 
@@ -711,14 +651,12 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Timestamp(Some(Timestamp::Month {
-                        offset: BigInt::zero(),
-                        year: BigUint::from(2011u32),
-                        month: BigUint::from(2u32)
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Timestamp(Some(Timestamp::Month {
+                    offset: BigInt::zero(),
+                    year: BigUint::from(2011u32),
+                    month: BigUint::from(2u32)
+                }))
+                .into()]
             );
         }
 
@@ -731,15 +669,13 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Timestamp(Some(Timestamp::Day {
-                        offset: BigInt::zero(),
-                        year: BigUint::from(2011u32),
-                        month: BigUint::from(2u32),
-                        day: BigUint::from(20u32)
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Timestamp(Some(Timestamp::Day {
+                    offset: BigInt::zero(),
+                    year: BigUint::from(2011u32),
+                    month: BigUint::from(2u32),
+                    day: BigUint::from(20u32)
+                }))
+                .into()]
             );
         }
 
@@ -752,20 +688,18 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Timestamp(Some(Timestamp::FractionalSecond {
-                        offset: BigInt::from(-480i32),
-                        year: BigUint::from(2011u32),
-                        month: BigUint::from(2u32),
-                        day: BigUint::from(20u32),
-                        hour: BigUint::from(19u32),
-                        minute: BigUint::from(30u32),
-                        second: BigUint::from(59u32),
-                        fraction_coefficient: BigUint::from(100u32),
-                        fraction_exponent: -3,
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Timestamp(Some(Timestamp::FractionalSecond {
+                    offset: BigInt::from(-480i32),
+                    year: BigUint::from(2011u32),
+                    month: BigUint::from(2u32),
+                    day: BigUint::from(20u32),
+                    hour: BigUint::from(19u32),
+                    minute: BigUint::from(30u32),
+                    second: BigUint::from(59u32),
+                    fraction_coefficient: BigUint::from(100u32),
+                    fraction_exponent: -3,
+                }))
+                .into()]
             );
         }
     }
@@ -781,13 +715,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSymbol.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Symbol(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Symbol(None).into()]);
         }
 
         #[test]
@@ -796,13 +724,7 @@ mod tests {
                 include_bytes!("../../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Symbol(Some(SymbolToken::Zero)),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Symbol(Some(SymbolToken::Zero)).into()]);
         }
 
         #[test]
@@ -811,13 +733,7 @@ mod tests {
                 include_bytes!("../../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Symbol(Some(SymbolToken::Zero)),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Symbol(Some(SymbolToken::Zero)).into()]);
         }
 
         #[test]
@@ -873,13 +789,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullString.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::String(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::String(None).into()]);
         }
 
         //        stringLenTooLarge.10n
@@ -928,13 +838,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullClob.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Clob(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Clob(None).into()]);
         }
 
         #[test]
@@ -944,10 +848,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Clob(Some(Clob { data: vec![127u8] })),
-                    annotations: None,
-                }]
+                vec![Data::Clob(Some(Clob { data: vec![127u8] })).into()]
             );
         }
 
@@ -960,10 +861,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Clob(Some(Clob { data: vec![128u8] })),
-                    annotations: None,
-                }]
+                vec![Data::Clob(Some(Clob { data: vec![128u8] })).into()]
             );
         }
 
@@ -975,10 +873,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Clob(Some(Clob { data: vec![0u8] })),
-                    annotations: None,
-                }]
+                vec![Data::Clob(Some(Clob { data: vec![0u8] })).into()]
             );
         }
 
@@ -1008,13 +903,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBlob.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Blob(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Blob(None).into()]);
         }
 
         //        blobLenTooLarge.10n
@@ -1046,13 +935,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullList.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::List(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::List(None).into()]);
         }
 
         // Bad
@@ -1081,13 +964,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSexp.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Sexp(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Sexp(None).into()]);
         }
     }
 
@@ -1104,13 +981,7 @@ mod tests {
             let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Value {
-                    value: Data::Struct(None),
-                    annotations: None,
-                }]
-            );
+            assert_eq!(value, vec![Data::Struct(None).into()]);
         }
 
         #[test]
@@ -1122,10 +993,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct { fields: vec![] })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct { fields: vec![] })).into()]
             );
         }
 
@@ -1138,10 +1006,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct { fields: vec![] })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct { fields: vec![] })).into()]
             );
         }
 
@@ -1154,20 +1019,15 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![(
-                            SymbolToken::Known {
-                                text: String::from("name")
-                            },
-                            Value {
-                                value: Data::Bool(Some(true)),
-                                annotations: None,
-                            }
-                        )]
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![(
+                        SymbolToken::Known {
+                            text: String::from("name")
+                        },
+                        Data::Bool(Some(true)).into(),
+                    )]
+                }))
+                .into()]
             );
         }
 
@@ -1180,20 +1040,15 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![(
-                            SymbolToken::Known {
-                                text: String::from("name")
-                            },
-                            Value {
-                                value: Data::Bool(Some(true)),
-                                annotations: None,
-                            }
-                        )]
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![(
+                        SymbolToken::Known {
+                            text: String::from("name")
+                        },
+                        Data::Bool(Some(true)).into(),
+                    )]
+                }))
+                .into()]
             );
         }
 
@@ -1207,9 +1062,9 @@ mod tests {
                 value,
                 vec![Value {
                     value: Data::Struct(Some(Struct { fields: vec![] })),
-                    annotations: Some(vec![Some(SymbolToken::Known {
+                    annotations: vec![Some(SymbolToken::Known {
                         text: String::from("max_id")
-                    }),])
+                    })]
                 }]
             );
         }
@@ -1221,10 +1076,7 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct { fields: vec![] })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct { fields: vec![] })).into()]
             );
         }
 
@@ -1235,20 +1087,15 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![(
-                            SymbolToken::Known {
-                                text: String::from("name")
-                            },
-                            Value {
-                                value: Data::String(Some(String::from("123456789AB"))),
-                                annotations: None,
-                            }
-                        )]
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![(
+                        SymbolToken::Known {
+                            text: String::from("name")
+                        },
+                        Data::String(Some(String::from("123456789AB"))).into(),
+                    )]
+                }))
+                .into()]
             );
         }
 
@@ -1259,20 +1106,15 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![(
-                            SymbolToken::Known {
-                                text: String::from("name")
-                            },
-                            Value {
-                                value: Data::String(Some(String::from("123456789ABC"))),
-                                annotations: None,
-                            }
-                        )]
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![(
+                        SymbolToken::Known {
+                            text: String::from("name")
+                        },
+                        Data::String(Some(String::from("123456789ABC"))).into(),
+                    )]
+                }))
+                .into()]
             );
         }
 
@@ -1283,20 +1125,15 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![(
-                            SymbolToken::Known {
-                                text: String::from("name")
-                            },
-                            Value {
-                                value: Data::String(Some(String::from("123456789ABCD"))),
-                                annotations: None,
-                            }
-                        )]
-                    })),
-                    annotations: None,
-                }]
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![(
+                        SymbolToken::Known {
+                            text: String::from("name")
+                        },
+                        Data::String(Some(String::from("123456789ABCD"))).into(),
+                    )]
+                }))
+                .into()]
             );
         }
 
@@ -1307,40 +1144,29 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Value {
-                    value: Data::Struct(Some(Struct {
-                        fields: vec![
-                            (
-                                SymbolToken::Known {
-                                    text: String::from("name")
-                                },
-                                Value {
-                                    value: Data::Null,
-                                    annotations: None,
-                                }
-                            ),
-                            (
-                                SymbolToken::Known {
-                                    text: String::from("version")
-                                },
-                                Value {
-                                    value: Data::Bool(Some(false)),
-                                    annotations: None,
-                                }
-                            ),
-                            (
-                                SymbolToken::Known {
-                                    text: String::from("imports")
-                                },
-                                Value {
-                                    value: Data::Bool(Some(true)),
-                                    annotations: None,
-                                }
-                            )
-                        ]
-                    })),
-                    annotations: None
-                }],
+                vec![Data::Struct(Some(Struct {
+                    fields: vec![
+                        (
+                            SymbolToken::Known {
+                                text: String::from("name")
+                            },
+                            Data::Null.into(),
+                        ),
+                        (
+                            SymbolToken::Known {
+                                text: String::from("version")
+                            },
+                            Data::Bool(Some(false)).into(),
+                        ),
+                        (
+                            SymbolToken::Known {
+                                text: String::from("imports")
+                            },
+                            Data::Bool(Some(true)).into()
+                        )
+                    ]
+                }))
+                .into()],
             );
         }
 
@@ -1359,39 +1185,30 @@ mod tests {
                                 SymbolToken::Known {
                                     text: String::from("name")
                                 },
-                                Value {
-                                    value: Data::Null,
-                                    annotations: None,
-                                }
+                                Data::Null.into(),
                             ),
                             (
                                 SymbolToken::Known {
                                     text: String::from("version")
                                 },
-                                Value {
-                                    value: Data::Bool(Some(false)),
-                                    annotations: None,
-                                }
+                                Data::Bool(Some(false)).into()
                             ),
                             (
                                 SymbolToken::Known {
                                     text: String::from("imports")
                                 },
-                                Value {
-                                    value: Data::Bool(Some(true)),
-                                    annotations: None,
-                                }
+                                Data::Bool(Some(true)).into(),
                             )
                         ]
                     })),
-                    annotations: Some(vec![
+                    annotations: vec![
                         Some(SymbolToken::Known {
                             text: String::from("symbols")
                         }),
                         Some(SymbolToken::Known {
                             text: String::from("max_id")
                         })
-                    ]),
+                    ],
                 }],
             );
         }

@@ -13,26 +13,15 @@ use time::ComponentRangeError;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Value {
     pub value: Data,
-    pub annotations: Option<Vec<Option<SymbolToken>>>,
+    pub annotations: Vec<Option<SymbolToken>>,
 }
 
 impl Value {
-    pub(crate) fn has_annotations(&self) -> bool {
-        if let Some(vec) = &self.annotations {
-            !vec.is_empty()
-        } else {
-            false
-        }
-    }
-
     pub(crate) fn has_annotation(&self, annotation: &str) -> bool {
-        if let Some(annotations) = &self.annotations {
-            for token in annotations {
-                if let Some(SymbolToken::Known { text }) = token {
-                    if text == annotation {
-                        return true;
-                    }
-                }
+        for token in &self.annotations {
+            match token {
+                Some(SymbolToken::Known { text }) if text.as_str() == annotation => return true,
+                _ => (),
             }
         }
 
@@ -44,7 +33,7 @@ impl From<Data> for Value {
     fn from(value: Data) -> Self {
         Self {
             value,
-            annotations: None,
+            annotations: vec![],
         }
     }
 }

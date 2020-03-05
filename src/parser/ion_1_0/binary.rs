@@ -41,20 +41,17 @@ fn parse_top_level_value<'a, 'b>(
         Ok((rest, Some(value))) => {
             // If the value is a Struct...
             if let Data::Struct(ion_struct) = &value.value {
-                // And it has an annotations vector...
-                if let Some(annotations) = &value.annotations {
-                    // And the annotations vector contains a first annotation (i.e. is non-empty)...
-                    if let Some(symbol) = annotations.first() {
-                        // And the first annotation is not a null symbol...
-                        if let Some(token) = symbol {
-                            // And the value of the annotation is "$ion_symbol_table"...
-                            if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
-                                // Then it is an update to the local symbol table. Apply it.
-                                update_current_symbol_table(symbol_table, ion_struct)
-                                    .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
-                                // And return no Value
-                                return Ok((rest, None));
-                            }
+                // And the annotations vector contains a first annotation (i.e. is non-empty)...
+                if let Some(symbol) = value.annotations.first() {
+                    // And the first annotation is not a null symbol...
+                    if let Some(token) = symbol {
+                        // And the value of the annotation is "$ion_symbol_table"...
+                        if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
+                            // Then it is an update to the local symbol table. Apply it.
+                            update_current_symbol_table(symbol_table, ion_struct)
+                                .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
+                            // And return no Value
+                            return Ok((rest, None));
                         }
                     }
                 }
@@ -114,7 +111,7 @@ fn parse_typed_value<'a>(
 fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Option<Value>> {
     Ok(Some(Value {
         value: data,
-        annotations: None,
+        annotations: vec![],
     }))
 }
 
@@ -971,7 +968,7 @@ fn parse_annotation<'a>(
                 .collect()
             {
                 Ok(annotations) => {
-                    value.annotations = Some(annotations);
+                    value.annotations = annotations;
                     Ok(value)
                 }
                 Result::Err(error) => Err(Err::Failure(IonError::from_symbol_error(

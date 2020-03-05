@@ -113,7 +113,7 @@ impl<'a> ValueIterator<'a> {
             // may give applications the ability to “skip over” the system values, since they are
             // generally irrelevant to the semantics of the user data.
 
-            // The current implementation treats shared symbol tables as a system value. This is due
+            // The current implementation treats shared symbol tables as system values. This is due
             // to the following paragraph of the spec:
 
             // This section defines the serialized form of shared symbol tables. Unlike local symbol
@@ -138,50 +138,24 @@ impl<'a> ValueIterator<'a> {
 }
 
 fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
-    let table = if let ion::Data::Struct(Some(s)) = &value.value {
-        s
-    } else {
-        return None;
-    };
-
-    let tagged_as_shared_symbol_table: bool =
-        value
-            .annotations
-            .as_ref()
-            .map_or(false, |annotations| match annotations.get(0) {
-                Some(Some(SymbolToken::Known { text })) if text == "$ion_shared_symbol_table" => {
-                    true
-                }
-                _ => false,
-            });
-
-    if tagged_as_shared_symbol_table {
-        Some(table)
-    } else {
-        None
+    match &value.value {
+        ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
+            Some(Some(SymbolToken::Known { text })) if text == "$ion_shared_symbol_table" => {
+                Some(table)
+            }
+            _ => None,
+        },
+        _ => None,
     }
 }
 
 fn as_local_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
-    let table = if let ion::Data::Struct(Some(s)) = &value.value {
-        s
-    } else {
-        return None;
-    };
-
-    let tagged_as_local_symbol_table: bool =
-        value
-            .annotations
-            .as_ref()
-            .map_or(false, |annotations| match annotations.get(0) {
-                Some(Some(SymbolToken::Known { text })) if text == "$ion_symbol_table" => true,
-                _ => false,
-            });
-
-    if tagged_as_local_symbol_table {
-        Some(table)
-    } else {
-        None
+    match &value.value {
+        ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
+            Some(Some(SymbolToken::Known { text })) if text == "$ion_symbol_table" => Some(table),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -262,7 +236,7 @@ struct IonVersionMarker(u32, u32);
 
 /// System values are NOPs, currently triggered by a symbol which matches the IVM.
 fn is_system_value(value: &ion::Value) -> bool {
-    !value.has_annotations()
+    value.annotations.is_empty()
         && value.value
             == ion::Data::Symbol(Some(SymbolToken::Known {
                 text: "$ion_1_0".to_owned(),
@@ -324,12 +298,6 @@ fn take_top_level_value(
             many0(map(take_annotation(table.clone()), Some)),
             take_top_level_data(table.clone()),
         )(i)?;
-
-        let annotations = if annotations.is_empty() {
-            None
-        } else {
-            Some(annotations)
-        };
 
         Ok((i, (ion::Value { value, annotations }, next_value)))
     }
@@ -420,16 +388,11 @@ where
                     rest_annotation.insert(0, Some(head_annotation));
                     Some(ion::Value {
                         value,
-                        annotations: Some(rest_annotation),
+                        annotations: rest_annotation,
                     })
                 },
             ),
-            map(&delimiter_parser, |value| {
-                Some(ion::Value {
-                    value,
-                    annotations: None,
-                })
-            }),
+            map(&delimiter_parser, |value| Some(value.into())),
             // TODO: do some more analysis of the ANTLR grammar to determine if this is covered by
             //  the spec or not (an eof is not explicitly mentioned at this item).
             value(None, peek(eof)),
@@ -445,11 +408,6 @@ where
 fn take_value(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Value> {
     move |i: &str| {
         map(take_value_parts(table.clone()), |(annotations, value)| {
-            let annotations = if annotations.is_empty() {
-                None
-            } else {
-                Some(annotations)
-            };
             ion::Value { value, annotations }
         })(i)
     }
@@ -778,14 +736,7 @@ fn take_sexp_value(
                 many0(map(take_annotation(table.clone()), Some)),
                 take_sexp_data(table.clone()),
             ),
-            |(annotations, (value, next))| {
-                let annotations = if annotations.is_empty() {
-                    None
-                } else {
-                    Some(annotations)
-                };
-                (ion::Value { value, annotations }, next)
-            },
+            |(annotations, (value, next))| (ion::Value { value, annotations }, next),
         )(i)
     }
 }
@@ -939,14 +890,7 @@ fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, io
                     take_entity(table.clone()),
                 ),
             ),
-            |(field, (annotations, value))| {
-                let annotations = if annotations.is_empty() {
-                    None
-                } else {
-                    Some(annotations)
-                };
-                (field, ion::Value { value, annotations })
-            },
+            |(field, (annotations, value))| (field, ion::Value { value, annotations }),
         )(i)
     }
 }
@@ -1533,7 +1477,7 @@ fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
 /// Helper for turning Vec<&str>s into BigInts. Or failing miserably.
 /// TODO: this should not pretend to be a parser, it should be mapped over parse results
 ///  see take_keyword_entity for an example
-fn str_to_bigint<'a, T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatError> {
+fn str_to_bigint<T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatError> {
     match BigInt::from_str_radix(digits.as_ref(), radix) {
         Ok(bigint) => Ok(bigint),
         Err(_) => Err(FormatError::Text(TextFormatError::BigInt(
