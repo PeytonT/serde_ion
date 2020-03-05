@@ -108,7 +108,7 @@ where
 #[allow(dead_code)]
 /// A helper method for debugging the text parser.
 /// Displays parser input and output (whether the output is an error or a successfully created object)
-fn dbg_dmp<Input, F, Output>(
+pub(crate) fn dbg_dmp<Input, F, Output>(
     context: &'static str,
     f: F,
 ) -> impl Fn(Input) -> IonResult<Input, Output>

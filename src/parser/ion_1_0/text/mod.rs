@@ -223,6 +223,8 @@ impl<'a> Iterator for ValueIterator<'a> {
             Err(e) => e,
         };
 
+        // If there is any remaining data after attempting to apply all parsers we return
+        // the error from the least picky parser (take_value).
         if self.remaining.is_empty() {
             None
         } else {
@@ -376,7 +378,7 @@ where
         };
 
         // Find the delimiter, which may be a quoted symbol for example
-        let (i, next) = cut(alt((
+        let (i, next) = alt((
             value(None, peek(many1(ws))),
             map(
                 pair(
@@ -393,10 +395,7 @@ where
                 },
             ),
             map(&delimiter_parser, |value| Some(value.into())),
-            // TODO: do some more analysis of the ANTLR grammar to determine if this is covered by
-            //  the spec or not (an eof is not explicitly mentioned at this item).
-            value(None, peek(eof)),
-        )))(i)?;
+        ))(i)?;
 
         Ok((i, (data, next)))
     }

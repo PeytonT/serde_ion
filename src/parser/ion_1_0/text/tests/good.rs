@@ -409,6 +409,7 @@ fn test_decimals_with_underscores() {
 
 #[test]
 fn test_decimals_with_terminating_eof() {
+    pretty_env_logger::try_init().ok();
     let result = parse_file(&test_path("good/decimalWithTerminatingEof.ion"));
 
     let expected = vec![decimal("123", "-2")];
