@@ -69,6 +69,29 @@ pub enum Data {
     Sexp(Option<Sexp>),
 }
 
+macro_rules! into_data {
+    ($from_type:ty, $variant:expr) => {
+        impl From<$from_type> for Data {
+            fn from(v: $from_type) -> Self {
+                $variant(Some(v))
+            }
+        }
+    };
+}
+
+into_data!(bool, Data::Bool);
+into_data!(BigInt, Data::Int);
+into_data!(f64, Data::Float);
+into_data!(Decimal, Data::Decimal);
+into_data!(Timestamp, Data::Timestamp);
+into_data!(String, Data::String);
+into_data!(SymbolToken, Data::Symbol);
+into_data!(Blob, Data::Blob);
+into_data!(Clob, Data::Clob);
+into_data!(Struct, Data::Struct);
+into_data!(List, Data::List);
+into_data!(Sexp, Data::Sexp);
+
 impl Data {
     pub fn to_text(&self) -> String {
         match self {
