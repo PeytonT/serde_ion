@@ -3,8 +3,10 @@ use nom::{
     error::{ErrorKind, ParseError},
     AsBytes, AsChar, Err, IResult, InputIter, InputLength, Slice,
 };
-use std::fmt::Debug;
-use std::ops::{RangeFrom, RangeTo};
+use std::{
+    fmt::Debug,
+    ops::{RangeFrom, RangeTo},
+};
 
 /// A collection of parser combinators for building Ion parsers. Mostly forked from nom for various reasons.
 /// FIXME: Modifying code from nom like this is unfortunate, and hopefully at some point will be unnecessary.

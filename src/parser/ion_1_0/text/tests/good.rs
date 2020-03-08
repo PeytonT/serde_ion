@@ -1,17 +1,15 @@
 use super::{
     annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
     int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data, string, symbol,
-    symbol_data, test_path,
-    time::{TextDate, TextTime},
-    timestamp, value, verify_tlvs,
+    symbol_data, test_path, time::TextDate, timestamp, value, verify_tlvs,
 };
-use crate::parser::ion_1_0::text::tests::{fractional_second, minute};
 use crate::{
+    parser::ion_1_0::text::tests::{fractional_second, minute},
     symbols::SymbolToken,
     value::{self as ion},
 };
 use core::iter;
-use num_bigint::{BigInt, BigUint};
+use num_bigint::BigUint;
 use time::UtcOffset;
 
 // TODO: find a way to guarantee that all good test files are checked
@@ -605,10 +603,6 @@ fn test_float_dbl_min() {
         float("2.2250738585072012e-00308"),
         float("2.2250738585072012997800001e-308"),
     ];
-
-    // TODO determine if this is a legitimate float or not.
-    // debatable whether this is a valid floating point repr.
-    //2.2250738585072012997800001e-308     // superfluous digits beyond digit 17
 
     verify_tlvs(expected, result);
 }
@@ -1487,7 +1481,7 @@ fn test_subfield_var_uint() {
     verify_tlvs(expected, result);
 }
 
-// TODO: need a sparse data structure for symbol tables before this test is reasonable.
+// TODO(#13): need a sparse data structure for symbol tables before this test is reasonable.
 #[ignore]
 #[test]
 fn test_subfield_var_uint_15bit() {
@@ -1498,7 +1492,7 @@ fn test_subfield_var_uint_15bit() {
     verify_tlvs(expected, result);
 }
 
-// TODO: need a sparse data structure for symbol tables before this test is reasonable.
+// TODO(#13): need a sparse data structure for symbol tables before this test is reasonable.
 #[ignore]
 #[test]
 fn test_subfield_var_uint_16bit() {
@@ -1509,7 +1503,7 @@ fn test_subfield_var_uint_16bit() {
     verify_tlvs(expected, result);
 }
 
-// TODO: need a sparse data structure for symbol tables before this test is reasonable.
+// TODO(#13): need a sparse data structure for symbol tables before this test is reasonable.
 #[ignore]
 #[test]
 fn test_subfield_var_uint_32bit() {

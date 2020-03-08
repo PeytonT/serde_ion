@@ -1,8 +1,6 @@
-use crate::error::TextFormatError;
-use crate::value::Timestamp;
+use crate::{error::TextFormatError, value::Timestamp};
 use num_bigint::BigUint;
-use std::convert::TryFrom;
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 use time::{ComponentRangeError, UtcOffset};
 
 #[derive(Clone, PartialEq)]

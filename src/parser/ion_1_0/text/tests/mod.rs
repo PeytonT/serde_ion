@@ -6,8 +6,8 @@ use super::*;
 use crate::parser::parse::parse_ion_text_1_0;
 use itertools::{EitherOrBoth, Itertools};
 use log::error;
-use std::convert::TryInto;
 use std::{
+    convert::TryInto,
     ffi::OsStr,
     fs::{self},
     io,
@@ -109,13 +109,6 @@ fn minute(hour: u8, minute: u8) -> TextTime {
     TextTime::Minute { hour, minute }
 }
 
-fn second(hour: u8, minute: u8, second: u8) -> TextTime {
-    TextTime::Second {
-        hour,
-        minute,
-        second,
-    }
-}
 fn fractional_second(
     hour: u8,
     minute: u8,
