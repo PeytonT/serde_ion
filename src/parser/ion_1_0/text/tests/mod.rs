@@ -6,6 +6,7 @@ use super::*;
 use crate::parser::parse::parse_ion_text_1_0;
 use itertools::{EitherOrBoth, Itertools};
 use log::error;
+use std::convert::TryInto;
 use std::{
     ffi::OsStr,
     fs::{self},
@@ -64,6 +65,7 @@ fn find_ion_text(dir: &Path) -> io::Result<Vec<PathBuf>> {
 /// Verifies a list of expected values against a list of actual parsed top level values.
 fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, String>) {
     if let Err(e) = actuals {
+        pretty_env_logger::try_init().ok();
         panic!("test failed: {}", e)
     }
 
@@ -75,6 +77,7 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
         match result {
             EitherOrBoth::Both(expected, actual) => {
                 if expected != actual {
+                    pretty_env_logger::try_init().ok();
                     error!(
                         "Failed on top level value {}:",
                         count + 1
@@ -102,14 +105,43 @@ fn boolean(b: bool) -> ion::Value {
     ion::Data::Bool(Some(b)).into()
 }
 
-fn timestamp(date: ion::Date, time: Option<ion::Time>) -> ion::Value {
-    timestamp_data(date, time).into()
+fn minute(hour: u8, minute: u8) -> TextTime {
+    TextTime::Minute { hour, minute }
 }
 
-fn timestamp_data(date: ion::Date, time: Option<ion::Time>) -> ion::Data {
-    ion::Data::Timestamp(Some(ion::Timestamp::Text(ion::TextTimestamp::new(
-        date, time,
-    ))))
+fn second(hour: u8, minute: u8, second: u8) -> TextTime {
+    TextTime::Second {
+        hour,
+        minute,
+        second,
+    }
+}
+fn fractional_second(
+    hour: u8,
+    minute: u8,
+    second: u8,
+    fraction_coefficient: BigUint,
+    fraction_exponent: i32,
+) -> TextTime {
+    TextTime::FractionalSecond {
+        hour,
+        minute,
+        second,
+        fraction_coefficient,
+        fraction_exponent,
+    }
+}
+
+fn timestamp(date: TextDate, time: Option<TextTime>, offset: Option<UtcOffset>) -> ion::Value {
+    timestamp_data(date, time, offset).into()
+}
+
+fn timestamp_data(date: TextDate, time: Option<TextTime>, offset: Option<UtcOffset>) -> ion::Data {
+    ion::Data::Timestamp(Some(
+        TextTimestamp::new(date, time, offset.unwrap_or(UtcOffset::UTC))
+            .try_into()
+            .unwrap(),
+    ))
 }
 
 fn decimal(coefficient: &str, exponent: &str) -> ion::Value {

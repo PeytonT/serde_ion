@@ -1,3 +1,4 @@
+use num_bigint::BigInt;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -67,6 +68,28 @@ pub enum BinaryFormatError {
     StructUnordered,
     #[error("invalid local symbol table")]
     LocalTable,
+    #[error("time component out of range: {0} - {1}")]
+    TimeComponentRange(TimeComponent, BigInt),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum TimeComponent {
+    #[error("offset")]
+    Offset,
+    #[error("year")]
+    Year,
+    #[error("month")]
+    Month,
+    #[error("day")]
+    Day,
+    #[error("hour")]
+    Hour,
+    #[error("minute")]
+    Minute,
+    #[error("second")]
+    Second,
+    #[error("fraction")]
+    Fraction,
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -77,8 +100,8 @@ pub enum TextFormatError {
     OpenShortString,
     #[error("unterminated long quoted string")]
     OpenLongString,
-    #[error("invalid bigint")]
-    BigUint,
+    #[error("invalid biguint: {0}")]
+    BigUint(String),
     #[error("invalid bigint: {0}")]
     BigInt(String),
     #[error("unable to decode Base64 value")]
@@ -91,4 +114,6 @@ pub enum TextFormatError {
     UnsupportedVersion(u32, u32),
     #[error("Ion Version Marker could not be parsed (int component too big)")]
     IvmParseError,
+    #[error("Date is too imprecise for time value presence")]
+    ImpreciseDate,
 }

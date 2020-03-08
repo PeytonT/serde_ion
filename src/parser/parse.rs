@@ -634,10 +634,10 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Data::Timestamp(Some(Timestamp::Year {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32)
-                }))
+                vec![Timestamp::Year {
+                    offset: 0,
+                    year: 2011
+                }
                 .into()]
             );
         }
@@ -651,11 +651,11 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Data::Timestamp(Some(Timestamp::Month {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32)
-                }))
+                vec![Timestamp::Month {
+                    offset: 0,
+                    year: 2011,
+                    month: 2
+                }
                 .into()]
             );
         }
@@ -669,12 +669,12 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Data::Timestamp(Some(Timestamp::Day {
-                    offset: BigInt::zero(),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32),
-                    day: BigUint::from(20u32)
-                }))
+                vec![Timestamp::Day {
+                    offset: 0,
+                    year: 2011,
+                    month: 2,
+                    day: 20
+                }
                 .into()]
             );
         }
@@ -688,17 +688,17 @@ mod tests {
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
                 value,
-                vec![Data::Timestamp(Some(Timestamp::FractionalSecond {
-                    offset: BigInt::from(-480i32),
-                    year: BigUint::from(2011u32),
-                    month: BigUint::from(2u32),
-                    day: BigUint::from(20u32),
-                    hour: BigUint::from(19u32),
-                    minute: BigUint::from(30u32),
-                    second: BigUint::from(59u32),
+                vec![Timestamp::FractionalSecond {
+                    offset: -480,
+                    year: 2011,
+                    month: 2,
+                    day: 20,
+                    hour: 19,
+                    minute: 30,
+                    second: 59,
                     fraction_coefficient: BigUint::from(100u32),
                     fraction_exponent: -3,
-                }))
+                }
                 .into()]
             );
         }

@@ -1,11 +1,13 @@
-use super::current_symbol_table::*;
-use super::subfield::*;
-use super::typed_value::*;
-use crate::error::{BinaryFormatError, FormatError};
-use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
-use crate::parser::parse_error::{IonError, IonResult};
-use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
-use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
+use super::{current_symbol_table::*, subfield::*, typed_value::*};
+use crate::{
+    error::{BinaryFormatError, FormatError, TimeComponent},
+    parser::{
+        ion_1_0::current_symbol_table::CurrentSymbolTable,
+        parse_error::{IonError, IonResult},
+    },
+    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
+    value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value},
+};
 use itertools::Itertools;
 use nom::{
     combinator::{all_consuming, complete},
@@ -15,9 +17,8 @@ use nom::{
     sequence::pair,
     Err,
 };
-use num_bigint::{BigInt, BigUint, Sign};
-use num_traits::identities::Zero;
-use num_traits::ToPrimitive;
+use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
+use num_traits::{identities::Zero, ToPrimitive};
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
@@ -422,11 +423,28 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>>
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
 fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timestamp>> {
+    fn time_error(i: &[u8], component: TimeComponent, value: BigInt) -> nom::Err<IonError<&[u8]>> {
+        Err::Failure(IonError::from_format_error(
+            i,
+            FormatError::Binary(BinaryFormatError::TimeComponentRange(component, value)),
+        ))
+    }
+
     match typed_value.length_code {
         LengthCode::L15 => Ok(None),
         _ => {
             let (rest, offset) = take_var_int(typed_value.rep)?;
+            let offset = offset
+                .to_i32()
+                .ok_or_else(|| time_error(typed_value.index, TimeComponent::Offset, offset))?;
             let (rest, year) = take_var_uint(rest)?;
+            let year = year.to_u16().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Year,
+                    year.to_bigint().unwrap(),
+                )
+            })?;
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
@@ -434,6 +452,13 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, month) = take_var_uint(rest)?;
+            let month = month.to_u8().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Month,
+                    month.to_bigint().unwrap(),
+                )
+            })?;
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
@@ -445,6 +470,13 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, day) = take_var_uint(rest)?;
+            let day = day.to_u8().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Day,
+                    day.to_bigint().unwrap(),
+                )
+            })?;
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
@@ -457,7 +489,21 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, hour) = take_var_uint(rest)?;
+            let hour = hour.to_u8().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Hour,
+                    hour.to_bigint().unwrap(),
+                )
+            })?;
             let (rest, minute) = take_var_uint(rest)?;
+            let minute = minute.to_u8().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Minute,
+                    minute.to_bigint().unwrap(),
+                )
+            })?;
 
             // Parsing complete with precision of Minute
             if rest.is_empty() {
@@ -472,6 +518,13 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, second) = take_var_uint(rest)?;
+            let second = second.to_u8().ok_or_else(|| {
+                time_error(
+                    typed_value.index,
+                    TimeComponent::Second,
+                    second.to_bigint().unwrap(),
+                )
+            })?;
 
             // Parsing complete with precision of Second
             if rest.is_empty() {

@@ -1,7 +1,9 @@
 #![warn(dead_code, unused_variables)]
 #[cfg(test)]
 mod tests;
+mod time;
 
+use self::time::{TextDate, TextTime, TextTimestamp};
 use crate::{
     error::{FormatError, SymbolError, TextFormatError},
     parser::{
@@ -12,6 +14,7 @@ use crate::{
     symbols::SymbolToken,
     value::{self as ion},
 };
+use ::time::UtcOffset;
 use log::warn;
 use nom::{
     self,
@@ -30,7 +33,7 @@ use nom::{
     AsBytes, AsChar, Compare, Err, ExtendInto, InputIter, InputLength, InputTake,
     InputTakeAtPosition, Offset, Slice,
 };
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{pow, Num, One, Zero};
 use std::{
     cell::RefCell,
@@ -42,7 +45,6 @@ use std::{
     rc::Rc,
     str::{self, from_utf8},
 };
-use time::UtcOffset;
 
 /// Follows the following documents:
 /// Ion Text Encoding: http://amzn.github.io/ion-docs/docs/text.html
@@ -1226,18 +1228,17 @@ fn take_bool(i: &str) -> IonResult<&str, bool> {
 ///     | YEAR 'T'
 ///     ;
 fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
-    let (i, timestamp) = map(
+    let (i, timestamp) = map_res(
         alt((
             map_res(
                 pair(take_date, opt(preceded(one_of("tT"), opt(take_time)))),
-                |((year, month, day), maybe_time)| match ion::Date::day(year, month, day) {
-                    Ok(date) => {
-                        if let Some(time) = maybe_time {
-                            Ok(ion::TextTimestamp::new(date, time))
-                        } else {
-                            Ok(ion::TextTimestamp::new(date, None))
+                |((year, month, day), maybe_time)| match TextDate::day(year as u16, month, day) {
+                    Ok(date) => match maybe_time {
+                        Some(Some((time, offset))) => {
+                            Ok(TextTimestamp::new(date, Some(time), offset))
                         }
-                    }
+                        _ => Ok(time::TextTimestamp::new(date, None, UtcOffset::UTC)),
+                    },
                     Err(e) => Err(e),
                 },
             ),
@@ -1247,13 +1248,15 @@ fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
                     separated_pair(take_year, char('-'), take_month),
                     one_of("tT"),
                 ),
-                |(year, month)| ion::TextTimestamp::new(ion::Date::Month { year, month }, None),
+                |(year, month)| {
+                    TextTimestamp::new(TextDate::month(year as u16, month), None, UtcOffset::UTC)
+                },
             ),
             map(terminated(take_year, one_of("tT")), |year| {
-                ion::TextTimestamp::new(ion::Date::Year { year }, None)
+                TextTimestamp::new(TextDate::year(year as u16), None, UtcOffset::UTC)
             }),
         )),
-        ion::Timestamp::Text,
+        ion::Timestamp::try_from,
     )(i)?;
 
     Ok((i, timestamp))
@@ -1350,34 +1353,28 @@ fn take_hour_and_minute(i: &str) -> IonResult<&str, (u8, u8)> {
     separated_pair(take_hour, char(COLON), take_minute)(i)
 }
 
-fn assemble_time_hm(hour: u8, minute: u8, offset: UtcOffset) -> ion::Time {
-    ion::Time::Minute {
-        hour,
-        minute,
-        offset,
-    }
+fn assemble_time_hm(hour: u8, minute: u8) -> TextTime {
+    TextTime::Minute { hour, minute }
 }
 
 fn assemble_time_hms(
     hour: u8,
     minute: u8,
     second: u8,
-    maybe_fractional: Option<BigInt>,
-    offset: UtcOffset,
-) -> ion::Time {
-    match maybe_fractional {
-        Some(fractional) => ion::Time::FractionalSecond {
+    maybe_fraction: Option<(BigUint, i32)>,
+) -> TextTime {
+    match maybe_fraction {
+        Some((fraction_coefficient, fraction_exponent)) => TextTime::FractionalSecond {
             hour,
             minute,
             second,
-            fractional,
-            offset,
+            fraction_coefficient,
+            fraction_exponent,
         },
-        None => ion::Time::Second {
+        None => TextTime::Second {
             hour,
             minute,
             second,
-            offset,
         },
     }
 }
@@ -1386,7 +1383,7 @@ fn assemble_time_hms(
 /// TIME
 ///     : HOUR ':' MINUTE (':' SECOND)? OFFSET
 ///     ;
-fn take_time(i: &str) -> IonResult<&str, ion::Time> {
+fn take_time(i: &str) -> IonResult<&str, (TextTime, UtcOffset)> {
     let (i, ((hour, minute), second, offset)) = tuple((
         take_hour_and_minute,
         opt(preceded(char(COLON), take_second)),
@@ -1394,11 +1391,11 @@ fn take_time(i: &str) -> IonResult<&str, ion::Time> {
     ))(i)?;
 
     let time = match second {
-        Some((second, fractional)) => assemble_time_hms(hour, minute, second, fractional, offset),
-        None => assemble_time_hm(hour, minute, offset),
+        Some((second, fraction)) => assemble_time_hms(hour, minute, second, fraction),
+        None => assemble_time_hm(hour, minute),
     };
 
-    Ok((i, time))
+    Ok((i, (time, offset)))
 }
 
 /// fragment
@@ -1452,21 +1449,27 @@ fn take_minute(i: &str) -> IonResult<&str, u8> {
     )(i)
 }
 
+type FractionalSecond = (BigUint, i32);
+
 /// note that W3C spec requires a digit after the '.'
 /// fragment
 /// SECOND
 ///     : [0-5] DEC_DIGIT ('.' DEC_DIGIT+)?
 ///     ;
-fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
-    let (i, s) = recognize(pair(one_of("012345"), one_if(is_dec_digit)))(i)?;
-    let (i, f) = opt(preceded(char('.'), take_while1(is_dec_digit)))(i)?;
-    let seconds = s
+fn take_second(i: &str) -> IonResult<&str, (u8, Option<FractionalSecond>)> {
+    let (i, seconds) = recognize(pair(one_of("012345"), one_if(is_dec_digit)))(i)?;
+    let (i, seconds_decimal) = opt(preceded(char('.'), take_while1(is_dec_digit)))(i)?;
+    let seconds = seconds
         .parse::<u8>()
         .expect("parser verified seconds should be valid u8");
-    if let Some(f) = f {
-        let fractional =
-            str_to_bigint(f, 10).map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
-        Ok((i, (seconds, Some(fractional))))
+    if let Some(decimal) = seconds_decimal {
+        let fraction_exponent = -(decimal.len() as i32);
+        let fraction_coefficient = str_to_biguint(decimal, 10)
+            .map_err(|e| Err::Failure(IonError::from_format_error(i, e)))?;
+        Ok((
+            i,
+            (seconds, Some((fraction_coefficient, fraction_exponent))),
+        ))
     } else {
         Ok((i, (seconds, None)))
     }
@@ -1476,9 +1479,17 @@ fn take_second(i: &str) -> IonResult<&str, (u8, Option<BigInt>)> {
 /// Encoding Section: Ion Int
 ///
 
-/// Helper for turning Vec<&str>s into BigInts. Or failing miserably.
-/// TODO: this should not pretend to be a parser, it should be mapped over parse results
-///  see take_keyword_entity for an example
+/// Helper for turning &str-ish values into BigInts.
+fn str_to_biguint<T: AsRef<str>>(digits: T, radix: u32) -> Result<BigUint, FormatError> {
+    match BigUint::from_str_radix(digits.as_ref(), radix) {
+        Ok(biguint) => Ok(biguint),
+        Err(_) => Err(FormatError::Text(TextFormatError::BigUint(
+            digits.as_ref().to_string(),
+        ))),
+    }
+}
+
+/// Helper for turning &str-ish values into BigInts.
 fn str_to_bigint<T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatError> {
     match BigInt::from_str_radix(digits.as_ref(), radix) {
         Ok(bigint) => Ok(bigint),
@@ -1488,7 +1499,7 @@ fn str_to_bigint<T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatE
     }
 }
 
-/// Helper for turning Vec<&str>s into BigUints. Or failing miserably.
+/// Helper for turning Vec<&str>s into BigInts.
 fn str_vec_to_bigint(vec: Vec<&str>, radix: u32) -> Result<BigInt, FormatError> {
     let digits: String = vec.concat();
     Ok(str_to_bigint(digits, radix)?)

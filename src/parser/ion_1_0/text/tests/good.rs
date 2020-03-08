@@ -1,14 +1,17 @@
+use super::{
+    annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
+    int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data, string, symbol,
+    symbol_data, test_path,
+    time::{TextDate, TextTime},
+    timestamp, value, verify_tlvs,
+};
+use crate::parser::ion_1_0::text::tests::{fractional_second, minute};
 use crate::{
-    parser::ion_1_0::text::tests::{
-        annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal,
-        float, int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data,
-        string, symbol, symbol_data, test_path, timestamp, value, verify_tlvs,
-    },
     symbols::SymbolToken,
     value::{self as ion},
 };
 use core::iter;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint};
 use time::UtcOffset;
 
 // TODO: find a way to guarantee that all good test files are checked
@@ -822,6 +825,7 @@ fn test_int_with_terminating_eof() {
 
 #[test]
 fn test_lists() {
+    pretty_env_logger::try_init().ok();
     let result = parse_file(&test_path("good/lists.ion"));
 
     let expected = vec![
@@ -860,7 +864,7 @@ fn test_lists() {
             symbol("qSymbol"),
             clob(b"clob data"),
             blob_encoded(b"YmxvYiBkYXRh"),
-            timestamp(ion::Date::day(1970, 6, 6).unwrap(), None),
+            timestamp(TextDate::day(1970, 6, 6).unwrap(), None, None),
             ion::Data::Struct(None).into(),
         ]),
         list(vec![
@@ -2154,40 +2158,26 @@ fn test_testfile25() {
     let result = parse_file(&test_path("good/testfile25.ion"));
 
     let expected = vec![sexp(vec![
-        timestamp(ion::Date::day(2007, 11, 20).unwrap(), None),
+        timestamp(TextDate::day(2007, 11, 20).unwrap(), None, None),
         timestamp(
-            ion::Date::day(2008, 12, 23).unwrap(),
-            Some(ion::Time::minute(23, 0, UtcOffset::UTC)),
+            TextDate::day(2008, 12, 23).unwrap(),
+            Some(minute(23, 0)),
+            Some(UtcOffset::UTC),
         ),
         timestamp(
-            ion::Date::day(2008, 12, 23).unwrap(),
-            Some(ion::Time::fractional_second(
-                23,
-                0,
-                1,
-                BigInt::from(123),
-                UtcOffset::east_hours(7),
-            )),
+            TextDate::day(2008, 12, 23).unwrap(),
+            Some(fractional_second(23, 0, 1, BigUint::from(123u32), -3)),
+            Some(UtcOffset::east_hours(7)),
         ),
         timestamp(
-            ion::Date::day(2008, 12, 23).unwrap(),
-            Some(ion::Time::fractional_second(
-                23,
-                0,
-                2,
-                BigInt::from(456),
-                UtcOffset::west_hours(6),
-            )),
+            TextDate::day(2008, 12, 23).unwrap(),
+            Some(fractional_second(23, 0, 2, BigUint::from(456u32), -3)),
+            Some(UtcOffset::west_hours(6)),
         ),
         timestamp(
-            ion::Date::day(2008, 12, 23).unwrap(),
-            Some(ion::Time::fractional_second(
-                23,
-                0,
-                3,
-                BigInt::from(789),
-                UtcOffset::east_hours(8),
-            )),
+            TextDate::day(2008, 12, 23).unwrap(),
+            Some(fractional_second(23, 0, 3, BigUint::from(789u32), -3)),
+            Some(UtcOffset::east_hours(8)),
         ),
     ])];
 
@@ -2265,39 +2255,30 @@ fn test_testfile33() {
         map_data(vec![
             (
                 "whenDate".into(),
-                timestamp(ion::Date::day(2007, 1, 31).unwrap(), None),
+                timestamp(TextDate::day(2007, 1, 31).unwrap(), None, None),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::minute(1, 2, UtcOffset::UTC)),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(minute(1, 2)),
+                    None,
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::fractional_second(
-                        1,
-                        4,
-                        5,
-                        BigInt::from(385),
-                        UtcOffset::UTC,
-                    )),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
+                    None,
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::fractional_second(
-                        1,
-                        4,
-                        5,
-                        BigInt::from(385),
-                        UtcOffset::east_minutes(60 + 11),
-                    )),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
+                    Some(UtcOffset::east_minutes(60 + 11)),
                 ),
             ),
         ]),
@@ -2345,39 +2326,30 @@ fn test_testfile35() {
         map_data(vec![
             (
                 "whenDate".into(),
-                timestamp(ion::Date::day(2007, 1, 31).unwrap(), None),
+                timestamp(TextDate::day(2007, 1, 31).unwrap(), None, None),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::minute(1, 2, UtcOffset::UTC)),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(minute(1, 2)),
+                    None,
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::fractional_second(
-                        1,
-                        4,
-                        5,
-                        BigInt::from(385),
-                        UtcOffset::UTC,
-                    )),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
+                    None,
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
-                    ion::Date::day(2007, 1, 31).unwrap(),
-                    Some(ion::Time::fractional_second(
-                        1,
-                        4,
-                        5,
-                        BigInt::from(385),
-                        UtcOffset::east_minutes(60 + 11),
-                    )),
+                    TextDate::day(2007, 1, 31).unwrap(),
+                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
+                    Some(UtcOffset::east_minutes(60 + 11)),
                 ),
             ),
         ]),

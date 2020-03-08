@@ -6,9 +6,7 @@ use std::str;
 
 use crate::symbols::SymbolToken;
 use base64::encode;
-use core::fmt;
 use num_bigint::{BigInt, BigUint};
-use time::ComponentRangeError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Value {
@@ -69,28 +67,34 @@ pub enum Data {
     Sexp(Option<Sexp>),
 }
 
-macro_rules! into_data {
-    ($from_type:ty, $variant:expr) => {
-        impl From<$from_type> for Data {
-            fn from(v: $from_type) -> Self {
-                $variant(Some(v))
+macro_rules! ion_type_promotions {
+    ($ion_type:ty, $data_variant:expr) => {
+        impl From<$ion_type> for Data {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value))
+            }
+        }
+
+        impl From<$ion_type> for Value {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value)).into()
             }
         }
     };
 }
 
-into_data!(bool, Data::Bool);
-into_data!(BigInt, Data::Int);
-into_data!(f64, Data::Float);
-into_data!(Decimal, Data::Decimal);
-into_data!(Timestamp, Data::Timestamp);
-into_data!(String, Data::String);
-into_data!(SymbolToken, Data::Symbol);
-into_data!(Blob, Data::Blob);
-into_data!(Clob, Data::Clob);
-into_data!(Struct, Data::Struct);
-into_data!(List, Data::List);
-into_data!(Sexp, Data::Sexp);
+ion_type_promotions!(bool, Data::Bool);
+ion_type_promotions!(BigInt, Data::Int);
+ion_type_promotions!(f64, Data::Float);
+ion_type_promotions!(Decimal, Data::Decimal);
+ion_type_promotions!(Timestamp, Data::Timestamp);
+ion_type_promotions!(String, Data::String);
+ion_type_promotions!(SymbolToken, Data::Symbol);
+ion_type_promotions!(Blob, Data::Blob);
+ion_type_promotions!(Clob, Data::Clob);
+ion_type_promotions!(Struct, Data::Struct);
+ion_type_promotions!(List, Data::List);
+ion_type_promotions!(Sexp, Data::Sexp);
 
 impl Data {
     pub fn to_text(&self) -> String {
@@ -171,186 +175,54 @@ pub enum Date {
     Day { date: time::Date },
 }
 
-impl Date {
-    pub(crate) fn day(year: i32, month: u8, day: u8) -> Result<Self, ComponentRangeError> {
-        let date = time::Date::try_from_ymd(year, month, day)?;
-        Ok(Date::Day { date })
-    }
-    pub(crate) fn month(year: i32, month: u8) -> Self {
-        Date::Month { year, month }
-    }
-    pub(crate) fn year(year: i32) -> Self {
-        Date::Year { year }
-    }
-}
-
-impl fmt::Debug for Date {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Date::Year { year } => format!("{:04}", year).fmt(f),
-            Date::Month { year, month } => format!("{:04}-{:02}", year, month).fmt(f),
-            Date::Day { date } => date.format("%Y-%m-%d").fmt(f),
-        }
-    }
-}
-
-#[derive(Clone, PartialEq)]
-pub enum Time {
-    Minute {
-        hour: u8,
-        minute: u8,
-        offset: time::UtcOffset,
-    },
-    Second {
-        hour: u8,
-        minute: u8,
-        second: u8,
-        offset: time::UtcOffset,
-    },
-    FractionalSecond {
-        hour: u8,
-        minute: u8,
-        second: u8,
-        fractional: BigInt,
-        offset: time::UtcOffset,
-    },
-}
-
-impl Time {
-    pub(crate) fn minute(hour: u8, minute: u8, offset: time::UtcOffset) -> Self {
-        Time::Minute {
-            hour,
-            minute,
-            offset,
-        }
-    }
-    pub(crate) fn second(hour: u8, minute: u8, second: u8, offset: time::UtcOffset) -> Self {
-        Time::Second {
-            hour,
-            minute,
-            second,
-            offset,
-        }
-    }
-    pub(crate) fn fractional_second(
-        hour: u8,
-        minute: u8,
-        second: u8,
-        fractional: BigInt,
-        offset: time::UtcOffset,
-    ) -> Self {
-        Time::FractionalSecond {
-            hour,
-            minute,
-            second,
-            fractional,
-            offset,
-        }
-    }
-}
-
-impl fmt::Debug for Time {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Time::Minute {
-                hour,
-                minute,
-                offset,
-            } => format!("{:02}:{:02}{}", hour, minute, offset.format("%z")).fmt(f),
-            Time::Second {
-                hour,
-                minute,
-                second,
-                offset,
-            } => format!(
-                "{:02}:{:02}:{:02}{}",
-                hour,
-                minute,
-                second,
-                offset.format("%z")
-            )
-            .fmt(f),
-            Time::FractionalSecond {
-                hour,
-                minute,
-                second,
-                fractional,
-                offset,
-            } => format!(
-                "{:02}:{:02}:{:02}.{}{:?}",
-                hour,
-                minute,
-                second,
-                fractional.to_string(),
-                offset.format("%z")
-            )
-            .fmt(f),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TextTimestamp {
-    date: Date,
-    time: Option<Time>,
-}
-
-impl TextTimestamp {
-    pub fn new(date: Date, time: Option<Time>) -> Self {
-        Self { date, time }
-    }
-}
-
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
-// TODO: Investigate performance impact of large_enum_variant
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
-    Text(TextTimestamp),
     Year {
-        offset: BigInt,
-        year: BigUint,
+        offset: i32,
+        year: u16,
     },
     Month {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
     },
     Day {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
     },
     Minute {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
     },
     Second {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
-        second: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
     },
     FractionalSecond {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
-        second: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
         fraction_coefficient: BigUint,
-        // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
+        // The restriction of fractional_exponent to u32 rather than BigInt should not pose an issue for any non-pathological use
         fraction_exponent: i32,
     },
 }
