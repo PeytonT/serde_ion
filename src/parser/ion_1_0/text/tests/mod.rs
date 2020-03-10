@@ -38,7 +38,7 @@ fn parse_file(file: &Path) -> Result<Vec<ion::Value>, String> {
     match fs::read_to_string(file) {
         Ok(data) => match parse_ion_text_1_0(&data) {
             Ok((_, v)) => Ok(v),
-            Err(e) => Err(e.to_string()),
+            Err(err) => Err(format!("{:?}", err)),
         },
         Err(e) => Err(e.to_string()),
     }
