@@ -222,7 +222,7 @@ pub enum Timestamp {
         minute: u8,
         second: u8,
         fraction_coefficient: BigUint,
-        // The restriction of fractional_exponent to u32 rather than BigInt should not pose an issue for any non-pathological use
+        // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
         fraction_exponent: i32,
     },
 }
