@@ -1,11 +1,13 @@
-use super::current_symbol_table::*;
-use super::subfield::*;
-use super::typed_value::*;
-use crate::error::{BinaryFormatError, FormatError};
-use crate::parser::ion_1_0::current_symbol_table::CurrentSymbolTable;
-use crate::parser::parse_error::{IonError, IonResult};
-use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1};
-use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
+use super::{current_symbol_table::*, subfield::*, typed_value::*};
+use crate::{
+    error::{BinaryFormatError, FormatError, TimeComponent},
+    parser::{
+        ion_1_0::current_symbol_table::CurrentSymbolTable,
+        parse_error::{IonError, IonResult},
+    },
+    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
+    value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value},
+};
 use itertools::Itertools;
 use nom::{
     combinator::{all_consuming, complete},
@@ -15,9 +17,8 @@ use nom::{
     sequence::pair,
     Err,
 };
-use num_bigint::{BigInt, BigUint, Sign};
-use num_traits::identities::Zero;
-use num_traits::ToPrimitive;
+use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
+use num_traits::{identities::Zero, ToPrimitive};
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
@@ -41,19 +42,17 @@ fn parse_top_level_value<'a, 'b>(
         Ok((rest, Some(value))) => {
             // If the value is a Struct...
             if let Data::Struct(ion_struct) = &value.value {
-                // And it has an annotations vector...
-                if let Some(annotations) = &value.annotations {
-                    // And the annotations vector contains a first annotation (i.e. is non-empty)...
-                    if let Some(symbol) = annotations.first() {
-                        // And the first annotation is not a null symbol...
-                        if let Some(token) = symbol {
-                            // And the value of the annotation is "$ion_symbol_table"...
-                            if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
-                                // Then it is an update to the local symbol table. Apply it.
-                                update_current_symbol_table(symbol_table, ion_struct);
-                                // And return no Value
-                                return Ok((rest, None));
-                            }
+                // And the annotations vector contains a first annotation (i.e. is non-empty)...
+                if let Some(symbol) = value.annotations.first() {
+                    // And the first annotation is not a null symbol...
+                    if let Some(token) = symbol {
+                        // And the value of the annotation is "$ion_symbol_table"...
+                        if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
+                            // Then it is an update to the local symbol table. Apply it.
+                            update_current_symbol_table(symbol_table, ion_struct)
+                                .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
+                            // And return no Value
+                            return Ok((rest, None));
                         }
                     }
                 }
@@ -113,7 +112,7 @@ fn parse_typed_value<'a>(
 fn wrap_data<'a>(data: Data) -> ParseResult<&'a [u8], Option<Value>> {
     Ok(Some(Value {
         value: data,
-        annotations: None,
+        annotations: vec![],
     }))
 }
 
@@ -428,7 +427,32 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
         LengthCode::L15 => Ok(None),
         _ => {
             let (rest, offset) = take_var_int(typed_value.rep)?;
+            let offset = match offset.to_i32() {
+                Some(offset) => offset,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Offset,
+                            offset,
+                        )),
+                    )))
+                }
+            };
+
             let (rest, year) = take_var_uint(rest)?;
+            let year = match year.to_u16() {
+                Some(year) => year,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Year,
+                            year.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
@@ -436,6 +460,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, month) = take_var_uint(rest)?;
+            let month = match month.to_u8() {
+                Some(month) => month,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Month,
+                            month.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
@@ -447,6 +483,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, day) = take_var_uint(rest)?;
+            let day = match day.to_u8() {
+                Some(day) => day,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Day,
+                            day.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
@@ -459,7 +507,31 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, hour) = take_var_uint(rest)?;
+            let hour = match hour.to_u8() {
+                Some(hour) => hour,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Hour,
+                            hour.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
             let (rest, minute) = take_var_uint(rest)?;
+            let minute = match minute.to_u8() {
+                Some(minute) => minute,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Minute,
+                            minute.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Minute
             if rest.is_empty() {
@@ -474,6 +546,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, second) = take_var_uint(rest)?;
+            let second = match second.to_u8() {
+                Some(second) => second,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Second,
+                            second.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Second
             if rest.is_empty() {
@@ -970,7 +1054,7 @@ fn parse_annotation<'a>(
                 .collect()
             {
                 Ok(annotations) => {
-                    value.annotations = Some(annotations);
+                    value.annotations = annotations;
                     Ok(value)
                 }
                 Result::Err(error) => Err(Err::Failure(IonError::from_symbol_error(

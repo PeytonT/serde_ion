@@ -6,13 +6,34 @@ use std::str;
 
 use crate::symbols::SymbolToken;
 use base64::encode;
-use num_bigint::BigInt;
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Value {
     pub value: Data,
-    pub annotations: Option<Vec<Option<SymbolToken>>>,
+    pub annotations: Vec<Option<SymbolToken>>,
+}
+
+impl Value {
+    pub(crate) fn has_annotation(&self, annotation: &str) -> bool {
+        for token in &self.annotations {
+            match token {
+                Some(SymbolToken::Known { text }) if text.as_str() == annotation => return true,
+                _ => (),
+            }
+        }
+
+        false
+    }
+}
+
+impl From<Data> for Value {
+    fn from(value: Data) -> Self {
+        Self {
+            value,
+            annotations: vec![],
+        }
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -45,6 +66,35 @@ pub enum Data {
     // sexp - Ordered collections of values with application-defined semantics
     Sexp(Option<Sexp>),
 }
+
+macro_rules! ion_type_promotions {
+    ($ion_type:ty, $data_variant:expr) => {
+        impl From<$ion_type> for Data {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value))
+            }
+        }
+
+        impl From<$ion_type> for Value {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value)).into()
+            }
+        }
+    };
+}
+
+ion_type_promotions!(bool, Data::Bool);
+ion_type_promotions!(BigInt, Data::Int);
+ion_type_promotions!(f64, Data::Float);
+ion_type_promotions!(Decimal, Data::Decimal);
+ion_type_promotions!(Timestamp, Data::Timestamp);
+ion_type_promotions!(String, Data::String);
+ion_type_promotions!(SymbolToken, Data::Symbol);
+ion_type_promotions!(Blob, Data::Blob);
+ion_type_promotions!(Clob, Data::Clob);
+ion_type_promotions!(Struct, Data::Struct);
+ion_type_promotions!(List, Data::List);
+ion_type_promotions!(Sexp, Data::Sexp);
 
 impl Data {
     pub fn to_text(&self) -> String {
@@ -118,53 +168,59 @@ impl Decimal {
     }
 }
 
+#[derive(Clone, PartialEq)]
+pub enum Date {
+    Year { year: i32 },
+    Month { year: i32, month: u8 },
+    Day { date: time::Date },
+}
+
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
-// TODO: Investigate performance impact of large_enum_variant
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
     Year {
-        offset: BigInt,
-        year: BigUint,
+        offset: i32,
+        year: u16,
     },
     Month {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
     },
     Day {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
     },
     Minute {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
     },
     Second {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
-        second: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
     },
     FractionalSecond {
-        offset: BigInt,
-        year: BigUint,
-        month: BigUint,
-        day: BigUint,
-        hour: BigUint,
-        minute: BigUint,
-        second: BigUint,
+        offset: i32,
+        year: u16,
+        month: u8,
+        day: u8,
+        hour: u8,
+        minute: u8,
+        second: u8,
         fraction_coefficient: BigUint,
         // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
         fraction_exponent: i32,
@@ -235,6 +291,15 @@ impl List {
     }
 }
 
+impl IntoIterator for List {
+    type Item = Value;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.into_iter()
+    }
+}
+
 // sexp - Ordered collections of values with application-defined semantics
 // A subset of symbols called identifiers can be denoted in text without single-quotes.
 // An identifier is a sequence of ASCII letters, digits, or the
@@ -251,5 +316,14 @@ pub struct Sexp {
 impl Sexp {
     pub fn to_text(&self) -> String {
         todo!()
+    }
+}
+
+impl IntoIterator for Sexp {
+    type Item = Value;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.values.into_iter()
     }
 }

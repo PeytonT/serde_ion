@@ -1,3 +1,4 @@
+use num_bigint::BigInt;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -23,6 +24,14 @@ pub enum SymbolError {
     UnknownSymbolText(usize),
     #[error("the text for SID `{0}` is undefined")]
     UndefinedSymbolText(usize),
+    #[error("the provided symbol table is invalid")]
+    InvalidSymbolTable,
+    #[error("invalid max_id for import in symbol table: {0:?}")]
+    InvalidMaxId(String),
+    #[error("unsupported version for import in symbol table: {0:?}")]
+    UnsupportedVersion(String),
+    #[error("invalid SID (outside numeric range): {0:?}")]
+    SidTooLarge(String),
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -59,10 +68,52 @@ pub enum BinaryFormatError {
     StructUnordered,
     #[error("invalid local symbol table")]
     LocalTable,
+    #[error("time component out of range: {0} - {1}")]
+    TimeComponentRange(TimeComponent, BigInt),
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum TimeComponent {
+    #[error("offset")]
+    Offset,
+    #[error("year")]
+    Year,
+    #[error("month")]
+    Month,
+    #[error("day")]
+    Day,
+    #[error("hour")]
+    Hour,
+    #[error("minute")]
+    Minute,
+    #[error("second")]
+    Second,
+    #[error("fraction")]
+    Fraction,
 }
 
 #[derive(Error, Debug, PartialEq)]
 pub enum TextFormatError {
-    #[error("TODO")]
-    TODO,
+    #[error("invalid hex escape: {0}")]
+    HexEscape(String),
+    #[error("unterminated short quoted string")]
+    OpenShortString,
+    #[error("unterminated long quoted string")]
+    OpenLongString,
+    #[error("invalid biguint: {0}")]
+    BigUint(String),
+    #[error("invalid bigint: {0}")]
+    BigInt(String),
+    #[error("unable to decode Base64 value")]
+    Base64Decode,
+    #[error("unable to parse float value: {0}")]
+    FloatParse(String),
+    #[error("date out of range (invalid day)")]
+    DateOutOfRange,
+    #[error("Ion Version Marker indicates an unsupported version of Ion: {0}.{1}")]
+    UnsupportedVersion(u32, u32),
+    #[error("Ion Version Marker could not be parsed (int component too big)")]
+    IvmParseError,
+    #[error("Date is too imprecise for time value presence")]
+    ImpreciseDate,
 }

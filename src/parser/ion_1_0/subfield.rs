@@ -2,15 +2,13 @@ use std::iter;
 
 use crate::parser::parse_error::{IonError, IonResult};
 use bit_vec::BitVec;
-use nom::error::ParseError;
 use nom::{
     bytes::complete::{take, take_while},
-    error::ErrorKind,
+    error::{ErrorKind, ParseError},
     Err,
 };
 use num_bigint::{BigInt, BigUint, Sign};
-use num_traits::cast::ToPrimitive;
-use num_traits::identities::Zero;
+use num_traits::{cast::ToPrimitive, identities::Zero};
 
 /// ## Basic Field Formats
 ///

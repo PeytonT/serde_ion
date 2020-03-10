@@ -1,6 +1,8 @@
 use super::subfield::*;
-use crate::error::{BinaryFormatError, FormatError};
-use crate::parser::parse_error::{IonError, IonResult};
+use crate::{
+    error::{BinaryFormatError, FormatError},
+    parser::parse_error::{IonError, IonResult},
+};
 use nom::{bytes::complete::take, Err};
 use num_traits::cast::FromPrimitive;
 
@@ -315,10 +317,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn type_code_has_no_17th_variant() {
         let sixteen: u8 = 0b0001_0000;
-        let type_code: TypeCode = TypeCode::from_u8(sixteen).unwrap();
+        let type_code: Option<TypeCode> = TypeCode::from_u8(sixteen);
+        assert_eq!(type_code, None);
     }
 
     #[test]
@@ -329,9 +331,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn length_code_has_no_17th_variant() {
         let sixteen: u8 = 0b0001_0000;
-        let length_code: LengthCode = LengthCode::from_u8(sixteen).unwrap();
+        let length_code: Option<LengthCode> = LengthCode::from_u8(sixteen);
+        assert_eq!(length_code, None);
     }
 }
