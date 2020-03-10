@@ -423,28 +423,36 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>>
 /// text encoding are in the local time! This means that transcoding requires a conversion between
 /// UTC and local time.
 fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timestamp>> {
-    fn time_error(i: &[u8], component: TimeComponent, value: BigInt) -> nom::Err<IonError<&[u8]>> {
-        Err::Failure(IonError::from_format_error(
-            i,
-            FormatError::Binary(BinaryFormatError::TimeComponentRange(component, value)),
-        ))
-    }
-
     match typed_value.length_code {
         LengthCode::L15 => Ok(None),
         _ => {
             let (rest, offset) = take_var_int(typed_value.rep)?;
-            let offset = offset
-                .to_i32()
-                .ok_or_else(|| time_error(typed_value.index, TimeComponent::Offset, offset))?;
+            let offset = match offset.to_i32() {
+                Some(offset) => offset,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Offset,
+                            offset,
+                        )),
+                    )))
+                }
+            };
+
             let (rest, year) = take_var_uint(rest)?;
-            let year = year.to_u16().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Year,
-                    year.to_bigint().unwrap(),
-                )
-            })?;
+            let year = match year.to_u16() {
+                Some(year) => year,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Year,
+                            year.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
@@ -452,13 +460,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, month) = take_var_uint(rest)?;
-            let month = month.to_u8().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Month,
-                    month.to_bigint().unwrap(),
-                )
-            })?;
+            let month = match month.to_u8() {
+                Some(month) => month,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Month,
+                            month.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
@@ -470,13 +483,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, day) = take_var_uint(rest)?;
-            let day = day.to_u8().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Day,
-                    day.to_bigint().unwrap(),
-                )
-            })?;
+            let day = match day.to_u8() {
+                Some(day) => day,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Day,
+                            day.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
@@ -489,21 +507,31 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, hour) = take_var_uint(rest)?;
-            let hour = hour.to_u8().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Hour,
-                    hour.to_bigint().unwrap(),
-                )
-            })?;
+            let hour = match hour.to_u8() {
+                Some(hour) => hour,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Hour,
+                            hour.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
             let (rest, minute) = take_var_uint(rest)?;
-            let minute = minute.to_u8().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Minute,
-                    minute.to_bigint().unwrap(),
-                )
-            })?;
+            let minute = match minute.to_u8() {
+                Some(minute) => minute,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Minute,
+                            minute.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Minute
             if rest.is_empty() {
@@ -518,13 +546,18 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
             }
 
             let (rest, second) = take_var_uint(rest)?;
-            let second = second.to_u8().ok_or_else(|| {
-                time_error(
-                    typed_value.index,
-                    TimeComponent::Second,
-                    second.to_bigint().unwrap(),
-                )
-            })?;
+            let second = match second.to_u8() {
+                Some(second) => second,
+                None => {
+                    return Err(Err::Failure(IonError::from_format_error(
+                        typed_value.index,
+                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                            TimeComponent::Second,
+                            second.to_bigint().unwrap(),
+                        )),
+                    )))
+                }
+            };
 
             // Parsing complete with precision of Second
             if rest.is_empty() {
