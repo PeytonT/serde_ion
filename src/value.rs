@@ -168,13 +168,6 @@ impl Decimal {
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub enum Date {
-    Year { year: i32 },
-    Month { year: i32, month: u8 },
-    Day { date: time::Date },
-}
-
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
