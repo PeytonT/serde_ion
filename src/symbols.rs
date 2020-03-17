@@ -249,6 +249,8 @@ pub struct SystemSymbolTable {
     pub symbols: [SymbolToken; 10],
 }
 
+pub const SYSTEM_SYMBOL_TABLE_V1_SIZE: usize = 10;
+
 lazy_static! {
     pub static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {
         SystemSymbolTable {

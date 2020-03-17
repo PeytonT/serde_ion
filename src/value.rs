@@ -36,7 +36,6 @@ impl From<Data> for Value {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Data {
     // null - A generic null value
@@ -171,7 +170,6 @@ impl Decimal {
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
-#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
     Year {
