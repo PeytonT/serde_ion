@@ -1,5 +1,6 @@
 use super::subfield::*;
 use crate::{
+    binary::{TypeCode, LengthCode},
     error::{BinaryFormatError, FormatError},
     parser::parse_error::{IonError, IonResult},
 };
@@ -67,9 +68,10 @@ use num_traits::cast::FromPrimitive;
 
 /// A partially-processed value from an Ion stream
 ///
-/// Contains information required to complete processing or to skip over the value.
+/// This partially-processed form exists to support skip-searching over a value stream.
+/// It contains information required to complete processing or to skip over the value.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TypedValue<'a> {
+pub(crate) struct TypedValue<'a> {
     /// The type code T from the type descriptor
     pub type_code: TypeCode,
     /// The four-bit length L from the type descriptor.
@@ -83,60 +85,8 @@ pub struct TypedValue<'a> {
     pub rep: &'a [u8],
 }
 
-/// The possible values of the type code of a Typed Value
-///
-/// # Panics
-///
-/// While TypeCode itself obviously does not have any mechanism to originate a panic, other code
-/// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
-#[derive(Clone, Debug, PartialEq, FromPrimitive, Copy)]
-pub enum TypeCode {
-    Null = 0,
-    Bool = 1,
-    PosInt = 2,
-    NegInt = 3,
-    Float = 4,
-    Decimal = 5,
-    Timestamp = 6,
-    Symbol = 7,
-    String = 8,
-    Clob = 9,
-    Blob = 10,
-    List = 11,
-    Sexp = 12,
-    Struct = 13,
-    Annotation = 14,
-    Reserved = 15,
-}
-
-/// The possible values of the length field of a Typed Value
-///
-/// # Panics
-///
-/// While LengthCode itself obviously does not have any mechanism to originate a panic, other code
-/// depends via the FromPrimitive derivation on the fact that there are 16 variants of this enum.
-#[derive(Clone, Debug, PartialEq, FromPrimitive, Copy)]
-pub enum LengthCode {
-    L0 = 0,
-    L1 = 1,
-    L2 = 2,
-    L3 = 3,
-    L4 = 4,
-    L5 = 5,
-    L6 = 6,
-    L7 = 7,
-    L8 = 8,
-    L9 = 9,
-    L10 = 10,
-    L11 = 11,
-    L12 = 12,
-    L13 = 13,
-    L14 = 14,
-    L15 = 15,
-}
-
 /// Exists to support skip-searching over a value stream.
-pub fn take_typed_value(index: &[u8]) -> IonResult<&[u8], TypedValue> {
+pub(crate) fn take_typed_value(index: &[u8]) -> IonResult<&[u8], TypedValue> {
     let (rest, descriptor_byte) = take(1usize)(index)?;
     let type_code: TypeCode = TypeCode::from_u8(descriptor_byte[0] >> 4).unwrap();
     let length_code: LengthCode = LengthCode::from_u8(descriptor_byte[0] & 0b0000_1111).unwrap();
@@ -300,40 +250,5 @@ fn take_representation_length(
             _ => (input, 0),
         };
         Ok((rest, length))
-    }
-}
-
-#[allow(non_snake_case)]
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn type_code_has_16_variants() {
-        let fifteen: u8 = 0b0000_1111;
-        let type_code: TypeCode = TypeCode::from_u8(fifteen).unwrap();
-        assert_eq!(type_code, TypeCode::Reserved);
-    }
-
-    #[test]
-    fn type_code_has_no_17th_variant() {
-        let sixteen: u8 = 0b0001_0000;
-        let type_code: Option<TypeCode> = TypeCode::from_u8(sixteen);
-        assert_eq!(type_code, None);
-    }
-
-    #[test]
-    fn length_code_has_16_variants() {
-        let fifteen: u8 = 0b0000_1111;
-        let length_code: LengthCode = LengthCode::from_u8(fifteen).unwrap();
-        assert_eq!(length_code, LengthCode::L15);
-    }
-
-    #[test]
-    fn length_code_has_no_17th_variant() {
-        let sixteen: u8 = 0b0001_0000;
-        let length_code: Option<LengthCode> = LengthCode::from_u8(sixteen);
-        assert_eq!(length_code, None);
     }
 }

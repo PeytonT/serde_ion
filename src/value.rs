@@ -22,7 +22,6 @@ impl Value {
                 _ => (),
             }
         }
-
         false
     }
 }
