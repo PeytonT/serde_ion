@@ -1,4 +1,8 @@
-use super::{current_symbol_table::*, subfield::*, typed_value::*};
+mod subfield;
+mod typed_value;
+
+use super::{current_symbol_table::*};
+use self::{subfield::*, typed_value::*};
 use crate::{
     error::{BinaryFormatError, FormatError, TimeComponent},
     parser::{
