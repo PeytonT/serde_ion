@@ -109,13 +109,12 @@ pub(crate) enum LengthCode {
     L15 = 15,
 }
 
-
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
     use num_traits::cast::FromPrimitive;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn type_code_has_16_variants() {

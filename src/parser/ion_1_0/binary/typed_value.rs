@@ -1,6 +1,6 @@
 use super::subfield::*;
 use crate::{
-    binary::{TypeCode, LengthCode},
+    binary::{LengthCode, TypeCode},
     error::{BinaryFormatError, FormatError},
     parser::parse_error::{IonError, IonResult},
 };

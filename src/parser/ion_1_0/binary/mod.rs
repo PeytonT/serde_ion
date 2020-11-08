@@ -1,10 +1,10 @@
 mod subfield;
 mod typed_value;
 
-use super::{current_symbol_table::*};
 use self::{subfield::*, typed_value::*};
+use super::current_symbol_table::*;
 use crate::{
-binary::{TypeCode, LengthCode},
+    binary::{LengthCode, TypeCode},
     error::{BinaryFormatError, FormatError, TimeComponent},
     parser::{
         ion_1_0::current_symbol_table::CurrentSymbolTable,

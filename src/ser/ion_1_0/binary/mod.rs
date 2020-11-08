@@ -1,5 +1,6 @@
 mod subfield;
 
+use self::subfield::*;
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
 use crate::value::{Data, Value};
@@ -42,8 +43,8 @@ impl Writer {
         }
     }
 
-    /// Writes the current segment to bytes, consisting of the IVM for the current Ion version,
-    /// the accumulated additions to the symbol table, and the buffered values.
+    // Writes the current segment to bytes, consisting of the IVM for the current Ion version,
+    // the accumulated additions to the symbol table, and the buffered values.
     pub fn write(&mut self) {
         // There's only one version currently, but perhaps someday there will be more.
         match self.current_version {
@@ -77,9 +78,9 @@ impl Writer {
         self.value_buffer.push(value);
     }
 
-    /// Absorbs the accumulated symbols in the symbol buffer into the local symbol table.
-    /// If there is a current symbol table it will be imported and extended, and otherwise a new
-    /// local symbol table will be created.
+    // Absorbs the accumulated symbols in the symbol buffer into the local symbol table.
+    // If there is a current symbol table it will be imported and extended, and otherwise a new
+    // local symbol table will be created.
     fn update_symbol_table_v1_0(&mut self) {
         // Steal the accumulator's counting map and reset the accumulator.
         let mut symbol_counts: HashMap<String, i32> = replace(
@@ -231,3 +232,544 @@ struct LocalSymbolTable {
     // Informs table serialization logic of whether there is a preceding table that should be imported.
     import_previous_table: bool,
 }
+
+// Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
+fn append_value(bytes: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {
+    if value.annotations.is_empty() {}
+}
+
+// ### 0: null
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// Null value |    0    |    15   |
+//            +---------+---------+
+// ```
+//
+// Values of type null always have empty lengths and representations.
+// The only valid L value is 15, representing the only value of this type, null.null.
+//
+// NOP Padding
+//
+// ```text
+//          7       4 3       0
+//         +---------+---------+
+// NOP Pad |    0    |    L    |
+//         +---------+---------+======+
+//         :     length [VarUInt]     :
+//         +--------------------------+
+//         |      ignored octets      |
+//         +--------------------------+
+// ```
+//
+// In addition to null.null, the null type code is used to encode padding that has no operation
+// (NOP padding). This can be used for “binary whitespace” when alignment of octet boundaries is
+// needed or to support in-place editing. Such encodings are not considered values and are ignored
+// by the processor.
+//
+// In this encoding, L specifies the number of octets that should be ignored.
+//
+// The following is a single byte NOP pad. The NOP padding typedesc bytes are counted as padding:
+//
+// 0x00
+//
+// The following is a two byte NOP pad:
+//
+// 0x01 0xFE
+//
+// Note that the single byte of “payload” 0xFE is arbitrary and ignored by the parser.
+//
+// The following is a 16 byte NOP pad:
+//
+// 0x0E 0x8E 0x00 ... <12 arbitrary octets> ... 0x00
+//
+// NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
+// NOP padding in struct requires additional encoding considerations.
+fn append_null(bytes: &mut Vec<u8>) {
+    bytes.push(0b0000_1111);
+}
+
+fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
+    // Size is notably the total size of the padding, not the size of the payload.
+    // As a result the VarUInt transition is at 15, rather than at 14, and the value of the
+    // descriptor byte up to the transition is one less than the value of size.
+
+    // Maximum NOP Pad size that can be represented with a one-byte VarUInt length, taking into account that one byte
+    // will be needed for the type descriptor and one byte will be needed for the length.
+    const ONE_BYTE_VARUINT_CUTOFF: usize = ONE_BYTE_VARUINT_RANGE_UPPER + 1 + 1;
+
+    // NOP Pad size range that can be represented with a two-byte VarUInt length, taking into account that one byte
+    // will be needed for the type descriptor and two bytes will be needed for the length.
+    const TWO_BYTE_VARUINT_START: usize = ONE_BYTE_VARUINT_CUTOFF + 1;
+    const TWO_BYTE_VARUINT_CUTOFF: usize = TWO_BYTE_VARUINT_RANGE_UPPER + 1 + 2;
+
+    // NOP Pad size range that can be represented with a three-byte VarUInt length, taking into account that one byte
+    // will be needed for the type descriptor and three bytes will be needed for the length.
+    const THREE_BYTE_VARUINT_START: usize = TWO_BYTE_VARUINT_CUTOFF + 1;
+    const THREE_BYTE_VARUINT_CUTOFF: usize = THREE_BYTE_VARUINT_RANGE_UPPER + 1 + 3;
+
+    // NOP Pad size range that can be represented with a four-byte VarUInt length, taking into account that one byte
+    // will be needed for the type descriptor and four bytes will be needed for the length.
+    const FOUR_BYTE_VARUINT_FOUR: usize = THREE_BYTE_VARUINT_CUTOFF + 1;
+    const FOUR_BYTE_VARUINT_CUTOFF: usize = FOUR_BYTE_VARUINT_RANGE_UPPER + 1 + 4;
+
+    match size {
+        0 => {}
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        1  => bytes.extend_from_slice(&[0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        2  => bytes.extend_from_slice(&[0b0000_0001, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        3  => bytes.extend_from_slice(&[0b0000_0010, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        4  => bytes.extend_from_slice(&[0b0000_0011, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        5  => bytes.extend_from_slice(&[0b0000_0100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        6  => bytes.extend_from_slice(&[0b0000_0101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        7  => bytes.extend_from_slice(&[0b0000_0110, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        8  => bytes.extend_from_slice(&[0b0000_0111, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        9  => bytes.extend_from_slice(&[0b0000_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        10 => bytes.extend_from_slice(&[0b0000_1001, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        11 => bytes.extend_from_slice(&[0b0000_1010, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        12 => bytes.extend_from_slice(&[0b0000_1011, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        13 => bytes.extend_from_slice(&[0b0000_1100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        14 => bytes.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        15..=ONE_BYTE_VARUINT_CUTOFF => {
+            bytes.push(0b0000_1110);
+            append_var_uint_length(bytes, size - 2);
+            bytes.extend(vec![0; size - 2]);
+        }
+        TWO_BYTE_VARUINT_START..=TWO_BYTE_VARUINT_CUTOFF => {
+            bytes.push(0b0000_1110);
+            append_var_uint_length(bytes, size - 3);
+            bytes.extend(vec![0; size - 3]);
+        }
+        THREE_BYTE_VARUINT_START..=THREE_BYTE_VARUINT_CUTOFF => {
+            bytes.push(0b0000_1110);
+            append_var_uint_length(bytes, size - 4);
+            bytes.extend(vec![0; size - 4]);
+        }
+        FOUR_BYTE_VARUINT_FOUR..=FOUR_BYTE_VARUINT_CUTOFF => {
+            bytes.push(0b0000_1110);
+            append_var_uint_length(bytes, size - 5);
+            bytes.extend(vec![0; size - 5]);
+        }
+        _ => {
+            panic!(
+                "Maximum supported size for a NOP Pad is {} bytes. Size of {} requested.",
+                FOUR_BYTE_VARUINT_CUTOFF, size
+            );
+        }
+    }
+}
+
+// ### 1: bool
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// Bool value |    1    |   rep   |
+//            +---------+---------+
+// ```
+//
+// Values of type bool always have empty lengths, and their representation is stored in the typedesc
+// itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
+// means true; and a representation of 15 means null.bool.
+fn serialize_bool(value: Option<bool>) -> u8 {
+    match value {
+        None => 0b0001_1111,
+        Some(false) => 0b0001_0000,
+        Some(true) => 0b0001_0001,
+    }
+}
+
+// ### 2: positive int
+//
+// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
+// Both codes use a UInt subfield to store the magnitude.
+//
+// ```text
+//            7       4 3       0
+//           +---------+---------+
+// Int value |  2 or 3 |    L    |
+//           +---------+---------+======+
+//           :     length [VarUInt]     :
+//           +==========================+
+//           :     magnitude [UInt]     :
+//           +==========================+
+// ```
+//
+// Zero is always stored as positive; negative zero is illegal.
+//
+// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
+// As a result, when T is 3, both L and the magnitude subfield must be non-zero.
+//
+// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
+// Note that this implies there are two equivalent binary representations of null integer values.
+
+// ### 3: negative int
+//
+// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
+// Both codes use a UInt subfield to store the magnitude.
+//
+// ```text
+//            7       4 3       0
+//           +---------+---------+
+// Int value |  2 or 3 |    L    |
+//           +---------+---------+======+
+//           :     length [VarUInt]     :
+//           +==========================+
+//           :     magnitude [UInt]     :
+//           +==========================+
+// ```
+//
+// Zero is always stored as positive; negative zero is illegal.
+//
+// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
+// As a result, when T is 3, both L and the magnitude subfield must be non-zero.
+//
+// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
+// Note that this implies there are two equivalent binary representations of null integer values.
+
+// ### 4: float
+//
+// ```text
+//               7       4 3       0
+//             +---------+---------+
+// Float value |    4    |    L    |
+//             +---------+---------+-----------+
+//             |   representation [IEEE-754]   |
+//             +-------------------------------+
+// ```
+//
+// Floats are encoded as big endian octets of their IEEE 754 bit patterns.
+//
+// The L field of floats encodes the size of the IEEE-754 value.
+//
+// If L is 4, then the representation is 32 bits (4 octets).
+// If L is 8, then the representation is 64 bits (8 octets).
+// There are two exceptions for the L field:
+//
+// If L is 0, then the the value is 0e0 and representation is empty.
+// Note, this is not to be confused with -0e0 which is a distinct value and in current Ion must be
+// encoded as a normal IEEE float bit pattern.
+// If L is 15, then the value is null.float and the representation is empty.
+// Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
+// of the standard may support 16-bit and 128-bit float values.
+
+// ### 5: decimal
+//
+// ```text
+//                7       4 3       0
+//               +---------+---------+
+// Decimal value |    5    |    L    |
+//               +---------+---------+======+
+//               :     length [VarUInt]     :
+//               +--------------------------+
+//               |    exponent [VarInt]     |
+//               +--------------------------+
+//               |    coefficient [Int]     |
+//               +--------------------------+
+// ```
+//
+// Decimal representations have two components: exponent (a VarInt) and coefficient (an Int).
+// The decimal’s value is coefficient * 10 ^ exponent.
+//
+// The length of the coefficient subfield is the total length of the representation minus the length of
+// exponent. The subfield should not be present (that is, it has zero length) when the coefficient’s
+// value is (positive) zero.
+//
+// If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
+// entire value is encoded as the single byte 0x50.
+
+// ### 6: timestamp
+//
+// ```text
+//                  7       4 3       0
+//                 +---------+---------+
+// Timestamp value |    6    |    L    |
+//                 +---------+---------+========+
+//                 :      length [VarUInt]      :
+//                 +----------------------------+
+//                 |      offset [VarInt]       |
+//                 +----------------------------+
+//                 |       year [VarUInt]       |
+//                 +----------------------------+
+//                 :       month [VarUInt]      :
+//                 +============================+
+//                 :         day [VarUInt]      :
+//                 +============================+
+//                 :        hour [VarUInt]      :
+//                 +====                    ====+
+//                 :      minute [VarUInt]      :
+//                 +============================+
+//                 :      second [VarUInt]      :
+//                 +============================+
+//                 : fraction_exponent [VarInt] :
+//                 +============================+
+//                 : fraction_coefficient [Int] :
+//                 +============================+
+// ```
+//
+// Timestamp representations have 7 components, where 5 of these components are optional depending on
+// the precision of the timestamp. The 2 non-optional components are offset and year.
+// The 5 optional components are (from least precise to most precise): month, day, hour and minute,
+// second, fraction_exponent and fraction_coefficient.
+// All of these 7 components are in Universal Coordinated Time (UTC).
+//
+// The offset denotes the local-offset portion of the timestamp, in minutes difference from UTC.
+//
+// The hour and minute is considered as a single component, that is, it is illegal to have hour but
+// not minute (and vice versa).
+//
+// The fraction_exponent and fraction_coefficient denote the fractional seconds of the timestamp as a
+// decimal value. The fractional seconds’ value is coefficient * 10 ^ exponent.
+// It must be greater than or equal to zero and less than 1. A missing coefficient defaults to zero.
+// Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
+// The following hex encoded timestamps are equivalent:
+//
+// 68 80 0F D0 81 81 80 80 80       //  2000-01-01T00:00:00Z with no fractional seconds
+// 69 80 0F D0 81 81 80 80 80 80    //  The same instant with 0d0 fractional seconds and implicit zero coefficient
+// 6A 80 0F D0 81 81 80 80 80 80 00 //  The same instant with 0d0 fractional seconds and explicit zero coefficient
+// 69 80 0F D0 81 81 80 80 80 C0    //  The same instant with 0d-0 fractional seconds
+// 69 80 0F D0 81 81 80 80 80 81    //  The same instant with 0d1 fractional seconds
+// Conversely, none of the following are equivalent:
+//
+// 68 80 0F D0 81 81 80 80 80       //  2000-01-01T00:00:00Z with no fractional seconds
+// 69 80 0F D0 81 81 80 80 80 C1    //  2000-01-01T00:00:00.0Z
+// 69 80 0F D0 81 81 80 80 80 C2    //  2000-01-01T00:00:00.00Z
+// If a timestamp representation has a component of a certain precision, each of the less precise
+// components must also be present or else the representation is illegal.
+// For example, a timestamp representation that has a fraction_exponent and fraction_coefficient component but not the month component, is illegal.
+//
+// Note: The component values in the binary encoding are always in UTC, while components in the
+// text encoding are in the local time! This means that transcoding requires a conversion between
+// UTC and local time.
+
+// ### 7: symbol
+//
+// ```text
+//               7       4 3       0
+//              +---------+---------+
+// Symbol value |    7    |    L    |
+//              +---------+---------+======+
+//              :     length [VarUInt]     :
+//              +--------------------------+
+//              |     symbol ID [UInt]     |
+//              +--------------------------+
+// ```
+//
+// In the binary encoding, all Ion symbols are stored as integer symbol IDs whose text values are
+// provided by a symbol table. If L is zero then the symbol ID is zero and the length and symbol ID
+// fields are omitted.
+//
+// See Ion Symbols for more details about symbol representations and symbol tables.
+
+// ### 8: string
+//
+// ```text
+//               7       4 3       0
+//              +---------+---------+
+// String value |    8    |    L    |
+//              +---------+---------+======+
+//              :     length [VarUInt]     :
+//              +==========================+
+//              :  representation [UTF8]   :
+//              +==========================+
+// ```
+//
+// These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
+
+// ### 9: clob
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// Clob value |    9    |    L    |
+//            +---------+---------+======+
+//            :     length [VarUInt]     :
+//            +==========================+
+//            :       data [Bytes]       :
+//            +==========================+
+// ```
+//
+// Values of type clob are encoded as a sequence of octets that should be interpreted as text with
+// an unknown encoding (and thus opaque to the application).
+//
+// Zero-length clobs are legal, so L may be zero.
+
+// ### 10: blob
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// Blob value |   10    |    L    |
+//            +---------+---------+======+
+//            :     length [VarUInt]     :
+//            +==========================+
+//            :       data [Bytes]       :
+//            +==========================+
+// ```
+//
+// This is a sequence of octets with no interpretation (and thus opaque to the application).
+//
+// Zero-length blobs are legal, so L may be zero.
+
+// ### 11: list
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// List value |   11    |    L    |
+//            +---------+---------+======+
+//            :     length [VarUInt]     :
+//            +==========================+
+//            :           value          :
+//            +==========================+
+//                          ⋮
+// ```
+//
+// The representation fields of a list value are simply nested Ion values.
+//
+// When L is 15, the value is null.list and there’s no length or nested values. When L is 0,
+// the value is an empty list, and there’s no length or nested values.
+//
+// Because values indicate their total lengths in octets, it is possible to locate the beginning of
+// each successive value in constant time.
+
+// ### 12: sexp
+//
+// ```text
+//             7       4 3       0
+//            +---------+---------+
+// Sexp value |   12    |    L    |
+//            +---------+---------+======+
+//            :     length [VarUInt]     :
+//            +==========================+
+//            :           value          :
+//            +==========================+
+//                          ⋮
+// ```
+//
+// Values of type sexp are encoded exactly as are list values, except with a different type code.
+
+// ### 13: struct
+//
+// Structs are encoded as sequences of symbol/value pairs. Since all symbols are encoded as positive
+// integers, we can omit the typedesc on the field names and just encode the integer value.
+//
+// ```text
+//               7       4 3       0
+//              +---------+---------+
+// Struct value |   13    |    L    |
+//              +---------+---------+======+
+//              :     length [VarUInt]     :
+//              +======================+===+==================+
+//              : field name [VarUInt] :        value         :
+//              +======================+======================+
+//                          ⋮                     ⋮
+// ```
+//
+// Binary-encoded structs support a special case where the fields are known to be sorted
+// such that the field-name integers are increasing. This state exists when L is one. Thus:
+//
+// When L is 0, the value is an empty struct, and there’s no length or nested fields.
+// When L is 1, the struct has at least one symbol/value pair, the length field exists,
+// and the field name integers are sorted in increasing order.
+// When L is 15, the value is null.struct, and there’s no length or nested fields.
+// When 1 < L < 14 then there is no length field as L is enough to represent the struct size,
+// and no assertion is made about field ordering.
+// Otherwise, the length field exists, and no assertion is made about field ordering.
+// Note: Because VarUInts depend on end tags to indicate their lengths,
+// finding the succeeding value requires parsing the field name prefix.
+// However, VarUInts are a more compact representation than Int values.
+//
+//
+// NOP Padding in struct Fields
+// NOP Padding in struct values requires additional consideration of the field name element.
+// If the “value” of a struct field is the NOP pad, then the field name is ignored.
+// This means that it is not possible to encode padding in a struct value that is less than two bytes.
+//
+// Implementations should use symbol ID zero as the field name to emphasize the lack of meaning of
+// the field name.
+// For more general details about the semantics of symbol ID zero, refer to Ion Symbols.
+//
+// For example, consider the following empty struct with three bytes of padding:
+//
+// 0xD3 0x80 0x01 0xAC
+// In the above example, the struct declares that it is three bytes large, and the encoding of the
+// pair of symbol ID zero followed by a pad that is two bytes large
+// (note the last octet 0xAC is completely arbitrary and never interpreted by an implementation).
+//
+// The following is an example of struct with a single field with four total bytes of padding:
+//
+// 0xD7 0x84 0x81 "a" 0x80 0x02 0x01 0x02
+// The above is equivalent to {name:"a"}.
+//
+// The following is also a empty struct, with a two byte pad:
+//
+// 0xD2 0x8F 0x00
+// In the above example, the field name of symbol ID 15 is ignored
+// (regardless of if it is a valid symbol ID).
+//
+// The following is malformed because there is an annotation “wrapping” a NOP pad,
+// which is not allowed generally for annotations:
+//
+// //  {$0:name::<NOP>}
+// 0xD5 0x80 0xE3 0x81 0x84 0x00
+
+// ### 14: Annotations
+//
+// This special type code doesn’t map to an Ion value type,
+// but instead is a wrapper used to associate annotations with content.
+//
+// Annotations are a special type that wrap content identified by the other type codes.
+// The annotations themselves are encoded as integer symbol ids.
+//
+// ```text
+//                     7       4 3       0
+//                    +---------+---------+
+// Annotation wrapper |   14    |    L    |
+//                    +---------+---------+======+
+//                    :     length [VarUInt]     :
+//                    +--------------------------+
+//                    |  annot_length [VarUInt]  |
+//                    +--------------------------+
+//                    |      annot [VarUInt]     |  …
+//                    +--------------------------+
+//                    |          value           |
+//                    +--------------------------+
+// ```
+//
+// The length field L field indicates the length from the beginning of the annot_length field to the
+// end of the enclosed value. Because at least one annotation and exactly one content field must exist,
+// L is at least 3 and is never 15.
+//
+// The annot_length field contains the length of the (one or more) annot fields.
+//
+// It is illegal for an annotation to wrap another annotation atomically, i.e.,
+// annotation(annotation(value)). However, it is legal to have an annotation on a container that
+// holds annotated values.
+// Note that it is possible to enforce the illegality of annotation(annotation(value))
+// directly in a grammar, but we have not chosen to do that in this document.
+//
+// Furthermore, it is illegal for an annotation to wrap a NOP Pad since this encoding is not an
+// Ion value. Thus, the following sequence is malformed:
+//
+// 0xE3 0x81 0x84 0x00
+// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
+// Instead, that octet signals the start of a binary version marker.
+
+// ### 15: reserved
+//
+// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.

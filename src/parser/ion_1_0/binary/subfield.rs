@@ -224,7 +224,7 @@ pub fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
     Ok((input, parse_var_uint(sequence, terminator[0])))
 }
 
-// There are scenarios (ex. byte-length tags) where allowing a VarUint that cannot fit in usize is unreasonable.
+// There are scenarios (ex. byte-length tags) where a VarUint that cannot fit in usize is unreasonable.
 // TODO: obvious room for performance improvement
 pub fn take_var_uint_as_usize(i: &[u8]) -> IonResult<&[u8], usize> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
