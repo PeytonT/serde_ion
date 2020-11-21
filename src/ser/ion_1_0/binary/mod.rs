@@ -314,6 +314,7 @@ fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
     const FOUR_BYTE_VARUINT_FOUR: usize = THREE_BYTE_VARUINT_CUTOFF + 1;
     const FOUR_BYTE_VARUINT_CUTOFF: usize = FOUR_BYTE_VARUINT_RANGE_UPPER + 1 + 4;
 
+    // TODO: Clean up this mess with a const fn once min_const_generics is stable.
     match size {
         0 => {}
         #[rustfmt::skip]

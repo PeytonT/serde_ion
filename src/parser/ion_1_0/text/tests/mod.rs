@@ -78,13 +78,10 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
             EitherOrBoth::Both(expected, actual) => {
                 if expected != actual {
                     pretty_env_logger::try_init().ok();
-                    error!(
-                        "Failed on top level value {}:",
-                        count + 1
-                    );
-                    error!("Expected:", );
+                    error!("Failed on top level value {}:", count + 1);
+                    error!("Expected:",);
                     error!("{:?}", expected);
-                    error!("Actual:", );
+                    error!("Actual:",);
                     error!("{:?}", actual);
                     panic!("expected/actual differ at {}", count + 1);
                 }

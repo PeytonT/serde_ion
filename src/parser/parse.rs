@@ -565,22 +565,31 @@ mod tests {
             );
         }
 
-        //        decimalExpTooLarge.10n
-        //    ----------------------
-        //        This file contains a Decimal who's exponent exceeds the length defined by the
-        //        decimal container's length.
-        #[ignore]
+        // decimalExpTooLarge.10n
+        // ----------------------
+        // This file contains a Decimal who's exponent exceeds the length defined by the decimal container's length.
+        //
+        // The file contents are:
+        // E0 01 00 EA 58 FC 59 59 59 EA 59 00 59 59 59 59 59 59 59 59 3A 44 3A 30 59 59 59 60 59 59 59 59 59 59 59 00 80 59 3A 44 3A 30 30
+        // ^.......... ^..1..2..3..4..5..6..7..8. ^..1..2..3..4..5..6..7..8..9.
+        // BVM         8 byte decimal (valid)     9 byte decimal (invalid)
         #[test]
         fn test_parse_decimalExpTooLarge() {
             let bytes =
                 include_bytes!("../../tests/ion-tests/iontestdata/bad/decimalExpTooLarge.10n");
+            let index_of_error = &strip_bvm(bytes.as_bytes())[9..];
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Error(IonError::from_error_kind(index_of_error, ErrorKind::Eof))
+            );
         }
 
-        //        decimalLenCauses64BitOverflow.10n
-        //    ---------------------------------
-        //        This file contains a Decimal who's total length is 2^64-1, larger than the
-        //        datagram size, and when combined with a buffer offset, is likely to cause an
-        //        overflow when calculating the end index of the value.
+        // decimalLenCauses64BitOverflow.10n
+        // ---------------------------------
+        // This file contains a Decimal who's total length is 2^64-1, larger than the
+        // datagram size, and when combined with a buffer offset, is likely to cause an
+        // overflow when calculating the end index of the value.
         #[ignore]
         #[test]
         fn test_parse_decimalLenCauses64BitOverflow() {
@@ -595,10 +604,9 @@ mod tests {
             );
         }
 
-        //        decimalLenTooLarge.10n
-        //    ----------------------
-        //        Contains a Decimal whose length is specified as 34 bytes, but only 24 bytes of
-        //        data are available.
+        // decimalLenTooLarge.10n
+        // ----------------------
+        // Contains a Decimal whose length is specified as 34 bytes, but only 24 bytes of data are available.
         #[test]
         fn test_parse_decimalLenTooLarge() {
             let bytes =
@@ -736,6 +744,7 @@ mod tests {
             assert_eq!(value, vec![Data::Symbol(Some(SymbolToken::Zero)).into()]);
         }
 
+        // The symbol ID does not contain a mapping in the current symbol table context.
         #[test]
         fn test_parse_symbolIDUnmapped() {
             let bytes =
@@ -754,11 +763,23 @@ mod tests {
             );
         }
 
-        #[ignore]
+        // The field name is out of range of the local symbol table.
         #[test]
         fn test_parse_fieldNameSymbolIDUnmapped() {
             let bytes = include_bytes!(
                 "../../tests/ion-tests/iontestdata/bad/fieldNameSymbolIDUnmapped.10n"
+            );
+            let index_of_error = strip_bvm(bytes.as_bytes());
+            let err = parse(bytes).err().unwrap();
+            assert_eq!(
+                err,
+                Err::Failure(IonError::from_symbol_error(
+                    index_of_error,
+                    SymbolError::AboveMaxId {
+                        max_id: 9,
+                        symbol_id: 10
+                    }
+                ))
             );
         }
 
