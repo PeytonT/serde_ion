@@ -316,33 +316,33 @@ fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
 
     match size {
         0 => {}
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         1  => bytes.extend_from_slice(&[0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         2  => bytes.extend_from_slice(&[0b0000_0001, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         3  => bytes.extend_from_slice(&[0b0000_0010, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         4  => bytes.extend_from_slice(&[0b0000_0011, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         5  => bytes.extend_from_slice(&[0b0000_0100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         6  => bytes.extend_from_slice(&[0b0000_0101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         7  => bytes.extend_from_slice(&[0b0000_0110, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         8  => bytes.extend_from_slice(&[0b0000_0111, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         9  => bytes.extend_from_slice(&[0b0000_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         10 => bytes.extend_from_slice(&[0b0000_1001, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         11 => bytes.extend_from_slice(&[0b0000_1010, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         12 => bytes.extend_from_slice(&[0b0000_1011, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         13 => bytes.extend_from_slice(&[0b0000_1100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         14 => bytes.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         15..=ONE_BYTE_VARUINT_CUTOFF => {
             bytes.push(0b0000_1110);
