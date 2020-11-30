@@ -242,17 +242,17 @@ pub struct SharedImport {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SystemSymbolTable {
+pub(crate) struct SystemSymbolTable {
     pub name: &'static str,
     pub version: u32,
     // Hopefully there will be const generics by the time the $ion symbol table has more than 1 version
     pub symbols: [SymbolToken; 10],
 }
 
-pub const SYSTEM_SYMBOL_TABLE_V1_SIZE: usize = 10;
+pub(crate) const SYSTEM_SYMBOL_TABLE_V1_SIZE: usize = 10;
 
 lazy_static! {
-    pub static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {
+    pub(crate) static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {
         SystemSymbolTable {
             name: "$ion",
             version: 1,

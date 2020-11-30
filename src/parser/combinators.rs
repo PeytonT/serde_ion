@@ -9,7 +9,7 @@ use std::{
 };
 
 /// Consumes end of input, or errors if there is more data.
-pub fn eof(i: &str) -> IonResult<&str, &str> {
+pub(crate) fn eof(i: &str) -> IonResult<&str, &str> {
     if i.is_empty() {
         Ok((i, i))
     } else {
@@ -18,7 +18,7 @@ pub fn eof(i: &str) -> IonResult<&str, &str> {
 }
 
 /// Takes one element from input if it matches predicate f
-pub fn one_if<I, F, Error: ParseError<I>>(
+pub(crate) fn one_if<I, F, Error: ParseError<I>>(
     f: F,
 ) -> impl Fn(I) -> IResult<I, <I as InputIter>::Item, Error>
 where

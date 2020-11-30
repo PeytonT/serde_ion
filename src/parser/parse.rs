@@ -30,14 +30,14 @@ const ION_VERSION_1_0: IonVersion = IonVersion {
 // Binary Ion streams begin with a four-octet Binary Version Marker
 // BVM_START MAJOR_VERSION MINOR_VERSION BVM_END
 // For version 1.0, this is 0xE0 0x01 0x00 0xEA
-pub const BVM_1_0: [u8; 4] = [
+pub(crate) const BVM_1_0: [u8; 4] = [
     BVM_START_BYTE,
     ION_VERSION_1_0.major,
     ION_VERSION_1_0.minor,
     BVM_END_BYTE,
 ];
 
-fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
+pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
     all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
         x.into_iter().flatten().filter_map(|x| x).collect()
     }))(input)
