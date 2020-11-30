@@ -1,7 +1,4 @@
-use super::{
-    combinators::{all_consuming, many0, map, preceded},
-    ion_1_0,
-};
+use super::ion_1_0;
 use crate::{
     parser::{
         ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator},
@@ -9,7 +6,13 @@ use crate::{
     },
     value::Value,
 };
-use nom::{bytes::complete::tag, Err};
+use nom::{
+    bytes::complete::tag,
+    combinator::{all_consuming, map},
+    multi::many0,
+    sequence::preceded,
+    Err,
+};
 
 const BVM_START_BYTE: u8 = 0xE0;
 const BVM_END_BYTE: u8 = 0xEA;

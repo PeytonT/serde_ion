@@ -1,6 +1,6 @@
 use crate::error::{FormatError, SymbolError};
 use itertools::Itertools;
-use nom::{error::ParseError, Err, Offset};
+use nom::{error::ContextError, error::FromExternalError, error::ParseError, Err, Offset};
 use std::str::from_utf8;
 
 /// Analogous to nom's IResult.
@@ -90,9 +90,21 @@ impl<I> ParseError<I> for IonError<I> {
     fn or(self, other: Self) -> Self {
         other
     }
+}
 
+impl<I> ContextError<I> for IonError<I> {
     fn add_context(_input: I, _ctx: &'static str, other: Self) -> Self {
         other
+    }
+}
+
+impl<I, E> FromExternalError<I, E> for IonError<I> {
+    fn from_external_error(input: I, kind: nom::error::ErrorKind, _e: E) -> Self {
+        IonError {
+            kind: ErrorKind::Nom(input, kind),
+            // TODO: Preserve useful backtrace.
+            backtrace: vec![],
+        }
     }
 }
 

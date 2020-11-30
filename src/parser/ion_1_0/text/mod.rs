@@ -28,7 +28,7 @@ use nom::{
         all_consuming, cut, map, map_parser, map_res, not, opt, peek, recognize, value, verify,
     },
     error::{ErrorKind, ParseError},
-    multi::{many0, many1, separated_list, separated_nonempty_list},
+    multi::{many0, many1, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     AsBytes, AsChar, Compare, Err, ExtendInto, InputIter, InputLength, InputTake,
     InputTakeAtPosition, Offset, Slice,
@@ -359,13 +359,13 @@ fn take_top_level_keyword_entity(
 /// especially if we are dealing with any kind of token stream. That approach is more error prone,
 /// however, as we have to build the list of acceptable delimiting characters by hand.
 fn take_delimited_value<'a, F, D>(
-    value_parser: F,
+    mut value_parser: F,
     delimiter_parser: D,
     delimiter: Option<char>,
     table: Table,
-) -> impl Fn(&'a str) -> IonResult<&'a str, (ion::Data, Option<ion::Value>)>
+) -> impl FnMut(&'a str) -> IonResult<&'a str, (ion::Data, Option<ion::Value>)>
 where
-    F: Fn(&'a str) -> IonResult<&'a str, ion::Data>,
+    F: FnMut(&'a str) -> IonResult<&'a str, ion::Data>,
     D: Fn(&'a str) -> IonResult<&'a str, ion::Data>,
 {
     move |i: &str| {
@@ -609,7 +609,7 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
             preceded(
                 terminated(char(L_BRACKET), eat_opt_ws),
                 cut(terminated(
-                    separated_list(
+                    separated_list0(
                         pair(char(COMMA), eat_opt_ws),
                         terminated(take_value(table.clone()), eat_opt_ws),
                     ),
@@ -862,7 +862,7 @@ fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Struct> {
                     value(vec![], char(R_CURLY)),
                     terminated(
                         verify(
-                            separated_list(
+                            separated_list0(
                                 pair(char(','), eat_opt_ws),
                                 terminated(take_field(table.clone()), eat_opt_ws),
                             ),
@@ -1512,7 +1512,7 @@ fn take_bin_integer(i: &str) -> IonResult<&str, BigInt> {
     let (i, negate) = opt(char('-'))(i)?;
     let (i, segments) = preceded(
         tag_no_case("0b"),
-        separated_nonempty_list(char(UNDERSCORE), take_while1(is_binary_digit)),
+        separated_list1(char(UNDERSCORE), take_while1(is_binary_digit)),
     )(i)?;
 
     let mut number =
@@ -1558,7 +1558,7 @@ fn take_hex_integer(i: &str) -> IonResult<&str, BigInt> {
     let (i, negate) = opt(char('-'))(i)?;
     let (i, segments) = preceded(
         tag_no_case("0x"),
-        separated_nonempty_list(char(UNDERSCORE), take_while1(is_hex_digit)),
+        separated_list1(char(UNDERSCORE), take_while1(is_hex_digit)),
     )(i)?;
 
     let mut number =
@@ -2289,7 +2289,7 @@ fn take_dec_unsigned_integer(i: &str) -> IonResult<&str, Vec<&str>> {
 fn take_dec_frac(i: &str) -> IonResult<&str, Vec<&str>> {
     preceded(
         char('.'),
-        separated_list(char(UNDERSCORE), take_while1(|c: char| c.is_ascii_digit())),
+        separated_list0(char(UNDERSCORE), take_while1(|c: char| c.is_ascii_digit())),
     )(i)
 }
 
