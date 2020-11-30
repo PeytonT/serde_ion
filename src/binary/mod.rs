@@ -83,6 +83,12 @@ pub(crate) enum TypeCode {
     Reserved = 15,
 }
 
+impl TypeCode {
+    pub(crate) const fn to_byte(self) -> u8 {
+        (self as u8) << 4
+    }
+}
+
 /// The possible values of the length field of a Typed Value
 ///
 /// # Panics
@@ -107,6 +113,10 @@ pub(crate) enum LengthCode {
     L13 = 13,
     L14 = 14,
     L15 = 15,
+}
+
+pub(crate) const fn type_descriptor(t: TypeCode, l: LengthCode) -> u8 {
+    t.to_byte() + l as u8
 }
 
 #[allow(non_snake_case)]

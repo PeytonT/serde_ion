@@ -50,7 +50,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 /// on the highest-order bit of the first octet). This means that the representations of
 /// 123456 and -123456 should only differ in their sign bit.
 
-pub(crate) fn serialize_int(int: BigInt) -> Vec<u8> {
+pub(crate) fn serialize_int(int: &BigInt) -> Vec<u8> {
     let (sign, mut bytes) = int.to_bytes_be();
     let first_byte = match bytes.first_mut() {
         None => return vec![0u8],
@@ -75,7 +75,8 @@ pub(crate) fn serialize_int(int: BigInt) -> Vec<u8> {
     }
 }
 
-pub fn serialize_uint(int: BigUint) -> Vec<u8> {
+pub(crate) fn serialize_uint(int: &BigUint) -> Vec<u8> {
+    // Conveniently, to_bytes_be produces the UInt byte representation.
     int.to_bytes_be()
 }
 
@@ -129,9 +130,9 @@ pub fn serialize_uint(int: BigUint) -> Vec<u8> {
 ///                                 +--sign
 /// ```
 
-pub(crate) fn serialize_var_int(int: BigInt) -> Vec<u8> {
+pub(crate) fn serialize_var_int(int: &BigInt) -> Vec<u8> {
     // bits needed to represent the magnitude of the VarInt
-    let num_bits = int.bits();
+    let num_bits = int.bits() as usize;
 
     // plus one more for the sign bit gives the total number of payload bits needed
     let payload_bits = num_bits + 1;
@@ -186,9 +187,9 @@ pub(crate) fn serialize_var_int(int: BigInt) -> Vec<u8> {
     output_bits.to_bytes()
 }
 
-pub(crate) fn serialize_var_uint(int: BigUint) -> Vec<u8> {
+pub(crate) fn serialize_var_uint(int: &BigUint) -> Vec<u8> {
     // bits needed to represent the VarUint
-    let payload_bits = int.bits();
+    let payload_bits = int.bits() as usize;
 
     // round up to the nearest multiple of 7 to get the number of bytes that will be needed
     let total_bytes = (payload_bits + 6) / 7;
@@ -237,6 +238,29 @@ pub(crate) fn serialize_var_uint(int: BigUint) -> Vec<u8> {
     }
 
     output_bits.to_bytes()
+}
+
+// See Typed Value Formats.
+pub(crate) fn append_var_uint_length(bytes: &mut Vec<u8>, length: usize) {
+    // Serialization of VarUInts with reasonable sizes can be unrolled.
+    match length {
+        ONE_BYTE_VARUINT_RANGE_LOWER..=ONE_BYTE_VARUINT_RANGE_UPPER => {
+            bytes.extend_from_slice(&serialize_1_byte_var_uint(length));
+        }
+        TWO_BYTE_VARUINT_RANGE_LOWER..=TWO_BYTE_VARUINT_RANGE_UPPER => {
+            bytes.extend_from_slice(&serialize_2_byte_var_uint(length));
+        }
+        THREE_BYTE_VARUINT_RANGE_LOWER..=THREE_BYTE_VARUINT_RANGE_UPPER => {
+            bytes.extend_from_slice(&serialize_3_byte_var_uint(length));
+        }
+        FOUR_BYTE_VARUINT_RANGE_LOWER..=FOUR_BYTE_VARUINT_RANGE_UPPER => {
+            bytes.extend_from_slice(&serialize_4_byte_var_uint(length));
+        }
+        // Hypothetical 268MB+ Ion values don't merit special handling.
+        _ => {
+            bytes.append(&mut serialize_var_uint(&BigUint::from(length)));
+        }
+    }
 }
 
 const VAR_UINT_CONTINUE: u8 = 0b0111_1111;
@@ -306,29 +330,6 @@ fn serialize_4_byte_var_uint(int: usize) -> [u8; 4] {
     ]
 }
 
-// See Typed Value Formats.
-pub(crate) fn append_var_uint_length(bytes: &mut Vec<u8>, length: usize) {
-    // Serialization of VarUInts with reasonable sizes can be unrolled.
-    match length {
-        ONE_BYTE_VARUINT_RANGE_LOWER..=ONE_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_1_byte_var_uint(length));
-        }
-        TWO_BYTE_VARUINT_RANGE_LOWER..=TWO_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_2_byte_var_uint(length));
-        }
-        THREE_BYTE_VARUINT_RANGE_LOWER..=THREE_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_3_byte_var_uint(length));
-        }
-        FOUR_BYTE_VARUINT_RANGE_LOWER..=FOUR_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_4_byte_var_uint(length));
-        }
-        // Hypothetical 268MB+ Ion values don't merit special handling.
-        _ => {
-            bytes.append(&mut serialize_var_uint(BigUint::from(length)));
-        }
-    }
-}
-
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
@@ -345,7 +346,7 @@ mod tests {
         // 7 bits
         // hex: 0x7f
         // dec: 127
-        let written_bytes = serialize_int(BigInt::from(127));
+        let written_bytes = serialize_int(&BigInt::from(127));
         let bytes: &[u8] = &decode("7f").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -356,7 +357,7 @@ mod tests {
         // 15 bits
         // hex: 0x7fff
         // dec: 32767
-        let written_bytes = serialize_int(BigInt::from(32767));
+        let written_bytes = serialize_int(&BigInt::from(32767));
         let bytes: &[u8] = &decode("7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -367,7 +368,7 @@ mod tests {
         // 23 bits
         // hex: 0x7fffff
         // dec: 8388607
-        let written_bytes = serialize_int(BigInt::from(8_388_607));
+        let written_bytes = serialize_int(&BigInt::from(8_388_607));
         let bytes: &[u8] = &decode("7fffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -378,7 +379,7 @@ mod tests {
         // 31 bits
         // hex: 0x7fffffff
         // dec: 2147483647
-        let written_bytes = serialize_int(BigInt::from(2_147_483_647));
+        let written_bytes = serialize_int(&BigInt::from(2_147_483_647));
         let bytes: &[u8] = &decode("7fffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -389,7 +390,7 @@ mod tests {
         // 39 bits
         // hex: 0x7fffffffff
         // dec: 549755813887
-        let written_bytes = serialize_int(BigInt::from(549_755_813_887i64));
+        let written_bytes = serialize_int(&BigInt::from(549_755_813_887i64));
         let bytes: &[u8] = &decode("7fffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -400,7 +401,7 @@ mod tests {
         // 47 bits
         // hex: 0x7fffffffffff
         // dec: 140737488355327
-        let written_bytes = serialize_int(BigInt::from(140_737_488_355_327i64));
+        let written_bytes = serialize_int(&BigInt::from(140_737_488_355_327i64));
         let bytes: &[u8] = &decode("7fffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -411,7 +412,7 @@ mod tests {
         // 55 bits
         // hex: 0x7fffffffffffff
         // dec: 36028797018963967
-        let written_bytes = serialize_int(BigInt::from(36_028_797_018_963_967i64));
+        let written_bytes = serialize_int(&BigInt::from(36_028_797_018_963_967i64));
         let bytes: &[u8] = &decode("7fffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -422,7 +423,7 @@ mod tests {
         // 63 bits
         // hex: 0x7fffffffffffffff
         // dec: 9223372036854775807
-        let written_bytes = serialize_int(BigInt::from(9_223_372_036_854_775_807i64));
+        let written_bytes = serialize_int(&BigInt::from(9_223_372_036_854_775_807i64));
         let bytes: &[u8] = &decode("7fffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -433,7 +434,7 @@ mod tests {
         // 64 bits
         // hex: 0x00ffffffffffffffff
         // dec: 18446744073709551615
-        let written_bytes = serialize_int(BigInt::from(18_446_744_073_709_551_615i128));
+        let written_bytes = serialize_int(&BigInt::from(18_446_744_073_709_551_615i128));
         let bytes: &[u8] = &decode("00ffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -444,7 +445,7 @@ mod tests {
         // 71 bits
         // hex: 0xfffffffffffffff
         // dec: 2361183241434822606847
-        let written_bytes = serialize_int(BigInt::from(2_361_183_241_434_822_606_847i128));
+        let written_bytes = serialize_int(&BigInt::from(2_361_183_241_434_822_606_847i128));
         let bytes: &[u8] = &decode("7fffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -455,7 +456,7 @@ mod tests {
         // 79 bits used
         // hex: 0x7fffffffffffffffffff
         // dec: 604462909807314587353087
-        let written_bytes = serialize_int(BigInt::from(604_462_909_807_314_587_353_087i128));
+        let written_bytes = serialize_int(&BigInt::from(604_462_909_807_314_587_353_087i128));
         let bytes: &[u8] = &decode("7fffffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -468,7 +469,7 @@ mod tests {
         // 8 bits
         // hex: 0xff
         // dec: 255
-        let written_bytes = serialize_uint(BigUint::from(255u32));
+        let written_bytes = serialize_uint(&BigUint::from(255u32));
         let bytes: &[u8] = &decode("ff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -479,7 +480,7 @@ mod tests {
         // 16 bits
         // hex: 0xffff
         // dec: 65535
-        let written_bytes = serialize_uint(BigUint::from(65535u32));
+        let written_bytes = serialize_uint(&BigUint::from(65535u32));
         let bytes: &[u8] = &decode("ffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -490,7 +491,7 @@ mod tests {
         // 24 bits
         // hex: 0xffffff
         // dec: 16777215
-        let written_bytes = serialize_uint(BigUint::from(16_777_215u32));
+        let written_bytes = serialize_uint(&BigUint::from(16_777_215u32));
         let bytes: &[u8] = &decode("ffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -501,7 +502,7 @@ mod tests {
         // 31 bits
         // hex: 0x7fffffff
         // dec: 2147483647
-        let written_bytes = serialize_uint(BigUint::from(2_147_483_647u32));
+        let written_bytes = serialize_uint(&BigUint::from(2_147_483_647u32));
         let bytes: &[u8] = &decode("7fffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -512,7 +513,7 @@ mod tests {
         // 32 bits
         // hex: 0xffffffff
         // dec: 4294967295
-        let written_bytes = serialize_uint(BigUint::from(4_294_967_295u32));
+        let written_bytes = serialize_uint(&BigUint::from(4_294_967_295u32));
         let bytes: &[u8] = &decode("ffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -523,7 +524,7 @@ mod tests {
         // 40 bits
         // hex: 0xffffffffff
         // dec: 1099511627775
-        let written_bytes = serialize_uint(BigUint::from(1_099_511_627_775u64));
+        let written_bytes = serialize_uint(&BigUint::from(1_099_511_627_775u64));
         let bytes: &[u8] = &decode("ffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -534,7 +535,7 @@ mod tests {
         // 48 bits
         // hex: 0xffffffffffff
         // dec: 281474976710655
-        let written_bytes = serialize_uint(BigUint::from(281_474_976_710_655u64));
+        let written_bytes = serialize_uint(&BigUint::from(281_474_976_710_655u64));
         let bytes: &[u8] = &decode("ffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -545,7 +546,7 @@ mod tests {
         // 56 bits
         // hex: 0xffffffffffffff
         // dec: 72057594037927935
-        let written_bytes = serialize_uint(BigUint::from(72_057_594_037_927_935u64));
+        let written_bytes = serialize_uint(&BigUint::from(72_057_594_037_927_935u64));
         let bytes: &[u8] = &decode("ffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -556,7 +557,7 @@ mod tests {
         // 63 bits
         // hex: 0x7fffffffffffffff
         // dec: 9223372036854775807
-        let written_bytes = serialize_uint(BigUint::from(9_223_372_036_854_775_807u64));
+        let written_bytes = serialize_uint(&BigUint::from(9_223_372_036_854_775_807u64));
         let bytes: &[u8] = &decode("7fffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -567,7 +568,7 @@ mod tests {
         // 64 bits
         // hex: 0xffffffffffffffff
         // dec: 18446744073709551615
-        let written_bytes = serialize_uint(BigUint::from(18_446_744_073_709_551_615u64));
+        let written_bytes = serialize_uint(&BigUint::from(18_446_744_073_709_551_615u64));
         let bytes: &[u8] = &decode("ffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -578,7 +579,7 @@ mod tests {
         // 72 bits
         // hex: 0xffffffffffffffffff
         // dec: 4722366482869645213695
-        let written_bytes = serialize_uint(BigUint::from(4_722_366_482_869_645_213_695u128));
+        let written_bytes = serialize_uint(&BigUint::from(4_722_366_482_869_645_213_695u128));
         let bytes: &[u8] = &decode("ffffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -589,7 +590,7 @@ mod tests {
         // 80 bits
         // hex: 0xffffffffffffffffffff
         // dec: 1208925819614629174706175
-        let written_bytes = serialize_uint(BigUint::from(1_208_925_819_614_629_174_706_175u128));
+        let written_bytes = serialize_uint(&BigUint::from(1_208_925_819_614_629_174_706_175u128));
         let bytes: &[u8] = &decode("ffffffffffffffffffff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -602,7 +603,7 @@ mod tests {
         // 6 bits
         // hex: 0xbf
         // dec: 63
-        let written_bytes = serialize_var_int(BigInt::from(63));
+        let written_bytes = serialize_var_int(&BigInt::from(63));
         let bytes: &[u8] = &decode("bf").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -613,7 +614,7 @@ mod tests {
         // 13 bits
         // hex: 0x3fff
         // dec: 8191
-        let written_bytes = serialize_var_int(BigInt::from(8191));
+        let written_bytes = serialize_var_int(&BigInt::from(8191));
         let bytes: &[u8] = &decode("3fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -624,7 +625,7 @@ mod tests {
         // 20 bits
         // hex: 0x3f7fff
         // dec: 1048575
-        let written_bytes = serialize_var_int(BigInt::from(1_048_575));
+        let written_bytes = serialize_var_int(&BigInt::from(1_048_575));
         let bytes: &[u8] = &decode("3f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -635,7 +636,7 @@ mod tests {
         // 27 bits
         // hex: 0x3f7f7fff
         // dec: 134217727
-        let written_bytes = serialize_var_int(BigInt::from(134_217_727));
+        let written_bytes = serialize_var_int(&BigInt::from(134_217_727));
         let bytes: &[u8] = &decode("3f7f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -646,7 +647,7 @@ mod tests {
         // 31 bits
         // hex: 0x077f7f7fff
         // dec: 2147483647
-        let written_bytes = serialize_var_int(BigInt::from(2_147_483_647));
+        let written_bytes = serialize_var_int(&BigInt::from(2_147_483_647));
         let bytes: &[u8] = &decode("077f7f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -656,7 +657,7 @@ mod tests {
         // 1 byte
         // hex: 0xa0
         // dec: 32
-        let written_bytes = serialize_var_int(BigInt::from(32));
+        let written_bytes = serialize_var_int(&BigInt::from(32));
         let bytes: &[u8] = &decode("a0").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -666,7 +667,7 @@ mod tests {
         // 2 bytes
         // hex: 0x2080
         // dec: 4096
-        let written_bytes = serialize_var_int(BigInt::from(4096));
+        let written_bytes = serialize_var_int(&BigInt::from(4096));
         let bytes: &[u8] = &decode("2080").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
     }
@@ -683,7 +684,7 @@ mod tests {
         // 7 bits
         // hex: 0xff
         // dec: 127
-        let written_bytes = serialize_var_uint(BigUint::from(127u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(127u32));
         let bytes: &[u8] = &decode("ff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_1_byte_var_uint(127));
@@ -699,7 +700,7 @@ mod tests {
         // 14 bits
         // hex: 0x7fff
         // dec: 16383
-        let written_bytes = serialize_var_uint(BigUint::from(16383u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(16383u32));
         let bytes: &[u8] = &decode("7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_2_byte_var_uint(16383));
@@ -715,7 +716,7 @@ mod tests {
         // 15 bits
         // hex: 0x017fff
         // dec: 32767
-        let written_bytes = serialize_var_uint(BigUint::from(32767u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(32767u32));
         let bytes: &[u8] = &decode("017fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_3_byte_var_uint(32767));
@@ -731,7 +732,7 @@ mod tests {
         // 16 bits
         // hex: 0x037fff
         // dec: 65535
-        let written_bytes = serialize_var_uint(BigUint::from(65535u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(65535u32));
         let bytes: &[u8] = &decode("037fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_3_byte_var_uint(65535));
@@ -747,7 +748,7 @@ mod tests {
         // 21 bits
         // hex: 0x7f7fff
         // dec: 2097151
-        let written_bytes = serialize_var_uint(BigUint::from(2_097_151u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(2_097_151u32));
         let bytes: &[u8] = &decode("7f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_3_byte_var_uint(2_097_151));
@@ -762,7 +763,7 @@ mod tests {
         // 28 bits
         // hex: 0x7f7f7fff
         // dec: 268435455
-        let written_bytes = serialize_var_uint(BigUint::from(268_435_455u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(268_435_455u32));
         let bytes: &[u8] = &decode("7f7f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
         assert_eq!(bytes, serialize_4_byte_var_uint(268_435_455));
@@ -778,7 +779,7 @@ mod tests {
         // 31 bits
         // hex: 0x077f7f7fff
         // dec: 2147483647
-        let written_bytes = serialize_var_uint(BigUint::from(2_147_483_647u32));
+        let written_bytes = serialize_var_uint(&BigUint::from(2_147_483_647u32));
         let bytes: &[u8] = &decode("077f7f7fff").unwrap();
         assert_eq!(bytes, written_bytes.as_slice());
 

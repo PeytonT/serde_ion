@@ -1,11 +1,13 @@
 mod subfield;
 
 use self::subfield::*;
+use crate::binary::{type_descriptor, LengthCode, TypeCode};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
 use crate::value::{Data, Value};
 use crate::Version;
 use itertools::Itertools;
+use num_bigint::{BigInt, Sign};
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::mem::replace;
@@ -234,7 +236,7 @@ struct LocalSymbolTable {
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
-fn append_value(bytes: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {
+fn append_value(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {
     if value.annotations.is_empty() {}
 }
 
@@ -286,11 +288,11 @@ fn append_value(bytes: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTab
 //
 // NOP padding is valid anywhere a value can be encoded, except for within an annotation wrapper.
 // NOP padding in struct requires additional encoding considerations.
-fn append_null(bytes: &mut Vec<u8>) {
-    bytes.push(0b0000_1111);
+fn append_null(bytestream: &mut Vec<u8>) {
+    bytestream.push(0b0000_1111);
 }
 
-fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
+fn append_nop_pad(bytestream: &mut Vec<u8>, size: usize) {
     // Size is notably the total size of the padding, not the size of the payload.
     // As a result the VarUInt transition is at 15, rather than at 14, and the value of the
     // descriptor byte up to the transition is one less than the value of size.
@@ -318,52 +320,52 @@ fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
     match size {
         0 => {}
         #[rustfmt::skip]
-        1  => bytes.extend_from_slice(&[0b0000_0000]),
+        1  => bytestream.extend_from_slice(&[0b0000_0000]),
         #[rustfmt::skip]
-        2  => bytes.extend_from_slice(&[0b0000_0001, 0b0000_0000]),
+        2  => bytestream.extend_from_slice(&[0b0000_0001, 0b0000_0000]),
         #[rustfmt::skip]
-        3  => bytes.extend_from_slice(&[0b0000_0010, 0b0000_0000, 0b0000_0000]),
+        3  => bytestream.extend_from_slice(&[0b0000_0010, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        4  => bytes.extend_from_slice(&[0b0000_0011, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        4  => bytestream.extend_from_slice(&[0b0000_0011, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        5  => bytes.extend_from_slice(&[0b0000_0100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        5  => bytestream.extend_from_slice(&[0b0000_0100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        6  => bytes.extend_from_slice(&[0b0000_0101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        6  => bytestream.extend_from_slice(&[0b0000_0101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        7  => bytes.extend_from_slice(&[0b0000_0110, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        7  => bytestream.extend_from_slice(&[0b0000_0110, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        8  => bytes.extend_from_slice(&[0b0000_0111, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        8  => bytestream.extend_from_slice(&[0b0000_0111, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        9  => bytes.extend_from_slice(&[0b0000_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        9  => bytestream.extend_from_slice(&[0b0000_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        10 => bytes.extend_from_slice(&[0b0000_1001, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        10 => bytestream.extend_from_slice(&[0b0000_1001, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        11 => bytes.extend_from_slice(&[0b0000_1010, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        11 => bytestream.extend_from_slice(&[0b0000_1010, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        12 => bytes.extend_from_slice(&[0b0000_1011, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        12 => bytestream.extend_from_slice(&[0b0000_1011, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        13 => bytes.extend_from_slice(&[0b0000_1100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        13 => bytestream.extend_from_slice(&[0b0000_1100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         #[rustfmt::skip]
-        14 => bytes.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        14 => bytestream.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         15..=ONE_BYTE_VARUINT_CUTOFF => {
-            bytes.push(0b0000_1110);
-            append_var_uint_length(bytes, size - 2);
-            bytes.extend(vec![0; size - 2]);
+            bytestream.push(0b0000_1110);
+            append_var_uint_length(bytestream, size - 2);
+            bytestream.extend(vec![0; size - 2]);
         }
         TWO_BYTE_VARUINT_START..=TWO_BYTE_VARUINT_CUTOFF => {
-            bytes.push(0b0000_1110);
-            append_var_uint_length(bytes, size - 3);
-            bytes.extend(vec![0; size - 3]);
+            bytestream.push(0b0000_1110);
+            append_var_uint_length(bytestream, size - 3);
+            bytestream.extend(vec![0; size - 3]);
         }
         THREE_BYTE_VARUINT_START..=THREE_BYTE_VARUINT_CUTOFF => {
-            bytes.push(0b0000_1110);
-            append_var_uint_length(bytes, size - 4);
-            bytes.extend(vec![0; size - 4]);
+            bytestream.push(0b0000_1110);
+            append_var_uint_length(bytestream, size - 4);
+            bytestream.extend(vec![0; size - 4]);
         }
         FOUR_BYTE_VARUINT_FOUR..=FOUR_BYTE_VARUINT_CUTOFF => {
-            bytes.push(0b0000_1110);
-            append_var_uint_length(bytes, size - 5);
-            bytes.extend(vec![0; size - 5]);
+            bytestream.push(0b0000_1110);
+            append_var_uint_length(bytestream, size - 5);
+            bytestream.extend(vec![0; size - 5]);
         }
         _ => {
             panic!(
@@ -386,15 +388,15 @@ fn append_nop_pad(bytes: &mut Vec<u8>, size: usize) {
 // Values of type bool always have empty lengths, and their representation is stored in the typedesc
 // itself (rather than after the typedesc). A representation of 0 means false; a representation of 1
 // means true; and a representation of 15 means null.bool.
-fn serialize_bool(value: Option<bool>) -> u8 {
-    match value {
+fn append_bool(bytestream: &mut Vec<u8>, value: Option<bool>) {
+    bytestream.push(match value {
         None => 0b0001_1111,
         Some(false) => 0b0001_0000,
         Some(true) => 0b0001_0001,
-    }
+    });
 }
 
-// ### 2: positive int
+// ### 2/3: int
 //
 // Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
 // Both codes use a UInt subfield to store the magnitude.
@@ -412,35 +414,42 @@ fn serialize_bool(value: Option<bool>) -> u8 {
 //
 // Zero is always stored as positive; negative zero is illegal.
 //
-// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
+// If the value is zero then T must be 2, L should be zero, and if L is zero there must be no length or magnitude subfields.
 // As a result, when T is 3, both L and the magnitude subfield must be non-zero.
 //
 // With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 // Note that this implies there are two equivalent binary representations of null integer values.
-
-// ### 3: negative int
-//
-// Values of type int are stored using two type codes: 2 for positive values and 3 for negative values.
-// Both codes use a UInt subfield to store the magnitude.
-//
-// ```text
-//            7       4 3       0
-//           +---------+---------+
-// Int value |  2 or 3 |    L    |
-//           +---------+---------+======+
-//           :     length [VarUInt]     :
-//           +==========================+
-//           :     magnitude [UInt]     :
-//           +==========================+
-// ```
-//
-// Zero is always stored as positive; negative zero is illegal.
-//
-// If the value is zero then T must be 2, L is zero, and there are no length or magnitude subfields.
-// As a result, when T is 3, both L and the magnitude subfield must be non-zero.
-//
-// With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
-// Note that this implies there are two equivalent binary representations of null integer values.
+fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
+    match value {
+        // For null.int we can use 0b0010_1111 or 0b0011_1111. There is no difference.
+        None => bytestream.push(type_descriptor(TypeCode::PosInt, LengthCode::L15)),
+        Some(int) => {
+            let type_code: u8 = match int.sign() {
+                Sign::NoSign => {
+                    // NoSign means the value is zero. Zero is always encoded as T = 2, L = 0.
+                    bytestream.push(type_descriptor(TypeCode::PosInt, LengthCode::L0));
+                    return;
+                }
+                Sign::Plus => TypeCode::PosInt.to_byte(),
+                Sign::Minus => TypeCode::NegInt.to_byte(),
+            };
+            let magnitude = serialize_uint(int.magnitude());
+            match magnitude.len() {
+                0..=13 => {
+                    bytestream.push(type_code + (magnitude.len() as u8));
+                    bytestream.extend(magnitude);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                _ => {
+                    bytestream.push(type_code + LengthCode::L14 as u8);
+                    append_var_uint_length(bytestream, magnitude.len());
+                    bytestream.extend(magnitude);
+                }
+            }
+        }
+    }
+}
 
 // ### 4: float
 //
