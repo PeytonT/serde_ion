@@ -7,12 +7,10 @@ use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
 use crate::value::{Data, Decimal, Value};
 use crate::Version;
 use itertools::Itertools;
-use lexical_core::lib::convert::Infallible;
 use num_bigint::{BigInt, Sign};
 use num_traits::Zero;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::mem::replace;
 
 /// A binary writer takes a stream of Ion values and produces the corresponding binary bytestream.
@@ -478,6 +476,7 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
 // If L is 15, then the value is null.float and the representation is empty.
 // Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 // of the standard may support 16-bit and 128-bit float values.
+#[allow(clippy::float_cmp)]
 fn append_float(bytestream: &mut Vec<u8>, value: Option<f64>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Float, LengthCode::L15)),
