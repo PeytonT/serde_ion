@@ -241,24 +241,24 @@ pub(crate) fn serialize_var_uint(int: &BigUint) -> Vec<u8> {
 }
 
 // See Typed Value Formats.
-pub(crate) fn append_var_uint_length(bytes: &mut Vec<u8>, length: usize) {
+pub(crate) fn append_var_uint_usize(bytes: &mut Vec<u8>, value: usize) {
     // Serialization of VarUInts with reasonable sizes can be unrolled.
-    match length {
+    match value {
         ONE_BYTE_VARUINT_RANGE_LOWER..=ONE_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_1_byte_var_uint(length));
+            bytes.extend_from_slice(&serialize_1_byte_var_uint(value));
         }
         TWO_BYTE_VARUINT_RANGE_LOWER..=TWO_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_2_byte_var_uint(length));
+            bytes.extend_from_slice(&serialize_2_byte_var_uint(value));
         }
         THREE_BYTE_VARUINT_RANGE_LOWER..=THREE_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_3_byte_var_uint(length));
+            bytes.extend_from_slice(&serialize_3_byte_var_uint(value));
         }
         FOUR_BYTE_VARUINT_RANGE_LOWER..=FOUR_BYTE_VARUINT_RANGE_UPPER => {
-            bytes.extend_from_slice(&serialize_4_byte_var_uint(length));
+            bytes.extend_from_slice(&serialize_4_byte_var_uint(value));
         }
         // Hypothetical 268MB+ Ion values don't merit special handling.
         _ => {
-            bytes.append(&mut serialize_var_uint(&BigUint::from(length)));
+            bytes.append(&mut serialize_var_uint(&BigUint::from(value)));
         }
     }
 }
@@ -690,7 +690,7 @@ mod tests {
         assert_eq!(bytes, serialize_1_byte_var_uint(127));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 127);
+        append_var_uint_usize(&mut byte_stream, 127);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 
@@ -706,7 +706,7 @@ mod tests {
         assert_eq!(bytes, serialize_2_byte_var_uint(16383));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 16383);
+        append_var_uint_usize(&mut byte_stream, 16383);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 
@@ -722,7 +722,7 @@ mod tests {
         assert_eq!(bytes, serialize_3_byte_var_uint(32767));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 32767);
+        append_var_uint_usize(&mut byte_stream, 32767);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 
@@ -738,7 +738,7 @@ mod tests {
         assert_eq!(bytes, serialize_3_byte_var_uint(65535));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 65535);
+        append_var_uint_usize(&mut byte_stream, 65535);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 
@@ -754,7 +754,7 @@ mod tests {
         assert_eq!(bytes, serialize_3_byte_var_uint(2_097_151));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 2_097_151);
+        append_var_uint_usize(&mut byte_stream, 2_097_151);
         assert_eq!(bytes, byte_stream.as_slice());
     }
     #[test]
@@ -769,7 +769,7 @@ mod tests {
         assert_eq!(bytes, serialize_4_byte_var_uint(268_435_455));
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 268_435_455);
+        append_var_uint_usize(&mut byte_stream, 268_435_455);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 
@@ -784,7 +784,7 @@ mod tests {
         assert_eq!(bytes, written_bytes.as_slice());
 
         let mut byte_stream: Vec<u8> = vec![];
-        append_var_uint_length(&mut byte_stream, 2_147_483_647);
+        append_var_uint_usize(&mut byte_stream, 2_147_483_647);
         assert_eq!(bytes, byte_stream.as_slice());
     }
 }

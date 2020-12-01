@@ -4,7 +4,7 @@ use self::subfield::*;
 use crate::binary::{type_descriptor, LengthCode, TypeCode};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
-use crate::value::{Data, Decimal, Value};
+use crate::value::{Data, Decimal, Timestamp, Value};
 use crate::Version;
 use itertools::Itertools;
 use num_bigint::{BigInt, Sign};
@@ -350,22 +350,22 @@ fn append_nop_pad(bytestream: &mut Vec<u8>, size: usize) {
         14 => bytestream.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
         15..=ONE_BYTE_VARUINT_CUTOFF => {
             bytestream.push(0b0000_1110);
-            append_var_uint_length(bytestream, size - 2);
+            append_var_uint_usize(bytestream, size - 2);
             bytestream.extend(vec![0; size - 2]);
         }
         TWO_BYTE_VARUINT_START..=TWO_BYTE_VARUINT_CUTOFF => {
             bytestream.push(0b0000_1110);
-            append_var_uint_length(bytestream, size - 3);
+            append_var_uint_usize(bytestream, size - 3);
             bytestream.extend(vec![0; size - 3]);
         }
         THREE_BYTE_VARUINT_START..=THREE_BYTE_VARUINT_CUTOFF => {
             bytestream.push(0b0000_1110);
-            append_var_uint_length(bytestream, size - 4);
+            append_var_uint_usize(bytestream, size - 4);
             bytestream.extend(vec![0; size - 4]);
         }
         FOUR_BYTE_VARUINT_FOUR..=FOUR_BYTE_VARUINT_CUTOFF => {
             bytestream.push(0b0000_1110);
-            append_var_uint_length(bytestream, size - 5);
+            append_var_uint_usize(bytestream, size - 5);
             bytestream.extend(vec![0; size - 5]);
         }
         _ => {
@@ -443,7 +443,7 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
                 // optional length VarUInt is included.
                 _ => {
                     bytestream.push(type_code + LengthCode::L14 as u8);
-                    append_var_uint_length(bytestream, magnitude.len());
+                    append_var_uint_usize(bytestream, magnitude.len());
                 }
             }
             bytestream.extend(magnitude);
@@ -547,7 +547,7 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
                 // optional length VarUInt is included.
                 _ => {
                     bytestream.push(TypeCode::Decimal.to_byte() + LengthCode::L14 as u8);
-                    append_var_uint_length(bytestream, length);
+                    append_var_uint_usize(bytestream, length);
                 }
             }
             bytestream.extend(exponent);
@@ -591,7 +591,7 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
 // second, fraction_exponent and fraction_coefficient.
 // All of these 7 components are in Universal Coordinated Time (UTC).
 //
-// The offset denotes the local-offset portion of the timestamp, in minutes dif`ference from UTC.
+// The offset denotes the local-offset portion of the timestamp, in minutes difference from UTC.
 //
 // The hour and minute is considered as a single component, that is, it is illegal to have hour but
 // not minute (and vice versa).
@@ -619,6 +619,113 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
 // Note: The component values in the binary encoding are always in UTC, while components in the
 // text encoding are in the local time! This means that transcoding requires a conversion between
 // UTC and local time.
+fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
+    fn append(bytestream: &mut Vec<u8>, contents: Vec<u8>) {
+        match contents.len() {
+            0..=13 => {
+                bytestream.push(TypeCode::Timestamp.to_byte() + (contents.len() as u8));
+            }
+            // As usual, if we need 14 or more bytes then L is set to 14 and the
+            // optional length VarUInt is included.
+            _ => {
+                bytestream.push(TypeCode::Timestamp.to_byte() + LengthCode::L14 as u8);
+                append_var_uint_usize(bytestream, contents.len());
+            }
+        }
+        bytestream.extend(contents);
+    }
+
+    // TODO: Add specialized subfield functions and reduce casting and allocating of BigInts.
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Timestamp, LengthCode::L15)),
+        Some(Timestamp::Year { offset, year }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append(bytestream, contents);
+        }
+        Some(Timestamp::Month {
+            offset,
+            year,
+            month,
+        }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append_var_uint_usize(&mut contents, month as usize);
+            append(bytestream, contents);
+        }
+        Some(Timestamp::Day {
+            offset,
+            year,
+            month,
+            day,
+        }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append_var_uint_usize(&mut contents, month as usize);
+            append_var_uint_usize(&mut contents, day as usize);
+            append(bytestream, contents);
+        }
+        Some(Timestamp::Minute {
+            offset,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+        }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append_var_uint_usize(&mut contents, month as usize);
+            append_var_uint_usize(&mut contents, day as usize);
+            append_var_uint_usize(&mut contents, hour as usize);
+            append_var_uint_usize(&mut contents, minute as usize);
+            append(bytestream, contents);
+        }
+        Some(Timestamp::Second {
+            offset,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append_var_uint_usize(&mut contents, month as usize);
+            append_var_uint_usize(&mut contents, day as usize);
+            append_var_uint_usize(&mut contents, hour as usize);
+            append_var_uint_usize(&mut contents, minute as usize);
+            append_var_uint_usize(&mut contents, second as usize);
+            append(bytestream, contents);
+        }
+        Some(Timestamp::FractionalSecond {
+            offset,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            fraction_coefficient,
+            fraction_exponent,
+        }) => {
+            let mut contents = serialize_var_int(&BigInt::from(offset));
+            append_var_uint_usize(&mut contents, year as usize);
+            append_var_uint_usize(&mut contents, month as usize);
+            append_var_uint_usize(&mut contents, day as usize);
+            append_var_uint_usize(&mut contents, hour as usize);
+            append_var_uint_usize(&mut contents, minute as usize);
+            append_var_uint_usize(&mut contents, second as usize);
+            contents.extend(serialize_var_int(&BigInt::from_biguint(
+                Sign::Plus,
+                fraction_coefficient,
+            )));
+            contents.extend(serialize_int(&BigInt::from(fraction_exponent)));
+            append(bytestream, contents);
+        }
+    }
+}
 
 // ### 7: symbol
 //
