@@ -611,7 +611,7 @@ fn test_float_dbl_min() {
 fn test_float_specials() {
     let result = parse_file(&test_path("good/floatSpecials.ion"));
 
-    match result.unwrap().iter().next() {
+    match result.unwrap().get(0) {
         Some(ion::Value {
             value: ion::Data::List(Some(ion::List { values: list })),
             ..
