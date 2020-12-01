@@ -4,12 +4,15 @@ use self::subfield::*;
 use crate::binary::{type_descriptor, LengthCode, TypeCode};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
-use crate::value::{Data, Value};
+use crate::value::{Data, Decimal, Value};
 use crate::Version;
 use itertools::Itertools;
+use lexical_core::lib::convert::Infallible;
 use num_bigint::{BigInt, Sign};
+use num_traits::Zero;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::mem::replace;
 
 /// A binary writer takes a stream of Ion values and produces the corresponding binary bytestream.
@@ -437,16 +440,15 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
             match magnitude.len() {
                 0..=13 => {
                     bytestream.push(type_code + (magnitude.len() as u8));
-                    bytestream.extend(magnitude);
                 }
                 // As usual, if we need 14 or more bytes then L is set to 14 and the
                 // optional length VarUInt is included.
                 _ => {
                     bytestream.push(type_code + LengthCode::L14 as u8);
                     append_var_uint_length(bytestream, magnitude.len());
-                    bytestream.extend(magnitude);
                 }
             }
+            bytestream.extend(magnitude);
         }
     }
 }
@@ -476,6 +478,29 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
 // If L is 15, then the value is null.float and the representation is empty.
 // Note: Ion 1.0 only supports 32-bit and 64-bit float values (i.e. L size 4 or 8), but future versions
 // of the standard may support 16-bit and 128-bit float values.
+fn append_float(bytestream: &mut Vec<u8>, value: Option<f64>) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Float, LengthCode::L15)),
+        Some(float) => {
+            match float {
+                // Check if our float is positive 0.
+                float if float == 0f64 && float.is_sign_positive() => {
+                    bytestream.push(type_descriptor(TypeCode::Float, LengthCode::L0));
+                }
+                // Check if our float can be encoded in 4 bytes.
+                float if (float as f32) as f64 == float => {
+                    bytestream.push(type_descriptor(TypeCode::Float, LengthCode::L4));
+                    bytestream.extend(&(float as f32).to_be_bytes());
+                }
+                // Encode using 8 bytes.
+                _ => {
+                    bytestream.push(type_descriptor(TypeCode::Float, LengthCode::L8));
+                    bytestream.extend(&float.to_be_bytes());
+                }
+            }
+        }
+    }
+}
 
 // ### 5: decimal
 //
@@ -501,6 +526,36 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
 //
 // If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 // entire value is encoded as the single byte 0x50.
+fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Decimal, LengthCode::L15)),
+        Some(decimal) => {
+            if decimal.coefficient.is_zero() && decimal.exponent.is_zero() {
+                bytestream.push(type_descriptor(TypeCode::Decimal, LengthCode::L0));
+                return;
+            }
+            let exponent = serialize_var_int(&decimal.exponent);
+            let coefficient = match decimal.coefficient.is_zero() {
+                true => Vec::new(),
+                false => serialize_int(&decimal.coefficient),
+            };
+            let length = exponent.len() + coefficient.len();
+            match length {
+                0..=13 => {
+                    bytestream.push(TypeCode::Decimal.to_byte() + length as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                _ => {
+                    bytestream.push(TypeCode::Decimal.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_length(bytestream, length);
+                }
+            }
+            bytestream.extend(exponent);
+            bytestream.extend(coefficient);
+        }
+    }
+}
 
 // ### 6: timestamp
 //
@@ -537,7 +592,7 @@ fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
 // second, fraction_exponent and fraction_coefficient.
 // All of these 7 components are in Universal Coordinated Time (UTC).
 //
-// The offset denotes the local-offset portion of the timestamp, in minutes difference from UTC.
+// The offset denotes the local-offset portion of the timestamp, in minutes dif`ference from UTC.
 //
 // The hour and minute is considered as a single component, that is, it is illegal to have hour but
 // not minute (and vice versa).
