@@ -4,7 +4,7 @@ use self::subfield::*;
 use crate::binary::{type_descriptor, LengthCode, TypeCode};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
-use crate::value::{Data, Decimal, Timestamp, Value};
+use crate::value::{Blob, Clob, Data, Decimal, Timestamp, Value};
 use crate::Version;
 use itertools::Itertools;
 use num_bigint::{BigInt, Sign};
@@ -53,7 +53,7 @@ impl Writer {
         match self.current_version {
             Version::Ion_1_0 => {
                 self.bytes.extend_from_slice(&BVM_1_0);
-                // Absorb the
+                // Absorb the symbols accumulated in the symbol_buffer into the local_symbol_table.
                 self.update_symbol_table_v1_0();
                 // TODO: Serialize the symbol table
                 // TODO: Serialize the buffered values using the symbol table
@@ -167,73 +167,6 @@ impl Writer {
             }
         }
     }
-}
-
-#[derive(Debug)]
-struct SymbolAccumulator {
-    // Mapping from each literal symbol string to the number of times it has been encountered.
-    symbol_counts: HashMap<String, i32>,
-}
-
-impl SymbolAccumulator {
-    fn new() -> SymbolAccumulator {
-        SymbolAccumulator {
-            symbol_counts: HashMap::new(),
-        }
-    }
-
-    fn increment(&mut self, literal: &str) {
-        let counter = self.symbol_counts.entry(literal.to_owned()).or_insert(0);
-        *counter += 1;
-    }
-
-    fn accumulate_symbols(&mut self, value: &Value) {
-        for annotation in &value.annotations {
-            if let Some(SymbolToken::Known { text }) = annotation {
-                self.increment(text);
-            }
-        }
-        match &value.value {
-            Data::Symbol(Some(SymbolToken::Known { text })) => {
-                self.increment(text);
-            }
-            Data::Struct(Some(r#struct)) => {
-                for (token, value) in &r#struct.fields {
-                    if let SymbolToken::Known { text } = token {
-                        self.increment(text);
-                    }
-                    self.accumulate_symbols(value);
-                }
-            }
-            Data::List(Some(list)) => {
-                for value in &list.values {
-                    self.accumulate_symbols(&value);
-                }
-            }
-            Data::Sexp(Some(sexp)) => {
-                for value in &sexp.values {
-                    self.accumulate_symbols(&value);
-                }
-            }
-            // No other Value variants contain Symbols.
-            _ => {}
-        }
-    }
-}
-
-#[derive(Debug)]
-struct LocalSymbolTable {
-    // Mapping from each literal symbol string to its index in the local symbol table.
-    // TODO: The mapping must be regenerated each time the version changes, which is currently never.
-    symbol_offsets: HashMap<String, usize>,
-    // The 'symbols' list of the serialized local symbol table.
-    // Added in addition to any symbols imported from the system table or any imported tables, including the previous table.
-    ordered_symbols: Vec<String>,
-    // It's useful to keep track of the size of the logical symbol list.
-    // This will be more useful if imports other than the current table are ever implemented.
-    max_id: usize,
-    // Informs table serialization logic of whether there is a preceding table that should be imported.
-    import_previous_table: bool,
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
@@ -627,9 +560,9 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             }
             // As usual, if we need 14 or more bytes then L is set to 14 and the
             // optional length VarUInt is included.
-            _ => {
+            length => {
                 bytestream.push(TypeCode::Timestamp.to_byte() + LengthCode::L14 as u8);
-                append_var_uint_usize(bytestream, contents.len());
+                append_var_uint_usize(bytestream, length);
             }
         }
         bytestream.extend(contents);
@@ -745,6 +678,36 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // fields are omitted.
 //
 // See Ion Symbols for more details about symbol representations and symbol tables.
+fn append_symbol(bytestream: &mut Vec<u8>, value: Option<SymbolToken>, table: LocalSymbolTable) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Symbol, LengthCode::L15)),
+        Some(SymbolToken::Zero) => {
+            bytestream.push(type_descriptor(TypeCode::Symbol, LengthCode::L0))
+        }
+        Some(SymbolToken::Known { text }) => {
+            // The symbol will have been accumulated in the symbol_accumulator prior to the write.
+            let index: &usize = table.symbol_offsets.get(&text).unwrap();
+            // TODO: Strip off leading 0 bytes.
+            let symbol_id = index.to_be_bytes();
+            match symbol_id.len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::Symbol.to_byte() + (symbol_id.len() as u8));
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::Symbol.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(&symbol_id);
+        }
+        Some(SymbolToken::Unknown { import_location }) => {
+            // TODO: Investigate this further. What does the standard expect to happen here?
+            panic!("Unknown SymbolToken cannot be serialized");
+        }
+    }
+}
 
 // ### 8: string
 //
@@ -760,6 +723,25 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // ```
 //
 // These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
+fn append_string(bytestream: &mut Vec<u8>, value: Option<String>) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::String, LengthCode::L15)),
+        Some(string) => {
+            match string.as_bytes().len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::String.to_byte() + string.as_bytes().len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::String.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(string.as_bytes());
+        }
+    }
+}
 
 // ### 9: clob
 //
@@ -778,6 +760,25 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // an unknown encoding (and thus opaque to the application).
 //
 // Zero-length clobs are legal, so L may be zero.
+fn append_clob(bytestream: &mut Vec<u8>, value: Option<Clob>) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Clob, LengthCode::L15)),
+        Some(Clob { data }) => {
+            match data.len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::Clob.to_byte() + data.len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::Clob.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(data);
+        }
+    }
+}
 
 // ### 10: blob
 //
@@ -795,6 +796,25 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // This is a sequence of octets with no interpretation (and thus opaque to the application).
 //
 // Zero-length blobs are legal, so L may be zero.
+fn append_blob(bytestream: &mut Vec<u8>, value: Option<Blob>) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Blob, LengthCode::L15)),
+        Some(Blob { data }) => {
+            match data.len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::Blob.to_byte() + data.len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::Blob.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(data);
+        }
+    }
+}
 
 // ### 11: list
 //
@@ -944,3 +964,70 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // ### 15: reserved
 //
 // The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
+
+#[derive(Debug)]
+struct SymbolAccumulator {
+    // Mapping from each literal symbol string to the number of times it has been encountered.
+    symbol_counts: HashMap<String, i32>,
+}
+
+impl SymbolAccumulator {
+    fn new() -> SymbolAccumulator {
+        SymbolAccumulator {
+            symbol_counts: HashMap::new(),
+        }
+    }
+
+    fn increment(&mut self, literal: &str) {
+        let counter = self.symbol_counts.entry(literal.to_owned()).or_insert(0);
+        *counter += 1;
+    }
+
+    fn accumulate_symbols(&mut self, value: &Value) {
+        for annotation in &value.annotations {
+            if let Some(SymbolToken::Known { text }) = annotation {
+                self.increment(text);
+            }
+        }
+        match &value.value {
+            Data::Symbol(Some(SymbolToken::Known { text })) => {
+                self.increment(text);
+            }
+            Data::Struct(Some(r#struct)) => {
+                for (token, value) in &r#struct.fields {
+                    if let SymbolToken::Known { text } = token {
+                        self.increment(text);
+                    }
+                    self.accumulate_symbols(value);
+                }
+            }
+            Data::List(Some(list)) => {
+                for value in &list.values {
+                    self.accumulate_symbols(&value);
+                }
+            }
+            Data::Sexp(Some(sexp)) => {
+                for value in &sexp.values {
+                    self.accumulate_symbols(&value);
+                }
+            }
+            // No other Value variants contain Symbols.
+            _ => {}
+        }
+    }
+}
+
+#[derive(Debug)]
+struct LocalSymbolTable {
+    // Mapping from each literal symbol string to its index in the local symbol table.
+    // TODO: The mapping must be regenerated each time the version changes, which is currently never.
+    symbol_offsets: HashMap<String, usize>,
+    // The 'symbols' list of the serialized local symbol table.
+    // Added in addition to any symbols imported from the system table or any imported tables, including the previous table.
+    ordered_symbols: Vec<String>,
+    // It's useful to keep track of the size of the logical symbol list.
+    // This will be more useful if imports other than the current table are ever implemented.
+    max_id: usize,
+    // Informs table serialization logic of whether there is a preceding table that should be imported.
+    import_previous_table: bool,
+}

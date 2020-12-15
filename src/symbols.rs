@@ -91,7 +91,7 @@ pub enum SymbolToken {
     // All SymbolTokens with identical known text are equivalent, import_location is ignored
     Known { text: String },
     // The SymbolToken's text is undefined if the import_location cannot not be resolved
-    Unknown { import_location: ImportDescriptor },
+    Unknown { import_location: ImportLocation },
     // Special symbol zero denotes unknown text in any symbol table
     Zero,
 }
@@ -113,6 +113,15 @@ impl From<&str> for SymbolToken {
     }
 }
 
+/// ## ImportLocation
+///
+/// <importName:String, importSID:Int>
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ImportLocation {
+    import_name: String,
+    import_sid: u32,
+}
+
 /// ## ImportDescriptor
 ///
 /// <importName:String, version:Int, max_id:Int>
@@ -131,15 +140,6 @@ impl ImportDescriptor {
             max_id,
         }
     }
-}
-
-/// ## ImportLocation
-///
-/// <importName:String, importSID:Int>
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ImportLocation {
-    import_name: String,
-    import_sid: u32,
 }
 
 /// ## SymbolTable

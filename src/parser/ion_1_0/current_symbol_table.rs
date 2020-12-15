@@ -1,6 +1,6 @@
 use crate::{
     error::SymbolError,
-    symbols::{ImportDescriptor, SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
+    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
     value::{Data, List, Struct, Value},
 };
 use itertools::Itertools;
@@ -386,11 +386,9 @@ fn handle_imports(
                 // In lieu of looking up the symbol tables in a catalog we'll just add that many
                 // items to the list.
                 // TODO: do something better (track max_id, use a sparse vec, etc.)
-                let filler_symbols = std::iter::repeat_with(|| SymbolToken::Unknown {
-                    import_location: ImportDescriptor::new(import_name.clone(), max_id, version),
-                })
-                .take(max_id as usize)
-                .collect_vec();
+                let filler_symbols = std::iter::repeat_with(|| SymbolToken::Zero)
+                    .take(max_id as usize)
+                    .collect_vec();
 
                 append_symbols_to_current_table(current, filler_symbols)
             }
