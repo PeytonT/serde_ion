@@ -5,7 +5,6 @@ authors = ["Peyton Turner <donaldpeytonturner@gmail.com>, Matthew Langhinrichs <
 edition = "2018"
 description = """
 A native Rust encoding and decoding library for the Amazon Ion text and binary data formats.
-Provides Serialize/Deserialize traits for Ion data to enable (de)serializing to and from Rust structures.
 Currently a work in progress with limited functionality.
 """
 # TODO: Any documentation...
@@ -20,8 +19,6 @@ readme = "README.md"
 include = ["Cargo.toml", "src/**/*.rs", "LICENSE", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
 
 [badges]
-#TODO: Setup codecov
-travis-ci = { repository = "PeytonT/serde_ion", branch = "master" }
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
