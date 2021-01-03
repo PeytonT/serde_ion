@@ -1,12 +1,12 @@
 use bit_vec::BitVec;
 use num_bigint::{BigInt, BigUint, Sign};
 
-/// ## Basic Field Formats
+/// # Basic Field Formats
 ///
 /// Binary-encoded Ion values are comprised of one or more fields, and the fields use a small number
 /// of basic formats (separate from the Ion types visible to users).
 
-/// ### UInt and Int Fields
+/// ## UInt and Int Fields
 ///
 /// UInt and Int fields represent fixed-length unsigned and signed integer values.
 /// These field formats are always used in some context that clearly indicates the
@@ -49,37 +49,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 /// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
 /// on the highest-order bit of the first octet). This means that the representations of
 /// 123456 and -123456 should only differ in their sign bit.
-
-pub(crate) fn serialize_int(int: &BigInt) -> Vec<u8> {
-    let (sign, mut bytes) = int.to_bytes_be();
-    let first_byte = match bytes.first_mut() {
-        None => return vec![0u8],
-        Some(first_byte) => first_byte,
-    };
-    match sign {
-        Sign::Minus => {
-            if *first_byte > 0b0111_1111 {
-                bytes.insert(0, 0b1000_0000);
-            } else {
-                *first_byte |= 0b1000_0000;
-            }
-            bytes
-        }
-        Sign::Plus => {
-            if *first_byte > 0b0111_1111 {
-                bytes.insert(0, 0b0000_0000);
-            }
-            bytes
-        }
-        Sign::NoSign => vec![0u8],
-    }
-}
-
-pub(crate) fn serialize_uint(int: &BigUint) -> Vec<u8> {
-    // Conveniently, to_bytes_be produces the UInt byte representation.
-    int.to_bytes_be()
-}
-
+///
 /// ## VarUInt and VarInt Fields
 ///
 /// VarUInt and VarInt fields represent self-delimiting, variable-length unsigned and signed integer
@@ -129,6 +99,95 @@ pub(crate) fn serialize_uint(int: &BigUint) -> Vec<u8> {
 ///                                 |
 ///                                 +--sign
 /// ```
+
+// TODO: Create typedefs for UInt, Int, VarUInt, and VarInt to allow From impls.
+
+pub(crate) fn serialize_int(int: &BigInt) -> Vec<u8> {
+    let (sign, mut bytes) = int.to_bytes_be();
+    let first_byte = match bytes.first_mut() {
+        None => return vec![0u8],
+        Some(first_byte) => first_byte,
+    };
+    match sign {
+        Sign::Minus => {
+            if *first_byte > 0b0111_1111 {
+                bytes.insert(0, 0b1000_0000);
+            } else {
+                *first_byte |= 0b1000_0000;
+            }
+            bytes
+        }
+        Sign::Plus => {
+            if *first_byte > 0b0111_1111 {
+                bytes.insert(0, 0b0000_0000);
+            }
+            bytes
+        }
+        Sign::NoSign => vec![0u8],
+    }
+}
+
+pub(crate) fn serialize_uint(int: &BigUint) -> Vec<u8> {
+    // Conveniently, to_bytes_be produces the UInt byte representation.
+    int.to_bytes_be()
+}
+
+pub(crate) fn serialize_var_int_parts(sign: Sign, magnitude: &BigUint) -> Vec<u8> {
+    // bits needed to represent the magnitude of the VarInt
+    let num_bits = magnitude.bits() as usize;
+
+    // plus one more for the sign bit gives the total number of payload bits needed
+    let payload_bits = num_bits + 1;
+
+    // round up to the nearest multiple of 7 to get the number of bytes that will be needed
+    let total_bytes = (payload_bits + 6) / 7;
+
+    // the number of bits that will be available to store payload_bits
+    let available_bits = total_bytes * 7;
+
+    // compute the number of leading zeros that will be needed
+    let leading_zeros = available_bits - payload_bits;
+
+    // get the bytes from the BigUint
+    let bytes = magnitude.to_bytes_be();
+
+    // get the offset into the BitInt bytes where the num_bits meaningful bits begin
+    let offset = bytes.len() * 8 - num_bits;
+
+    let input_bits = BitVec::from_bytes(bytes.as_slice());
+    let mut output_bits = BitVec::with_capacity(total_bytes * 8);
+
+    // the first byte is special because it has a sign bit and may have leading zeros
+    output_bits.push(total_bytes == 1);
+    output_bits.push(sign != Sign::Plus);
+    // push leading zeros
+    for _ in 0..leading_zeros {
+        output_bits.push(false);
+    }
+    // fill the rest of the first byte
+    let first_byte_bit_count = 6 - leading_zeros;
+    for i in 0..first_byte_bit_count {
+        output_bits.push(input_bits[offset + i]);
+    }
+
+    // fill the remaining bytes
+    for i in 0..total_bytes - 1 {
+        let index = first_byte_bit_count + offset + i * 7;
+        // push 'true' if this is the last byte, else false
+        output_bits.push(i == total_bytes - 2);
+
+        // push the next 7 bits of payload, this will exactly reach the end of the payload bits
+        output_bits.push(input_bits[index]);
+        output_bits.push(input_bits[index + 1]);
+        output_bits.push(input_bits[index + 2]);
+        output_bits.push(input_bits[index + 3]);
+        output_bits.push(input_bits[index + 4]);
+        output_bits.push(input_bits[index + 5]);
+        output_bits.push(input_bits[index + 6]);
+    }
+
+    output_bits.to_bytes()
+}
 
 pub(crate) fn serialize_var_int(int: &BigInt) -> Vec<u8> {
     // bits needed to represent the magnitude of the VarInt
@@ -240,7 +299,13 @@ pub(crate) fn serialize_var_uint(int: &BigUint) -> Vec<u8> {
     output_bits.to_bytes()
 }
 
-// See Typed Value Formats.
+pub(crate) fn serialize_var_uint_usize(value: usize) -> Vec<u8> {
+    // A VarUint from usize is unlikely to need more than 4 bytes.
+    let mut vec: Vec<u8> = Vec::with_capacity(4);
+    append_var_uint_usize(&mut vec, value);
+    vec
+}
+
 pub(crate) fn append_var_uint_usize(bytes: &mut Vec<u8>, value: usize) {
     // Serialization of VarUInts with reasonable sizes can be unrolled.
     match value {

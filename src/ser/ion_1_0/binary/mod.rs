@@ -2,9 +2,10 @@ mod subfield;
 
 use self::subfield::*;
 use crate::binary::{type_descriptor, LengthCode, TypeCode};
+use crate::error::{Error, SymbolError};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
-use crate::value::{Blob, Clob, Data, Decimal, List, Timestamp, Value};
+use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::Version;
 use itertools::Itertools;
 use num_bigint::{BigInt, Sign};
@@ -61,24 +62,26 @@ impl Writer {
         }
     }
 
-    pub fn extend(&mut self, version: Version, values: Vec<Value>) {
+    pub fn extend(&mut self, version: Version, values: Vec<Value>) -> Result<(), Error> {
         if self.current_version != version {
             self.write();
             self.current_version = version;
         }
         for value in &values {
-            self.symbol_buffer.accumulate_symbols(value);
+            self.symbol_buffer.accumulate_symbols(value)?;
         }
         self.value_buffer.extend(values);
+        Ok(())
     }
 
-    pub fn append(&mut self, version: Version, value: Value) {
+    pub fn append(&mut self, version: Version, value: Value) -> Result<(), Error> {
         if self.current_version != version {
             self.write();
             self.current_version = version;
         }
-        self.symbol_buffer.accumulate_symbols(&value);
+        self.symbol_buffer.accumulate_symbols(&value)?;
         self.value_buffer.push(value);
+        Ok(())
     }
 
     // Absorbs the accumulated symbols in the symbol buffer into the local symbol table.
@@ -170,7 +173,31 @@ impl Writer {
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
-fn append_value(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {}
+fn append_value(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &LocalSymbolTable) {
+    if !value.annotations.is_empty() {
+        append_annotation(bytestream, value, symbol_table)
+    } else {
+        append_data(bytestream, &value.value, symbol_table);
+    }
+}
+
+fn append_data(bytestream: &mut Vec<u8>, data: &Data, symbol_table: &LocalSymbolTable) {
+    match data {
+        Data::Null => append_null(bytestream),
+        Data::Bool(x) => append_bool(bytestream, *x),
+        Data::Int(x) => append_int(bytestream, x),
+        Data::Float(x) => append_float(bytestream, *x),
+        Data::Decimal(x) => append_decimal(bytestream, x),
+        Data::Timestamp(x) => append_timestamp(bytestream, x),
+        Data::String(x) => append_string(bytestream, x),
+        Data::Symbol(x) => append_symbol(bytestream, x, symbol_table),
+        Data::Blob(x) => append_blob(bytestream, x),
+        Data::Clob(x) => append_clob(bytestream, x),
+        Data::Struct(x) => append_struct(bytestream, x, symbol_table),
+        Data::List(x) => append_list(bytestream, x, symbol_table),
+        Data::Sexp(x) => append_sexp(bytestream, x, symbol_table),
+    }
+}
 
 // ### 0: null
 //
@@ -351,7 +378,7 @@ fn append_bool(bytestream: &mut Vec<u8>, value: Option<bool>) {
 //
 // With either type code 2 or 3, if L is 15, then the value is null.int and the magnitude is empty.
 // Note that this implies there are two equivalent binary representations of null integer values.
-fn append_int(bytestream: &mut Vec<u8>, value: Option<BigInt>) {
+fn append_int(bytestream: &mut Vec<u8>, value: &Option<BigInt>) {
     match value {
         // For null.int we can use 0b0010_1111 or 0b0011_1111. There is no difference.
         None => bytestream.push(type_descriptor(TypeCode::PosInt, LengthCode::L15)),
@@ -456,7 +483,7 @@ fn append_float(bytestream: &mut Vec<u8>, value: Option<f64>) {
 //
 // If the value is 0. (aka 0d0) then L is zero, there are no length or representation fields, and the
 // entire value is encoded as the single byte 0x50.
-fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
+fn append_decimal(bytestream: &mut Vec<u8>, value: &Option<Decimal>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Decimal, LengthCode::L15)),
         Some(decimal) => {
@@ -550,7 +577,7 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: Option<Decimal>) {
 // Note: The component values in the binary encoding are always in UTC, while components in the
 // text encoding are in the local time! This means that transcoding requires a conversion between
 // UTC and local time.
-fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
+fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
     fn append(bytestream: &mut Vec<u8>, contents: Vec<u8>) {
         match contents.len() {
             0..=13 => {
@@ -570,8 +597,8 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Timestamp, LengthCode::L15)),
         Some(Timestamp::Year { offset, year }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
             append(bytestream, contents);
         }
         Some(Timestamp::Month {
@@ -579,9 +606,9 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             year,
             month,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
-            append_var_uint_usize(&mut contents, month as usize);
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
+            append_var_uint_usize(&mut contents, *month as usize);
             append(bytestream, contents);
         }
         Some(Timestamp::Day {
@@ -590,10 +617,10 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             month,
             day,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
-            append_var_uint_usize(&mut contents, month as usize);
-            append_var_uint_usize(&mut contents, day as usize);
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
+            append_var_uint_usize(&mut contents, *month as usize);
+            append_var_uint_usize(&mut contents, *day as usize);
             append(bytestream, contents);
         }
         Some(Timestamp::Minute {
@@ -604,12 +631,12 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             hour,
             minute,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
-            append_var_uint_usize(&mut contents, month as usize);
-            append_var_uint_usize(&mut contents, day as usize);
-            append_var_uint_usize(&mut contents, hour as usize);
-            append_var_uint_usize(&mut contents, minute as usize);
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
+            append_var_uint_usize(&mut contents, *month as usize);
+            append_var_uint_usize(&mut contents, *day as usize);
+            append_var_uint_usize(&mut contents, *hour as usize);
+            append_var_uint_usize(&mut contents, *minute as usize);
             append(bytestream, contents);
         }
         Some(Timestamp::Second {
@@ -621,13 +648,13 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             minute,
             second,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
-            append_var_uint_usize(&mut contents, month as usize);
-            append_var_uint_usize(&mut contents, day as usize);
-            append_var_uint_usize(&mut contents, hour as usize);
-            append_var_uint_usize(&mut contents, minute as usize);
-            append_var_uint_usize(&mut contents, second as usize);
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
+            append_var_uint_usize(&mut contents, *month as usize);
+            append_var_uint_usize(&mut contents, *day as usize);
+            append_var_uint_usize(&mut contents, *hour as usize);
+            append_var_uint_usize(&mut contents, *minute as usize);
+            append_var_uint_usize(&mut contents, *second as usize);
             append(bytestream, contents);
         }
         Some(Timestamp::FractionalSecond {
@@ -641,18 +668,15 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
             fraction_coefficient,
             fraction_exponent,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(offset));
-            append_var_uint_usize(&mut contents, year as usize);
-            append_var_uint_usize(&mut contents, month as usize);
-            append_var_uint_usize(&mut contents, day as usize);
-            append_var_uint_usize(&mut contents, hour as usize);
-            append_var_uint_usize(&mut contents, minute as usize);
-            append_var_uint_usize(&mut contents, second as usize);
-            contents.extend(serialize_var_int(&BigInt::from_biguint(
-                Sign::Plus,
-                fraction_coefficient,
-            )));
-            contents.extend(serialize_int(&BigInt::from(fraction_exponent)));
+            let mut contents = serialize_var_int(&BigInt::from(*offset));
+            append_var_uint_usize(&mut contents, *year as usize);
+            append_var_uint_usize(&mut contents, *month as usize);
+            append_var_uint_usize(&mut contents, *day as usize);
+            append_var_uint_usize(&mut contents, *hour as usize);
+            append_var_uint_usize(&mut contents, *minute as usize);
+            append_var_uint_usize(&mut contents, *second as usize);
+            contents.extend(serialize_var_int_parts(Sign::Plus, fraction_coefficient));
+            contents.extend(serialize_int(&BigInt::from(*fraction_exponent)));
             append(bytestream, contents);
         }
     }
@@ -674,11 +698,9 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // In the binary encoding, all Ion symbols are stored as integer symbol IDs whose text values are
 // provided by a symbol table. If L is zero then the symbol ID is zero and the length and symbol ID
 // fields are omitted.
-//
-// See Ion Symbols for more details about symbol representations and symbol tables.
 fn append_symbol(
     bytestream: &mut Vec<u8>,
-    value: Option<SymbolToken>,
+    value: &Option<SymbolToken>,
     symbol_table: &LocalSymbolTable,
 ) {
     match value {
@@ -688,7 +710,7 @@ fn append_symbol(
         }
         Some(SymbolToken::Known { text }) => {
             // The symbol will have been accumulated in the symbol_accumulator prior to the write.
-            let index: &usize = symbol_table.symbol_offsets.get(&text).unwrap();
+            let index: usize = symbol_table.get_symbol_index_unchecked(&text);
             // TODO: Strip off leading 0 bytes.
             let symbol_id = index.to_be_bytes();
             match symbol_id.len() {
@@ -705,8 +727,13 @@ fn append_symbol(
             bytestream.extend(&symbol_id);
         }
         Some(SymbolToken::Unknown { import_location }) => {
-            // TODO: Investigate this further. What does the standard expect to happen here?
-            panic!("Unknown SymbolToken cannot be serialized");
+            // An unknown SymbolToken that cannot be resolved to the writer's imports or catalogue should error.
+            // TODO: Import from the writer's import list or catalogue once implemented.
+            // Any unresolvable symbol will have already been rejected.
+            unreachable!(
+                "Unexpected SymbolToken::Unknown with unresolvable ImportLocation {} cannot be written",
+                import_location
+            );
         }
     }
 }
@@ -725,7 +752,7 @@ fn append_symbol(
 // ```
 //
 // These are always sequences of Unicode characters, encoded as a sequence of UTF-8 octets.
-fn append_string(bytestream: &mut Vec<u8>, value: Option<String>) {
+fn append_string(bytestream: &mut Vec<u8>, value: &Option<String>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::String, LengthCode::L15)),
         Some(string) => {
@@ -760,9 +787,8 @@ fn append_string(bytestream: &mut Vec<u8>, value: Option<String>) {
 //
 // Values of type clob are encoded as a sequence of octets that should be interpreted as text with
 // an unknown encoding (and thus opaque to the application).
-//
 // Zero-length clobs are legal, so L may be zero.
-fn append_clob(bytestream: &mut Vec<u8>, value: Option<Clob>) {
+fn append_clob(bytestream: &mut Vec<u8>, value: &Option<Clob>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Clob, LengthCode::L15)),
         Some(Clob { data }) => {
@@ -796,9 +822,8 @@ fn append_clob(bytestream: &mut Vec<u8>, value: Option<Clob>) {
 // ```
 //
 // This is a sequence of octets with no interpretation (and thus opaque to the application).
-//
 // Zero-length blobs are legal, so L may be zero.
-fn append_blob(bytestream: &mut Vec<u8>, value: Option<Blob>) {
+fn append_blob(bytestream: &mut Vec<u8>, value: &Option<Blob>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Blob, LengthCode::L15)),
         Some(Blob { data }) => {
@@ -836,14 +861,31 @@ fn append_blob(bytestream: &mut Vec<u8>, value: Option<Blob>) {
 //
 // When L is 15, the value is null.list and there’s no length or nested values. When L is 0,
 // the value is an empty list, and there’s no length or nested values.
-fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &LocalSymbolTable) {
+fn append_list(bytestream: &mut Vec<u8>, value: &Option<List>, symbol_table: &LocalSymbolTable) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::List, LengthCode::L15)),
         Some(List { values }) if values.is_empty() => {
             bytestream.push(type_descriptor(TypeCode::List, LengthCode::L0))
         }
-        // TODO: Optimize into two passes - first to compute length - second to serialize.
-        Some(List { values }) => {}
+        Some(List { values }) => {
+            // TODO: Optimize into two passes - first to compute length - second to serialize.
+            let mut body: Vec<u8> = vec![];
+            for element in values {
+                append_value(&mut body, &element, symbol_table)
+            }
+            match body.len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::List.to_byte() + body.len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::List.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(body);
+        }
     }
 }
 
@@ -862,6 +904,33 @@ fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &Loc
 // ```
 //
 // Values of type sexp are encoded exactly as are list values, except with a different type code.
+fn append_sexp(bytestream: &mut Vec<u8>, value: &Option<Sexp>, symbol_table: &LocalSymbolTable) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::Sexp, LengthCode::L15)),
+        Some(Sexp { values }) if values.is_empty() => {
+            bytestream.push(type_descriptor(TypeCode::Sexp, LengthCode::L0))
+        }
+        Some(Sexp { values }) => {
+            // TODO: Optimize into two passes - first to compute length - second to serialize.
+            let mut temp: Vec<u8> = vec![];
+            for element in values {
+                append_value(&mut temp, &element, symbol_table)
+            }
+            match temp.len() {
+                0..=13 => {
+                    bytestream.push(TypeCode::Sexp.to_byte() + temp.len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                length => {
+                    bytestream.push(TypeCode::Sexp.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(temp);
+        }
+    }
+}
 
 // ### 13: struct
 //
@@ -890,10 +959,6 @@ fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &Loc
 // When 1 < L < 14 then there is no length field as L is enough to represent the struct size,
 // and no assertion is made about field ordering.
 // Otherwise, the length field exists, and no assertion is made about field ordering.
-// Note: Because VarUInts depend on end tags to indicate their lengths,
-// finding the succeeding value requires parsing the field name prefix.
-// However, VarUInts are a more compact representation than Int values.
-//
 //
 // NOP Padding in struct Fields
 // NOP Padding in struct values requires additional consideration of the field name element.
@@ -902,31 +967,77 @@ fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &Loc
 //
 // Implementations should use symbol ID zero as the field name to emphasize the lack of meaning of
 // the field name.
-// For more general details about the semantics of symbol ID zero, refer to Ion Symbols.
-//
-// For example, consider the following empty struct with three bytes of padding:
-//
-// 0xD3 0x80 0x01 0xAC
-// In the above example, the struct declares that it is three bytes large, and the encoding of the
-// pair of symbol ID zero followed by a pad that is two bytes large
-// (note the last octet 0xAC is completely arbitrary and never interpreted by an implementation).
-//
-// The following is an example of struct with a single field with four total bytes of padding:
-//
-// 0xD7 0x84 0x81 "a" 0x80 0x02 0x01 0x02
-// The above is equivalent to {name:"a"}.
-//
-// The following is also a empty struct, with a two byte pad:
-//
-// 0xD2 0x8F 0x00
-// In the above example, the field name of symbol ID 15 is ignored
-// (regardless of if it is a valid symbol ID).
-//
-// The following is malformed because there is an annotation “wrapping” a NOP pad,
-// which is not allowed generally for annotations:
-//
-// //  {$0:name::<NOP>}
-// 0xD5 0x80 0xE3 0x81 0x84 0x00
+fn append_struct(
+    bytestream: &mut Vec<u8>,
+    value: &Option<Struct>,
+    symbol_table: &LocalSymbolTable,
+) {
+    match value {
+        // When L is 15, the value is null.struct, and there’s no length or nested fields.
+        None => bytestream.push(type_descriptor(TypeCode::Struct, LengthCode::L15)),
+        // When L is 0, the value is an empty struct, and there’s no length or nested fields.
+        Some(Struct { fields }) if fields.is_empty() => {
+            bytestream.push(type_descriptor(TypeCode::Struct, LengthCode::L0))
+        }
+        // TODO: Optimize into two passes - first to compute length - second to serialize?
+        Some(Struct { fields }) => {
+            let indexed_fields: Vec<(usize, &Value)> = fields
+                .iter()
+                .map(|(token, value)| match token {
+                    // The symbol will have been accumulated in the symbol_accumulator prior to the write.
+                    SymbolToken::Known { text } => {
+                        (symbol_table.get_symbol_index_unchecked(&text), value)
+                    }
+                    SymbolToken::Zero => (0usize, value),
+                    SymbolToken::Unknown { import_location } => {
+                        // An unknown SymbolToken that cannot be resolved to the writer's imports or catalogue should error.
+                        // TODO: Import from the writer's import list or catalogue once implemented.
+                        // Any unresolvable symbol will have already been rejected.
+                        unreachable!(
+                            "Unexpected SymbolToken::Unknown with unresolvable ImportLocation {} cannot be written",
+                            import_location
+                        );
+                    }
+                })
+                .collect();
+
+            // TODO: Use is_sorted once stable. https://github.com/rust-lang/rust/issues/53485
+            // Check if the symbol IDs happen to be sorted in ascending order
+            let sorted = indexed_fields.windows(2).all(|w| w[0].0 <= w[1].0);
+
+            let fields: Vec<(Vec<u8>, &Value)> = indexed_fields
+                .into_iter()
+                .map(|(index, value)| (serialize_var_uint_usize(index), value))
+                .collect();
+
+            let mut body: Vec<u8> = vec![];
+            for (field_name, value) in fields {
+                body.extend(field_name);
+                append_value(&mut body, value, symbol_table)
+            }
+            match (sorted, body.len()) {
+                // When 1 < L < 14 then there is no length field as L is enough to represent the struct size,
+                // and no assertion is made about field ordering.
+                (false, 2..=13) => {
+                    bytestream.push(TypeCode::Struct.to_byte() + body.len() as u8);
+                }
+                // As usual, if we need 14 or more bytes then L is set to 14 and the
+                // optional length VarUInt is included.
+                (false, length) => {
+                    bytestream.push(TypeCode::Struct.to_byte() + LengthCode::L14 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+                // When L is 1, the struct has at least one symbol/value pair, the length field exists,
+                // and the field name integers are sorted in increasing order.
+                (true, length) => {
+                    bytestream.push(TypeCode::Struct.to_byte() + LengthCode::L1 as u8);
+                    append_var_uint_usize(bytestream, length);
+                }
+            }
+            bytestream.extend(body);
+        }
+    }
+}
 
 // ### 14: Annotations
 //
@@ -966,11 +1077,43 @@ fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &Loc
 // The Ion specification notes that in the text format, annotations are denoted by a non-null symbol
 // token. Because the text and binary formats are semantically isomorphic, it follows that
 // a null symbol cannot appear as an annotation.
-fn append_annotation(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {}
-
-// ### 15: reserved
-//
-// The remaining type code, 15, is reserved for future use and is not legal in Ion 1.0 data.
+fn append_annotation(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &LocalSymbolTable) {
+    let annotations: Vec<u8> = value
+        .annotations
+        .iter()
+        .map(|token| match token {
+            // The symbol will have been accumulated in the symbol_accumulator prior to the write.
+            SymbolToken::Known { text } => symbol_table.get_symbol_index_unchecked(&text),
+            SymbolToken::Zero => 0usize,
+            SymbolToken::Unknown { import_location } => {
+                // An unknown SymbolToken that cannot be resolved to the writer's imports or catalogue should error.
+                // TODO: Import from the writer's import list or catalogue once implemented.
+                // Any unresolvable symbol will have already been rejected.
+                unreachable!(
+                    "Unexpected SymbolToken::Unknown with unresolvable ImportLocation {} cannot be written",
+                    import_location
+                );
+            }
+        })
+        .map(serialize_var_uint_usize)
+        .flatten()
+        .collect();
+    let mut body: Vec<u8> = vec![];
+    body.extend(serialize_var_uint_usize(annotations.len()));
+    body.extend(annotations);
+    append_data(&mut body, &value.value, symbol_table);
+    match body.len() {
+        0..=13 => {
+            bytestream.push(TypeCode::Annotation.to_byte() + body.len() as u8);
+        }
+        // As usual, if we need 14 or more bytes then L is set to 14 and the optional length VarUInt is included.
+        length => {
+            bytestream.push(TypeCode::Annotation.to_byte() + LengthCode::L14 as u8);
+            append_var_uint_usize(bytestream, length);
+        }
+    }
+    bytestream.extend(body);
+}
 
 #[derive(Debug)]
 struct SymbolAccumulator {
@@ -990,37 +1133,73 @@ impl SymbolAccumulator {
         *counter += 1;
     }
 
-    fn accumulate_symbols(&mut self, value: &Value) {
+    // TODO: Consider taking value as mut and updating resolvable Unknown symbols to their resolved text.
+    fn accumulate_symbols(&mut self, value: &Value) -> Result<(), SymbolError> {
+        // TODO: Depends on implementation of support for shared symbol tables.
+        // When encountering an Unknown Symbol for serialization:
+        // If a match to the ImportLocation in the system symbol table or the writer’s imports list is
+        // * Found, and the resolved SymbolToken has
+        //   * Known text: the behavior is the same as calling a raw text API, as described above, with that text.
+        //   * Unknown text: calculate the local symbol ID of the resolved SymbolToken’s importLocation in the current local symbol table.
+        //     * Binary writers, write this local symbol ID as-is.
+        // * Not found, and a match to the importLocation in the writer’s catalog (if present) is
+        //   * Found, and the resolved SymbolToken has
+        //     * Known text, the behavior is the same as calling a raw text API, as described above, with that text.
+        //     * Unknown text, an error must be raised.
+        //   * Not found, an error must be raised.
+        // In the meantime, a match to the ImportLocation in the system symbol table or the
+        // writer’s imports list is necessarily Not Found and a match to the ImportLocation in
+        // the writer’s catalog is necessarily Not Found, so an error must be raised.
         for annotation in &value.annotations {
-            if let SymbolToken::Known { text } = annotation {
-                self.increment(text);
+            match annotation {
+                SymbolToken::Known { text } => {
+                    self.increment(text);
+                }
+                SymbolToken::Unknown { import_location } => {
+                    // TODO: Complete once catalogue lookup is in place.
+                    return Err(SymbolError::UnresolvableImport(import_location.clone()));
+                }
+                SymbolToken::Zero => {} // No-op
             }
         }
         match &value.value {
             Data::Symbol(Some(SymbolToken::Known { text })) => {
                 self.increment(text);
             }
+            Data::Symbol(Some(SymbolToken::Unknown { import_location })) => {
+                // TODO: Complete once catalogue lookup is in place.
+                return Err(SymbolError::UnresolvableImport(import_location.clone()));
+            }
             Data::Struct(Some(r#struct)) => {
                 for (token, value) in &r#struct.fields {
-                    if let SymbolToken::Known { text } = token {
-                        self.increment(text);
+                    match token {
+                        SymbolToken::Known { text } => {
+                            self.increment(text);
+                        }
+                        SymbolToken::Unknown { import_location } => {
+                            // TODO: Complete once catalogue lookup is in place.
+                            return Err(SymbolError::UnresolvableImport(import_location.clone()));
+                        }
+                        SymbolToken::Zero => {} // No-op
                     }
-                    self.accumulate_symbols(value);
+                    self.accumulate_symbols(value)?
                 }
             }
             Data::List(Some(list)) => {
                 for value in &list.values {
-                    self.accumulate_symbols(&value);
+                    self.accumulate_symbols(&value)?
                 }
             }
             Data::Sexp(Some(sexp)) => {
                 for value in &sexp.values {
-                    self.accumulate_symbols(&value);
+                    self.accumulate_symbols(&value)?
                 }
             }
-            // No other Value variants contain Symbols.
+            // No other variants contain symbols that need to be accumulated.
+            // These are the symbol-free variants, as well as any Symbol Zero symbols.
             _ => {}
         }
+        Ok(())
     }
 }
 
@@ -1037,4 +1216,15 @@ struct LocalSymbolTable {
     max_id: usize,
     // Informs table serialization logic of whether there is a preceding table that should be imported.
     import_previous_table: bool,
+}
+
+impl LocalSymbolTable {
+    /// Returns the local symbol ID for the given text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the symbol text is not mapped in the local symbol table.
+    fn get_symbol_index_unchecked(&self, symbol_text: &str) -> usize {
+        *self.symbol_offsets.get(symbol_text).unwrap()
+    }
 }

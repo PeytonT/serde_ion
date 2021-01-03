@@ -1,3 +1,4 @@
+use crate::symbols::ImportLocation;
 use num_bigint::BigInt;
 use thiserror::Error;
 
@@ -9,6 +10,18 @@ pub enum Error {
     Symbol(SymbolError),
     #[error("invalid format")]
     Format(FormatError),
+}
+
+impl From<SymbolError> for Error {
+    fn from(error: SymbolError) -> Self {
+        Error::Symbol(error)
+    }
+}
+
+impl From<FormatError> for Error {
+    fn from(error: FormatError) -> Self {
+        Error::Format(error)
+    }
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -24,6 +37,8 @@ pub enum SymbolError {
     UnknownSymbolText(usize),
     #[error("the text for SID `{0}` is undefined")]
     UndefinedSymbolText(usize),
+    #[error("the provided import location `{0}` cannot be resolved")]
+    UnresolvableImport(ImportLocation),
     #[error("the provided symbol table is invalid")]
     InvalidSymbolTable,
     #[error("invalid max_id for import in symbol table: {0:?}")]

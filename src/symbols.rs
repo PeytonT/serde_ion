@@ -1,4 +1,4 @@
-use crate::error::SymbolError;
+use std::fmt;
 
 /// # symbol - Interned, Unicode symbolic atoms (aka identifiers)
 ///
@@ -119,7 +119,20 @@ impl From<&str> for SymbolToken {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportLocation {
     import_name: String,
+    // Index into a shared symbol table’s list of symbols.
+    // The first symbol in a shared symbol table always has an ImportSID of 1.
     import_sid: u32,
+}
+
+// Implement `Display` for `ImportLocation`.
+impl fmt::Display for ImportLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "ImportLocation ({}, {})",
+            self.import_name, self.import_sid
+        )
+    }
 }
 
 /// ## ImportDescriptor
@@ -140,72 +153,6 @@ impl ImportDescriptor {
             max_id,
         }
     }
-}
-
-/// ## SymbolTable
-///
-/// Stores a symbol mapping used to convert encountered Symbols back into text.
-///
-/// ### Semantics
-/// When mapping from symbol ID to string, there is no ambiguity.
-/// However, due to unavailable imports, certain IDs may appear to be undefined when binary data
-/// is decoded. Any symbol ID outside of the range of the local symbol table (or system symbol
-/// table if no local symbol table is defined) for which it is encoded under MUST raise an error.
-///
-/// When mapping from string to symbol ID, there may be multiple assigned IDs;
-/// implementations MUST select the lowest known ID. If an imported table is unavailable,
-/// this may cause selection of a greater ID than would be the case otherwise.
-/// This restriction ensures that symbols defined by system symbol tables can
-/// never be mapped to other IDs.
-///
-/// Put another way, string-to-SID mappings have the following precedence:
-///
-/// The system table is always consulted first.
-/// Each imported table is consulted in the order of import.
-/// Local symbols are last.
-#[derive(Clone, Debug, PartialEq)]
-pub enum SymbolTable {
-    Local(LocalSymbolTable),
-    Shared(SharedSymbolTable),
-    SystemV1,
-}
-
-impl SymbolTable {
-    pub fn lookup_text(&self, text: &str) -> Result<SymbolToken, SymbolError> {
-        match self {
-            SymbolTable::Local(table) => todo!(),
-            SymbolTable::Shared(table) => todo!(),
-            SymbolTable::SystemV1 => todo!(),
-        }
-    }
-
-    pub fn lookup_sid(&self, sid: usize) -> Result<SymbolToken, SymbolError> {
-        if sid == 0 {
-            return Ok(SymbolToken::Zero);
-        }
-        match self {
-            SymbolTable::Local(table) => todo!(),
-            SymbolTable::Shared(table) => todo!(),
-            SymbolTable::SystemV1 => match SYSTEM_SYMBOL_TABLE_V1.symbols.get(sid) {
-                Some(token) => Ok(token.clone()),
-                None => Err(SymbolError::AboveMaxId {
-                    symbol_id: sid,
-                    max_id: 9,
-                }),
-            },
-        }
-    }
-}
-
-/// ## LocalSymbolTable
-///
-/// Stores an in-stream symbol table definition.
-/// A local symbol table imports either the symbols from a list of shared symbol tables,
-/// or may import the current symbol table.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LocalSymbolTable {
-    imports: LocalImport,
-    symbols: Vec<String>,
 }
 
 // Specifies the import of a SharedSymbolTable into a LocalSymbolTable

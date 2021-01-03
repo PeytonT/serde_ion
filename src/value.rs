@@ -175,6 +175,8 @@ impl Decimal {
 // Enum variant names represent the precision of the variant
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
+    // TODO: Convert offset to i16, or consider some sort of BoundedInt?
+    // https://github.com/rust-lang/rfcs/issues/671
     Year {
         offset: i32,
         year: u16,
@@ -217,6 +219,7 @@ pub enum Timestamp {
         second: u8,
         fraction_coefficient: BigUint,
         // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
+        // TODO: Revisit this - absolute correctness to the spec is a compelling virtue.
         fraction_exponent: i32,
     },
 }
