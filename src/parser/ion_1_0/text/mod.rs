@@ -142,9 +142,7 @@ impl<'a> ValueIterator<'a> {
 fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
     match &value.value {
         ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
-            Some(Some(SymbolToken::Known { text })) if text == "$ion_shared_symbol_table" => {
-                Some(table)
-            }
+            Some(SymbolToken::Known { text }) if text == "$ion_shared_symbol_table" => Some(table),
             _ => None,
         },
         _ => None,
@@ -154,7 +152,7 @@ fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
 fn as_local_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
     match &value.value {
         ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
-            Some(Some(SymbolToken::Known { text })) if text == "$ion_symbol_table" => Some(table),
+            Some(SymbolToken::Known { text }) if text == "$ion_symbol_table" => Some(table),
             _ => None,
         },
         _ => None,
@@ -299,7 +297,7 @@ fn take_top_level_value(
 ) -> impl Fn(&str) -> IonResult<&str, (ion::Value, Option<ion::Value>)> {
     move |i: &str| {
         let (i, (annotations, (value, next_value))) = pair(
-            many0(map(take_annotation(table.clone()), Some)),
+            many0(take_annotation(table.clone())),
             take_top_level_data(table.clone()),
         )(i)?;
 
@@ -389,7 +387,7 @@ where
                 ),
                 |(head_annotation, (mut rest_annotation, value))| {
                     // It is mandatory to maintain the order of annotations applied to an object.
-                    rest_annotation.insert(0, Some(head_annotation));
+                    rest_annotation.insert(0, head_annotation);
                     Some(ion::Value {
                         value,
                         annotations: rest_annotation,
@@ -416,10 +414,10 @@ fn take_value(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Value> {
 
 fn take_value_parts(
     table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (Vec<Option<SymbolToken>>, ion::Data)> {
+) -> impl Fn(&str) -> IonResult<&str, (Vec<SymbolToken>, ion::Data)> {
     move |i: &str| {
         pair(
-            many0(map(take_annotation(table.clone()), Some)),
+            many0(take_annotation(table.clone())),
             take_entity(table.clone()),
         )(i)
     }
@@ -734,7 +732,7 @@ fn take_sexp_value(
     move |i: &str| {
         map(
             pair(
-                many0(map(take_annotation(table.clone()), Some)),
+                many0(take_annotation(table.clone())),
                 take_sexp_data(table.clone()),
             ),
             |(annotations, (value, next))| (ion::Value { value, annotations }, next),
@@ -887,7 +885,7 @@ fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, io
                 take_field_name(table.clone()),
                 tuple((eat_opt_ws, char(COLON), eat_opt_ws)),
                 pair(
-                    many0(map(take_annotation(table.clone()), Some)),
+                    many0(take_annotation(table.clone())),
                     take_entity(table.clone()),
                 ),
             ),

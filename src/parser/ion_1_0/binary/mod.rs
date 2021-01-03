@@ -48,17 +48,14 @@ fn parse_top_level_value<'a, 'b>(
             // If the value is a Struct...
             if let Data::Struct(ion_struct) = &value.value {
                 // And the annotations vector contains a first annotation (i.e. is non-empty)...
-                if let Some(symbol) = value.annotations.first() {
-                    // And the first annotation is not a null symbol...
-                    if let Some(token) = symbol {
-                        // And the value of the annotation is "$ion_symbol_table"...
-                        if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
-                            // Then it is an update to the local symbol table. Apply it.
-                            update_current_symbol_table(symbol_table, ion_struct)
-                                .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
-                            // And return no Value
-                            return Ok((rest, None));
-                        }
+                if let Some(token) = value.annotations.first() {
+                    // And the value of the annotation is "$ion_symbol_table"...
+                    if *token == SYSTEM_SYMBOL_TABLE_V1.symbols[3] {
+                        // Then it is an update to the local symbol table. Apply it.
+                        update_current_symbol_table(symbol_table, ion_struct)
+                            .map_err(|e| Err::Failure(IonError::from_symbol_error(i, e)))?;
+                        // And return no Value
+                        return Ok((rest, None));
                     }
                 }
             }
@@ -1251,17 +1248,14 @@ fn parse_struct_entries(
 /// The annot_length field contains the length of the (one or more) annot fields.
 ///
 /// It is illegal for an annotation to wrap another annotation atomically, i.e.,
-/// annotation(annotation(value)). However, it is legal to have an annotation on a container that
-/// holds annotated values.
-/// Note that it is possible to enforce the illegality of annotation(annotation(value))
-/// directly in a grammar, but we have not chosen to do that in this document.
+/// annotation(annotation(value)).
 ///
 /// Furthermore, it is illegal for an annotation to wrap a NOP Pad since this encoding is not an
 /// Ion value. Thus, the following sequence is malformed:
 ///
-/// 0xE3 0x81 0x84 0x00
-/// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
-/// Instead, that octet signals the start of a binary version marker.
+/// The Ion specification notes that in the text format, annotations are denoted by a non-null symbol
+/// token. Because the text and binary formats are semantically isomorphic, it follows that
+/// a null symbol cannot appear as an annotation.
 fn parse_annotation<'a>(
     typed_value: TypedValue<'a>,
     symbol_table: &CurrentSymbolTable,
@@ -1300,7 +1294,7 @@ fn parse_annotation<'a>(
             match annotations
                 .into_iter()
                 .map(|x| match symbol_table.lookup_sid(x) {
-                    Ok(token) => Ok(Some(token)),
+                    Ok(token) => Ok(token),
                     Result::Err(error) => Err(error),
                 })
                 .collect()

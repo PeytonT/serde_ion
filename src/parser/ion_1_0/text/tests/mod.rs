@@ -94,7 +94,7 @@ fn verify_tlvs(expected: Vec<ion::Value>, actuals: Result<Vec<ion::Value>, Strin
 }
 
 // A set of helpers to remove boiler plate for the massive number of tests below.
-fn value(value: ion::Data, annotations: Vec<Option<SymbolToken>>) -> ion::Value {
+fn value(value: ion::Data, annotations: Vec<SymbolToken>) -> ion::Value {
     ion::Value { value, annotations }
 }
 
@@ -166,9 +166,9 @@ fn string(s: &str) -> ion::Value {
     ion::Data::String(Some(s.to_string())).into()
 }
 
-fn annot(s: &str) -> Option<SymbolToken> {
+fn annot(s: &str) -> SymbolToken {
     let text = s.to_string();
-    Some(SymbolToken::Known { text })
+    SymbolToken::Known { text }
 }
 
 fn symbol(s: &str) -> ion::Value {

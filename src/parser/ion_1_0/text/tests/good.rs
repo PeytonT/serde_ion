@@ -1629,24 +1629,24 @@ fn test_symbol_zero() {
 
     let expected = vec![
         ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
-        value(symbol_data("abc"), vec![Some(SymbolToken::Zero)]),
+        value(symbol_data("abc"), vec![SymbolToken::Zero]),
         map(vec![(SymbolToken::Zero, symbol("abc"))]),
         map(vec![(
             SymbolToken::Zero,
-            value(symbol_data("abc"), vec![Some(SymbolToken::Zero)]),
+            value(symbol_data("abc"), vec![SymbolToken::Zero]),
         )]),
         map(vec![(
             SymbolToken::Zero,
             value(
                 ion::Data::Symbol(Some(SymbolToken::Zero)),
-                vec![Some(SymbolToken::Zero)],
+                vec![SymbolToken::Zero],
             ),
         )]),
         sexp(vec![
             ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
             value(
                 ion::Data::Symbol(Some(SymbolToken::Zero)),
-                vec![Some(SymbolToken::Zero)],
+                vec![SymbolToken::Zero],
             ),
         ]),
     ];

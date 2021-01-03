@@ -1041,9 +1041,9 @@ mod tests {
                 value,
                 vec![Value {
                     value: Data::Struct(Some(Struct { fields: vec![] })),
-                    annotations: vec![Some(SymbolToken::Known {
+                    annotations: vec![SymbolToken::Known {
                         text: String::from("max_id")
-                    })]
+                    }]
                 }]
             );
         }
@@ -1181,12 +1181,12 @@ mod tests {
                         ]
                     })),
                     annotations: vec![
-                        Some(SymbolToken::Known {
+                        SymbolToken::Known {
                             text: String::from("symbols")
-                        }),
-                        Some(SymbolToken::Known {
+                        },
+                        SymbolToken::Known {
                             text: String::from("max_id")
-                        })
+                        }
                     ],
                 }],
             );

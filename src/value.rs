@@ -11,14 +11,18 @@ use num_bigint::{BigInt, BigUint};
 #[derive(Clone, Debug, PartialEq)]
 pub struct Value {
     pub value: Data,
-    pub annotations: Vec<Option<SymbolToken>>,
+    // The Ion specification notes that in the text format, annotations are denoted by a non-null
+    // symbol token. The text and binary formats are semantically isomorphic, so it follows that a
+    // null symbol cannot appear as an annotation, and correspondingly this is a Vec<SymbolToken>
+    // rather than a Vec<Option<SymbolToken>>.
+    pub annotations: Vec<SymbolToken>,
 }
 
 impl Value {
     pub(crate) fn has_annotation(&self, annotation: &str) -> bool {
         for token in &self.annotations {
             match token {
-                Some(SymbolToken::Known { text }) if text.as_str() == annotation => return true,
+                SymbolToken::Known { text } if text.as_str() == annotation => return true,
                 _ => (),
             }
         }

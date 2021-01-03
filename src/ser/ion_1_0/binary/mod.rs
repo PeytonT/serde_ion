@@ -4,7 +4,7 @@ use self::subfield::*;
 use crate::binary::{type_descriptor, LengthCode, TypeCode};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
-use crate::value::{Blob, Clob, Data, Decimal, Timestamp, Value};
+use crate::value::{Blob, Clob, Data, Decimal, List, Timestamp, Value};
 use crate::Version;
 use itertools::Itertools;
 use num_bigint::{BigInt, Sign};
@@ -170,9 +170,7 @@ impl Writer {
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
-fn append_value(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {
-    if value.annotations.is_empty() {}
-}
+fn append_value(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {}
 
 // ### 0: null
 //
@@ -678,7 +676,11 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: Option<Timestamp>) {
 // fields are omitted.
 //
 // See Ion Symbols for more details about symbol representations and symbol tables.
-fn append_symbol(bytestream: &mut Vec<u8>, value: Option<SymbolToken>, table: LocalSymbolTable) {
+fn append_symbol(
+    bytestream: &mut Vec<u8>,
+    value: Option<SymbolToken>,
+    symbol_table: &LocalSymbolTable,
+) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Symbol, LengthCode::L15)),
         Some(SymbolToken::Zero) => {
@@ -686,7 +688,7 @@ fn append_symbol(bytestream: &mut Vec<u8>, value: Option<SymbolToken>, table: Lo
         }
         Some(SymbolToken::Known { text }) => {
             // The symbol will have been accumulated in the symbol_accumulator prior to the write.
-            let index: &usize = table.symbol_offsets.get(&text).unwrap();
+            let index: &usize = symbol_table.symbol_offsets.get(&text).unwrap();
             // TODO: Strip off leading 0 bytes.
             let symbol_id = index.to_be_bytes();
             match symbol_id.len() {
@@ -834,9 +836,16 @@ fn append_blob(bytestream: &mut Vec<u8>, value: Option<Blob>) {
 //
 // When L is 15, the value is null.list and there’s no length or nested values. When L is 0,
 // the value is an empty list, and there’s no length or nested values.
-//
-// Because values indicate their total lengths in octets, it is possible to locate the beginning of
-// each successive value in constant time.
+fn append_list(bytestream: &mut Vec<u8>, value: Option<List>, symbol_table: &LocalSymbolTable) {
+    match value {
+        None => bytestream.push(type_descriptor(TypeCode::List, LengthCode::L15)),
+        Some(List { values }) if values.is_empty() => {
+            bytestream.push(type_descriptor(TypeCode::List, LengthCode::L0))
+        }
+        // TODO: Optimize into two passes - first to compute length - second to serialize.
+        Some(List { values }) => {}
+    }
+}
 
 // ### 12: sexp
 //
@@ -949,17 +958,15 @@ fn append_blob(bytestream: &mut Vec<u8>, value: Option<Blob>) {
 // The annot_length field contains the length of the (one or more) annot fields.
 //
 // It is illegal for an annotation to wrap another annotation atomically, i.e.,
-// annotation(annotation(value)). However, it is legal to have an annotation on a container that
-// holds annotated values.
-// Note that it is possible to enforce the illegality of annotation(annotation(value))
-// directly in a grammar, but we have not chosen to do that in this document.
+// annotation(annotation(value)).
 //
 // Furthermore, it is illegal for an annotation to wrap a NOP Pad since this encoding is not an
-// Ion value. Thus, the following sequence is malformed:
+// Ion value.
 //
-// 0xE3 0x81 0x84 0x00
-// Note: Because L cannot be zero, the octet 0xE0 is not a valid type descriptor.
-// Instead, that octet signals the start of a binary version marker.
+// The Ion specification notes that in the text format, annotations are denoted by a non-null symbol
+// token. Because the text and binary formats are semantically isomorphic, it follows that
+// a null symbol cannot appear as an annotation.
+fn append_annotation(bytestream: &mut Vec<u8>, value: Value, symbol_table: &LocalSymbolTable) {}
 
 // ### 15: reserved
 //
@@ -985,7 +992,7 @@ impl SymbolAccumulator {
 
     fn accumulate_symbols(&mut self, value: &Value) {
         for annotation in &value.annotations {
-            if let Some(SymbolToken::Known { text }) = annotation {
+            if let SymbolToken::Known { text } = annotation {
                 self.increment(text);
             }
         }
