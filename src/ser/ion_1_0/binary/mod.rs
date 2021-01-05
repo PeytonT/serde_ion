@@ -112,37 +112,6 @@ impl Writer {
         self.value_buffer.push(value);
         Ok(())
     }
-
-    // Absorbs the accumulated symbols in the symbol buffer into the local symbol table.
-    // If there is a current symbol table it will be imported and extended, and otherwise a new
-    // local symbol table will be created.
-    fn update_symbol_table_v1_0(&mut self) {
-        // Steal the accumulator's counting map and reset the accumulator.
-        let symbol_counts: HashMap<String, i32> = replace(
-            self.symbol_buffer.symbol_counts.borrow_mut(),
-            HashMap::new(),
-        );
-
-        // Sort the accumulated symbols in reverse order by count. There's never a downside to this,
-        // though it's much less likely to save space when extending an existing table.
-        // Filter out any symbols that already exist in the table.
-        let ordered_symbols: Vec<String> = symbol_counts
-            .into_iter()
-            .filter(|x| self.local_symbol_table.symbol_offsets.contains_key(&x.0))
-            .sorted_by_key(|x| -x.1)
-            .map(|x| x.0)
-            .collect();
-
-        // Add the new symbols to the offset map.
-        for (index, value) in ordered_symbols.iter().enumerate() {
-            self.local_symbol_table
-                .symbol_offsets
-                .insert(value.to_owned(), index + self.local_symbol_table.max_id);
-        }
-
-        self.local_symbol_table.max_id += ordered_symbols.len();
-        self.local_symbol_table.import_previous_table = true;
-    }
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
