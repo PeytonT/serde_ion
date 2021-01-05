@@ -1,7 +1,7 @@
 mod subfield;
 
 use self::subfield::*;
-use crate::binary::{type_descriptor, LengthCode, TypeCode};
+use crate::binary::{type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt};
 use crate::error::{Error, SymbolError};
 use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
@@ -258,22 +258,22 @@ fn append_nop_pad(bytestream: &mut Vec<u8>, size: usize) {
 
     // Maximum NOP Pad size that can be represented with a one-byte VarUInt length, taking into account that one byte
     // will be needed for the type descriptor and one byte will be needed for the length.
-    const ONE_BYTE_VARUINT_CUTOFF: usize = ONE_BYTE_VARUINT_RANGE_UPPER + 1 + 1;
+    const ONE_BYTE_VARUINT_CUTOFF: usize = ONE_BYTE_VARUINT_RANGE_UPPER_USIZE + 1 + 1;
 
     // NOP Pad size range that can be represented with a two-byte VarUInt length, taking into account that one byte
     // will be needed for the type descriptor and two bytes will be needed for the length.
     const TWO_BYTE_VARUINT_START: usize = ONE_BYTE_VARUINT_CUTOFF + 1;
-    const TWO_BYTE_VARUINT_CUTOFF: usize = TWO_BYTE_VARUINT_RANGE_UPPER + 1 + 2;
+    const TWO_BYTE_VARUINT_CUTOFF: usize = TWO_BYTE_VARUINT_RANGE_UPPER_USIZE + 1 + 2;
 
     // NOP Pad size range that can be represented with a three-byte VarUInt length, taking into account that one byte
     // will be needed for the type descriptor and three bytes will be needed for the length.
     const THREE_BYTE_VARUINT_START: usize = TWO_BYTE_VARUINT_CUTOFF + 1;
-    const THREE_BYTE_VARUINT_CUTOFF: usize = THREE_BYTE_VARUINT_RANGE_UPPER + 1 + 3;
+    const THREE_BYTE_VARUINT_CUTOFF: usize = THREE_BYTE_VARUINT_RANGE_UPPER_USIZE + 1 + 3;
 
     // NOP Pad size range that can be represented with a four-byte VarUInt length, taking into account that one byte
     // will be needed for the type descriptor and four bytes will be needed for the length.
     const FOUR_BYTE_VARUINT_FOUR: usize = THREE_BYTE_VARUINT_CUTOFF + 1;
-    const FOUR_BYTE_VARUINT_CUTOFF: usize = FOUR_BYTE_VARUINT_RANGE_UPPER + 1 + 4;
+    const FOUR_BYTE_VARUINT_CUTOFF: usize = FOUR_BYTE_VARUINT_RANGE_UPPER_USIZE + 1 + 4;
 
     // TODO: Clean up this mess with a const fn once min_const_generics is stable.
     match size {
@@ -392,7 +392,7 @@ fn append_int(bytestream: &mut Vec<u8>, value: &Option<BigInt>) {
                 Sign::Plus => TypeCode::PosInt.to_byte(),
                 Sign::Minus => TypeCode::NegInt.to_byte(),
             };
-            let magnitude = serialize_uint(int.magnitude());
+            let magnitude = UInt::from(int.magnitude()).into_bytes();
             match magnitude.len() {
                 0..=13 => {
                     bytestream.push(type_code + (magnitude.len() as u8));
@@ -491,10 +491,10 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: &Option<Decimal>) {
                 bytestream.push(type_descriptor(TypeCode::Decimal, LengthCode::L0));
                 return;
             }
-            let exponent = serialize_var_int(&decimal.exponent);
+            let exponent = VarInt::from(&decimal.exponent).into_bytes();
             let coefficient = match decimal.coefficient.is_zero() {
                 true => Vec::new(),
-                false => serialize_int(&decimal.coefficient),
+                false => Int::from(&decimal.coefficient).into_bytes(),
             };
             let length = exponent.len() + coefficient.len();
             match length {
@@ -597,8 +597,8 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Timestamp, LengthCode::L15)),
         Some(Timestamp::Year { offset, year }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
             append(bytestream, contents);
         }
         Some(Timestamp::Month {
@@ -606,9 +606,9 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             year,
             month,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
-            append_var_uint_usize(&mut contents, *month as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
+            append_var_uint_u8(&mut contents, *month);
             append(bytestream, contents);
         }
         Some(Timestamp::Day {
@@ -617,10 +617,10 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             month,
             day,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
-            append_var_uint_usize(&mut contents, *month as usize);
-            append_var_uint_usize(&mut contents, *day as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
+            append_var_uint_u8(&mut contents, *month);
+            append_var_uint_u8(&mut contents, *day);
             append(bytestream, contents);
         }
         Some(Timestamp::Minute {
@@ -631,12 +631,12 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             hour,
             minute,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
-            append_var_uint_usize(&mut contents, *month as usize);
-            append_var_uint_usize(&mut contents, *day as usize);
-            append_var_uint_usize(&mut contents, *hour as usize);
-            append_var_uint_usize(&mut contents, *minute as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
+            append_var_uint_u8(&mut contents, *month);
+            append_var_uint_u8(&mut contents, *day);
+            append_var_uint_u8(&mut contents, *hour);
+            append_var_uint_u8(&mut contents, *minute);
             append(bytestream, contents);
         }
         Some(Timestamp::Second {
@@ -648,13 +648,13 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             minute,
             second,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
-            append_var_uint_usize(&mut contents, *month as usize);
-            append_var_uint_usize(&mut contents, *day as usize);
-            append_var_uint_usize(&mut contents, *hour as usize);
-            append_var_uint_usize(&mut contents, *minute as usize);
-            append_var_uint_usize(&mut contents, *second as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
+            append_var_uint_u8(&mut contents, *month);
+            append_var_uint_u8(&mut contents, *day);
+            append_var_uint_u8(&mut contents, *hour);
+            append_var_uint_u8(&mut contents, *minute);
+            append_var_uint_u8(&mut contents, *second);
             append(bytestream, contents);
         }
         Some(Timestamp::FractionalSecond {
@@ -668,15 +668,15 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             fraction_coefficient,
             fraction_exponent,
         }) => {
-            let mut contents = serialize_var_int(&BigInt::from(*offset));
-            append_var_uint_usize(&mut contents, *year as usize);
-            append_var_uint_usize(&mut contents, *month as usize);
-            append_var_uint_usize(&mut contents, *day as usize);
-            append_var_uint_usize(&mut contents, *hour as usize);
-            append_var_uint_usize(&mut contents, *minute as usize);
-            append_var_uint_usize(&mut contents, *second as usize);
+            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            append_var_uint_u16(&mut contents, *year);
+            append_var_uint_u8(&mut contents, *month);
+            append_var_uint_u8(&mut contents, *day);
+            append_var_uint_u8(&mut contents, *hour);
+            append_var_uint_u8(&mut contents, *minute);
+            append_var_uint_u8(&mut contents, *second);
             contents.extend(serialize_var_int_parts(Sign::Plus, fraction_coefficient));
-            contents.extend(serialize_int(&BigInt::from(*fraction_exponent)));
+            contents.extend(Int::from(&BigInt::from(*fraction_exponent)).into_bytes());
             append(bytestream, contents);
         }
     }
@@ -1007,7 +1007,7 @@ fn append_struct(
 
             let fields: Vec<(Vec<u8>, &Value)> = indexed_fields
                 .into_iter()
-                .map(|(index, value)| (serialize_var_uint_usize(index), value))
+                .map(|(index, value)| (VarUInt::from(index).into_bytes(), value))
                 .collect();
 
             let mut body: Vec<u8> = vec![];
@@ -1095,11 +1095,12 @@ fn append_annotation(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &Loc
                 );
             }
         })
-        .map(serialize_var_uint_usize)
+        .map(VarUInt::from)
+        .map(VarUInt::into_bytes)
         .flatten()
         .collect();
     let mut body: Vec<u8> = vec![];
-    body.extend(serialize_var_uint_usize(annotations.len()));
+    body.extend(VarUInt::from(annotations.len()).into_bytes());
     body.extend(annotations);
     append_data(&mut body, &value.value, symbol_table);
     match body.len() {

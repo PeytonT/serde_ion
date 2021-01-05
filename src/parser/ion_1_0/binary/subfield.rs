@@ -58,42 +58,7 @@ use num_traits::{cast::ToPrimitive, identities::Zero};
 /// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
 /// on the highest-order bit of the first octet). This means that the representations of
 /// 123456 and -123456 should only differ in their sign bit.
-
-pub fn take_int(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
-    move |i: &[u8]| {
-        let (rest, bytes) = take(length)(i)?;
-        Ok((rest, parse_int(bytes)))
-    }
-}
-
-pub fn parse_int(bytes: &[u8]) -> num_bigint::BigInt {
-    let sign = match bytes.first() {
-        Some(v) if *v > 0b0111_1111 => Sign::Minus,
-        Some(_) => Sign::Plus,
-        None => return BigInt::zero(),
-    };
-
-    if sign == Sign::Minus {
-        // TODO: Performance
-        let mut bytes = Vec::from(bytes);
-        bytes[0] ^= 0b1000_0000; // clear the high bit to get the magnitude
-        BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bytes))
-    } else {
-        BigInt::from_biguint(sign, BigUint::from_bytes_be(bytes))
-    }
-}
-
-pub fn take_uint(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
-    move |i: &[u8]| {
-        let (input, bytes) = take(length)(i)?;
-        Ok((input, BigUint::from_bytes_be(bytes)))
-    }
-}
-
-pub fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
-    BigUint::from_bytes_be(bytes)
-}
-
+///
 /// ## VarUInt and VarInt Fields
 ///
 /// VarUInt and VarInt fields represent self-delimiting, variable-length unsigned and signed integer
@@ -144,7 +109,42 @@ pub fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
 ///                                 +--sign
 /// ```
 
-pub fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
+pub(crate) fn take_int(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
+    move |i: &[u8]| {
+        let (rest, bytes) = take(length)(i)?;
+        Ok((rest, parse_int(bytes)))
+    }
+}
+
+pub(crate) fn parse_int(bytes: &[u8]) -> num_bigint::BigInt {
+    let sign = match bytes.first() {
+        Some(v) if *v > 0b0111_1111 => Sign::Minus,
+        Some(_) => Sign::Plus,
+        None => return BigInt::zero(),
+    };
+
+    if sign == Sign::Minus {
+        // TODO: Performance
+        let mut bytes = Vec::from(bytes);
+        bytes[0] ^= 0b1000_0000; // clear the high bit to get the magnitude
+        BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bytes))
+    } else {
+        BigInt::from_biguint(sign, BigUint::from_bytes_be(bytes))
+    }
+}
+
+pub(crate) fn take_uint(length: usize) -> impl Fn(&[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
+    move |i: &[u8]| {
+        let (input, bytes) = take(length)(i)?;
+        Ok((input, BigUint::from_bytes_be(bytes)))
+    }
+}
+
+pub(crate) fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
+    BigUint::from_bytes_be(bytes)
+}
+
+pub(crate) fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_int(sequence, terminator[0])))
@@ -153,7 +153,7 @@ pub fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
 // There are scenarios (ex. timestamp exponent values) where allowing a VarInt that cannot fit in i32 is unreasonable.
 // This should not pose an issue for non-pathological use cases.
 // TODO: obvious room for performance improvement
-pub fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
+pub(crate) fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
     let value = parse_var_int(sequence, terminator[0]);
@@ -166,7 +166,7 @@ pub fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
     }
 }
 
-pub fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
+pub(crate) fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
     let sign = match sequence.first() {
         Some(byte) => {
             // we know that no byte in the sequence has the high bit set
@@ -218,7 +218,7 @@ pub fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
     BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
 }
 
-pub fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
+pub(crate) fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_uint(sequence, terminator[0])))
@@ -226,7 +226,7 @@ pub fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
 
 // There are scenarios (ex. byte-length tags) where a VarUint that cannot fit in usize is unreasonable.
 // TODO: obvious room for performance improvement
-pub fn take_var_uint_as_usize(i: &[u8]) -> IonResult<&[u8], usize> {
+pub(crate) fn take_var_uint_as_usize(i: &[u8]) -> IonResult<&[u8], usize> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
     let value = parse_var_uint(sequence, terminator[0]);
@@ -239,7 +239,7 @@ pub fn take_var_uint_as_usize(i: &[u8]) -> IonResult<&[u8], usize> {
     }
 }
 
-pub fn parse_var_uint(sequence: &[u8], terminator: u8) -> num_bigint::BigUint {
+pub(crate) fn parse_var_uint(sequence: &[u8], terminator: u8) -> num_bigint::BigUint {
     // total number of payload bits in the VarUInt
     let payload_bits = 7 * (sequence.len() + 1);
 

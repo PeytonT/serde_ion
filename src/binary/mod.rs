@@ -119,6 +119,156 @@ pub(crate) const fn type_descriptor(t: TypeCode, l: LengthCode) -> u8 {
     t.to_byte() + l as u8
 }
 
+/// ## UInt Fields
+///
+/// UInt fields represent fixed-length unsigned integer values.
+/// These field formats are always used in some context that clearly indicates the
+/// number of octets in the field.
+///
+/// UInts are sequences of octets, interpreted as big-endian.
+///
+/// ```text
+///             7                       0
+///            +-------------------------+
+/// UInt field |          bits           |
+///            +-------------------------+
+///            :          bits           :
+///            +=========================+
+///                        ⋮
+///            +=========================+
+///            :          bits           :
+///            +=========================+
+///             n+7                     n
+/// ```
+pub(crate) struct UInt(Vec<u8>);
+
+impl UInt {
+    pub fn new(bytes: Vec<u8>) -> UInt {
+        UInt(bytes)
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+/// ## Int Fields
+///
+/// Int fields represent fixed-length signed integer values.
+/// These field formats are always used in some context that clearly indicates the
+/// number of octets in the field.
+///
+/// Ints are sequences of octets, interpreted as sign-and-magnitude big endian integers (with the sign
+/// on the highest-order bit of the first octet). This means that the representations of
+/// 123456 and -123456 should only differ in their sign bit.
+///
+/// ```text
+///              7  6                   0
+///            +---+---------------------+
+/// Int field  |   |      bits           |
+///            +---+---------------------+
+///              ^
+///              |
+///              +--sign
+///            +=========================+
+///            :          bits           :
+///            +=========================+
+///                        ⋮
+///            +=========================+
+///            :          bits           :
+///            +=========================+
+///             n+7                     n
+/// ```
+pub(crate) struct Int(Vec<u8>);
+
+impl Int {
+    pub fn new(bytes: Vec<u8>) -> Int {
+        Int(bytes)
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+/// ## VarUInt Fields
+///
+/// VarUInt fields represent self-delimiting, variable-length unsigned integer values.
+/// These field formats are always used in a context that does not indicate the number of octets
+/// in the field; the last octet (and only the last octet) has its high-order bit set to
+/// terminate the field.
+///
+/// VarUInts are a sequence of octets. The high-order bit of the last octet is one,
+/// indicating the end of the sequence. All other high-order bits must be zero.
+///
+/// ```text
+///                 7  6                   0       n+7 n+6                 n
+///               +===+=====================+     +---+---------------------+
+/// VarUInt field : 0 :         bits        :  …  | 1 |         bits        |
+///               +===+=====================+     +---+---------------------+
+/// ```
+pub(crate) struct VarUInt(Vec<u8>);
+
+impl VarUInt {
+    pub fn new(bytes: Vec<u8>) -> VarUInt {
+        VarUInt(bytes)
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+/// ## VarInt Fields
+///
+/// VarInt fields represent self-delimiting, variable-length signed integer values.
+/// These field formats are always used in a context that does not indicate the number of octets
+/// in the field; the last octet (and only the last octet) has its high-order bit set to
+/// terminate the field.
+///
+/// VarInts are sign-and-magnitude integers, like Ints. Their layout is complicated,
+/// as there is one special leading bit (the sign) and one special trailing bit (the terminator).
+/// In the above diagram, we put the two concepts on different layers.
+///
+/// The high-order bit in the top layer is an end-of-sequence marker. It must be set on the last octet
+/// in the representation and clear in all other octets. The second-highest order bit (0x40) is a sign
+/// flag in the first octet of the representation, but part of the extension bits for all other octets.
+/// For single-octet VarInt values, this collapses down to:
+///
+/// ```text
+///                7   6  5               0       n+7 n+6                 n
+///              +===+                           +---+
+/// VarInt field : 0 :       payload          …  | 1 |       payload
+///              +===+                           +---+
+///                  +---+-----------------+         +=====================+
+///                  |   |   magnitude     |  …      :       magnitude     :
+///                  +---+-----------------+         +=====================+
+///                ^   ^                           ^
+///                |   |                           |
+///                |   +--sign                     +--end flag
+///                +--end flag
+/// ```
+/// ```text
+///                             7   6  5           0
+///                           +---+---+-------------+
+/// single octet VarInt field | 1 |   |  magnitude  |
+///                           +---+---+-------------+
+///                                 ^
+///                                 |
+///                                 +--sign
+/// ```
+pub(crate) struct VarInt(Vec<u8>);
+
+impl VarInt {
+    pub fn new(bytes: Vec<u8>) -> VarInt {
+        VarInt(bytes)
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
