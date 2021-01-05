@@ -112,6 +112,10 @@ impl Writer {
         self.value_buffer.push(value);
         Ok(())
     }
+
+    pub fn get(self) -> Vec<u8> {
+        self.bytes
+    }
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.

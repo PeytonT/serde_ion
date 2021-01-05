@@ -10,6 +10,9 @@ pub mod error;
 pub mod parser;
 mod ser;
 pub mod symbols;
+#[allow(non_snake_case)]
+#[cfg(test)]
+mod tests;
 pub mod value;
 
 extern crate bit_vec;
