@@ -22,7 +22,7 @@ extern crate num_derive;
 extern crate lazy_static;
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Version {
     Ion_1_0,
 }

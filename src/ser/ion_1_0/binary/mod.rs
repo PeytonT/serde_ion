@@ -27,7 +27,7 @@ pub struct Writer {
     // serialized bytes
     bytes: Vec<u8>,
     // local symbol table
-    local_symbol_table: Option<LocalSymbolTable>,
+    local_symbol_table: LocalSymbolTable,
     // symbols encountered in the current segment
     symbol_buffer: SymbolAccumulator,
     // values for the current segment
@@ -40,7 +40,7 @@ impl Writer {
     pub fn new(current_version: Version) -> Writer {
         Writer {
             bytes: vec![],
-            local_symbol_table: None,
+            local_symbol_table: LocalSymbolTable::new(&current_version),
             symbol_buffer: SymbolAccumulator::new(),
             value_buffer: vec![],
             current_version,
@@ -54,10 +54,37 @@ impl Writer {
         match self.current_version {
             Version::Ion_1_0 => {
                 self.bytes.extend_from_slice(&BVM_1_0);
+
+                let extending_existing_table = self.local_symbol_table.import_previous_table;
+
                 // Absorb the symbols accumulated in the symbol_buffer into the local_symbol_table.
-                self.update_symbol_table_v1_0();
-                // TODO: Serialize the symbol table
-                // TODO: Serialize the buffered values using the symbol table
+                self.local_symbol_table.update(
+                    &Version::Ion_1_0,
+                    replace(
+                        self.symbol_buffer.symbol_counts.borrow_mut(),
+                        HashMap::new(),
+                    ),
+                );
+
+                // If the symbol holds nothing more than the default symbols for this version then
+                // we can skip writing the symbol table.
+                if self.local_symbol_table.max_id != SYSTEM_SYMBOL_TABLE_V1_SIZE {
+                    let annotations = vec![SymbolToken::Known {
+                        text: "$ion_symbol_table".to_string(),
+                    }];
+                    let body = self.local_symbol_table.to_struct();
+                    append_annotation(
+                        &mut self.bytes,
+                        &annotations,
+                        &Data::Struct(Some(body)),
+                        &self.local_symbol_table,
+                    );
+                }
+
+                // Serialize the buffered values using the symbol table
+                replace(&mut self.value_buffer, Vec::new())
+                    .into_iter()
+                    .for_each(|v| append_value(&mut self.bytes, &v, &self.local_symbol_table))
             }
         }
     }
@@ -65,6 +92,7 @@ impl Writer {
     pub fn extend(&mut self, version: Version, values: Vec<Value>) -> Result<(), Error> {
         if self.current_version != version {
             self.write();
+            self.local_symbol_table = LocalSymbolTable::new(&version);
             self.current_version = version;
         }
         for value in &values {
@@ -77,6 +105,7 @@ impl Writer {
     pub fn append(&mut self, version: Version, value: Value) -> Result<(), Error> {
         if self.current_version != version {
             self.write();
+            self.local_symbol_table = LocalSymbolTable::new(&version);
             self.current_version = version;
         }
         self.symbol_buffer.accumulate_symbols(&value)?;
@@ -89,93 +118,37 @@ impl Writer {
     // local symbol table will be created.
     fn update_symbol_table_v1_0(&mut self) {
         // Steal the accumulator's counting map and reset the accumulator.
-        let mut symbol_counts: HashMap<String, i32> = replace(
+        let symbol_counts: HashMap<String, i32> = replace(
             self.symbol_buffer.symbol_counts.borrow_mut(),
             HashMap::new(),
         );
 
-        match &mut self.local_symbol_table {
-            // Initialize a local symbol table from scratch if there is no previous table to import.
-            None => {
-                // Remove Ion 1.0 system symbols. These symbols have fixed symbol IDs, so if they managed to
-                // find their way into the count we don't want to unnecessarily include them in the local
-                // symbol table's symbol list.
-                symbol_counts.remove("$ion");
-                symbol_counts.remove("$ion_1_0");
-                symbol_counts.remove("$ion_symbol_table");
-                symbol_counts.remove("name");
-                symbol_counts.remove("version");
-                symbol_counts.remove("imports");
-                symbol_counts.remove("symbols");
-                symbol_counts.remove("max_id");
-                symbol_counts.remove("$ion_shared_symbol_table");
+        // Sort the accumulated symbols in reverse order by count. There's never a downside to this,
+        // though it's much less likely to save space when extending an existing table.
+        // Filter out any symbols that already exist in the table.
+        let ordered_symbols: Vec<String> = symbol_counts
+            .into_iter()
+            .filter(|x| self.local_symbol_table.symbol_offsets.contains_key(&x.0))
+            .sorted_by_key(|x| -x.1)
+            .map(|x| x.0)
+            .collect();
 
-                // Sort the accumulated symbols in reverse order by count. Earlier symbols get represented
-                // with shorter VarUInts, so it is space-efficient to put the most common symbols first.
-                let ordered_symbols: Vec<String> = symbol_counts
-                    .into_iter()
-                    .sorted_by_key(|x| -x.1)
-                    .map(|x| x.0)
-                    .collect();
-
-                // Holds the symbol->offset map for efficiently serializing symbols.
-                let mut symbol_offsets: HashMap<String, usize> = HashMap::new();
-
-                // Add the Ion 1.0 system symbols to the offset map.
-                symbol_offsets.insert("$ion".to_owned(), 1);
-                symbol_offsets.insert("$ion_1_0".to_owned(), 2);
-                symbol_offsets.insert("$ion_symbol_table".to_owned(), 3);
-                symbol_offsets.insert("name".to_owned(), 4);
-                symbol_offsets.insert("version".to_owned(), 5);
-                symbol_offsets.insert("imports".to_owned(), 6);
-                symbol_offsets.insert("symbols".to_owned(), 7);
-                symbol_offsets.insert("max_id".to_owned(), 8);
-                symbol_offsets.insert("$ion_shared_symbol_table".to_owned(), 9);
-
-                // Add the accumulated symbols to the offset map.
-                for (index, value) in ordered_symbols.iter().enumerate() {
-                    symbol_offsets.insert(value.to_owned(), index);
-                }
-
-                let max_id = ordered_symbols.len() + SYSTEM_SYMBOL_TABLE_V1_SIZE;
-
-                self.local_symbol_table = Some(LocalSymbolTable {
-                    symbol_offsets,
-                    ordered_symbols,
-                    max_id,
-                    import_previous_table: false,
-                });
-            }
-            // Update the current local symbol table if one exists.
-            Some(table) => {
-                // Sort the accumulated symbols in reverse order by count. There's never a downside
-                // to doing this, though it's much less likely to save space when extending an existing table.
-                // Filter out any symbols that already exist in the table.
-                let ordered_symbols: Vec<String> = symbol_counts
-                    .into_iter()
-                    .filter(|x| table.symbol_offsets.contains_key(&x.0))
-                    .sorted_by_key(|x| -x.1)
-                    .map(|x| x.0)
-                    .collect();
-
-                // Add the new symbols to the offset map.
-                for (index, value) in ordered_symbols.iter().enumerate() {
-                    table
-                        .symbol_offsets
-                        .insert(value.to_owned(), index + table.max_id);
-                }
-
-                table.max_id += ordered_symbols.len();
-                table.import_previous_table = true;
-            }
+        // Add the new symbols to the offset map.
+        for (index, value) in ordered_symbols.iter().enumerate() {
+            self.local_symbol_table
+                .symbol_offsets
+                .insert(value.to_owned(), index + self.local_symbol_table.max_id);
         }
+
+        self.local_symbol_table.max_id += ordered_symbols.len();
+        self.local_symbol_table.import_previous_table = true;
     }
 }
 
 // Serialize a Value into the corresponding bytes in the context of the Local Symbol Table.
 fn append_value(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &LocalSymbolTable) {
     if !value.annotations.is_empty() {
-        append_annotation(bytestream, value, symbol_table)
+        append_annotation(bytestream, &value.annotations, &value.value, symbol_table)
     } else {
         append_data(bytestream, &value.value, symbol_table);
     }
@@ -1077,9 +1050,13 @@ fn append_struct(
 // The Ion specification notes that in the text format, annotations are denoted by a non-null symbol
 // token. Because the text and binary formats are semantically isomorphic, it follows that
 // a null symbol cannot appear as an annotation.
-fn append_annotation(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &LocalSymbolTable) {
-    let annotations: Vec<u8> = value
-        .annotations
+fn append_annotation(
+    bytestream: &mut Vec<u8>,
+    annotations: &[SymbolToken],
+    data: &Data,
+    symbol_table: &LocalSymbolTable,
+) {
+    let annotations: Vec<u8> = annotations
         .iter()
         .map(|token| match token {
             // The symbol will have been accumulated in the symbol_accumulator prior to the write.
@@ -1102,7 +1079,7 @@ fn append_annotation(bytestream: &mut Vec<u8>, value: &Value, symbol_table: &Loc
     let mut body: Vec<u8> = vec![];
     body.extend(VarUInt::from(annotations.len()).into_bytes());
     body.extend(annotations);
-    append_data(&mut body, &value.value, symbol_table);
+    append_data(&mut body, data, symbol_table);
     match body.len() {
         0..=13 => {
             bytestream.push(TypeCode::Annotation.to_byte() + body.len() as u8);
@@ -1206,12 +1183,13 @@ impl SymbolAccumulator {
 
 #[derive(Debug)]
 struct LocalSymbolTable {
+    // The Ion version of the current stream segment.
+    ion_version: Version,
     // Mapping from each literal symbol string to its index in the local symbol table.
-    // TODO: The mapping must be regenerated each time the version changes, which is currently never.
     symbol_offsets: HashMap<String, usize>,
     // The 'symbols' list of the serialized local symbol table.
     // Added in addition to any symbols imported from the system table or any imported tables, including the previous table.
-    ordered_symbols: Vec<String>,
+    current_segment_symbols: Vec<String>,
     // It's useful to keep track of the size of the logical symbol list.
     // This will be more useful if imports other than the current table are ever implemented.
     max_id: usize,
@@ -1220,6 +1198,70 @@ struct LocalSymbolTable {
 }
 
 impl LocalSymbolTable {
+    /// Returns the default LocalSymbolTable for the specified Ion version.
+    fn new(version: &Version) -> Self {
+        match version {
+            Version::Ion_1_0 => {
+                let mut symbol_offsets: HashMap<String, usize> = HashMap::with_capacity(9);
+
+                // Add the Ion 1.0 system symbols to the offset map.
+                symbol_offsets.insert("$ion".to_owned(), 1);
+                symbol_offsets.insert("$ion_1_0".to_owned(), 2);
+                symbol_offsets.insert("$ion_symbol_table".to_owned(), 3);
+                symbol_offsets.insert("name".to_owned(), 4);
+                symbol_offsets.insert("version".to_owned(), 5);
+                symbol_offsets.insert("imports".to_owned(), 6);
+                symbol_offsets.insert("symbols".to_owned(), 7);
+                symbol_offsets.insert("max_id".to_owned(), 8);
+                symbol_offsets.insert("$ion_shared_symbol_table".to_owned(), 9);
+
+                LocalSymbolTable {
+                    ion_version: *version,
+                    symbol_offsets,
+                    current_segment_symbols: vec![],
+                    max_id: SYSTEM_SYMBOL_TABLE_V1_SIZE,
+                    import_previous_table: false,
+                }
+            }
+        }
+    }
+
+    /// Updates the local table with the latest batch of accumulated symbols.
+    ///
+    /// If there is a current non-default symbol table it will be imported and extended, and
+    /// otherwise a new local symbol table will be created.
+    fn update(&mut self, version: &Version, symbol_counts: HashMap<String, i32>) {
+        if self.ion_version != *version {
+            *self = LocalSymbolTable::new(version);
+        }
+
+        // Sort the accumulated symbols in reverse order by count. There's never a downside to this,
+        // though it gets increasingly unlikely to save much space as the size of the extended
+        // symbol table grows.
+        let current_segment_symbols: Vec<String> = symbol_counts
+            .into_iter()
+            // Filter out any symbols that already exist in the table.
+            .filter(|x| self.symbol_offsets.contains_key(&x.0))
+            .sorted_by_key(|x| -x.1)
+            .map(|x| x.0)
+            .collect();
+
+        // Add the new symbols to the offset map.
+        for (index, value) in current_segment_symbols.iter().enumerate() {
+            self.symbol_offsets
+                .insert(value.to_owned(), index + self.max_id);
+        }
+
+        // The serialized form of the symbol table must indicate that the previous table
+        // should be imported if it contained any symbols beyond the default set for the version.
+        self.import_previous_table = self.max_id
+            == match version {
+                Version::Ion_1_0 => SYSTEM_SYMBOL_TABLE_V1_SIZE,
+            };
+
+        self.max_id += current_segment_symbols.len();
+    }
+
     /// Returns the local symbol ID for the given text.
     ///
     /// # Panics
@@ -1227,5 +1269,47 @@ impl LocalSymbolTable {
     /// Panics if the symbol text is not mapped in the local symbol table.
     fn get_symbol_index_unchecked(&self, symbol_text: &str) -> usize {
         *self.symbol_offsets.get(symbol_text).unwrap()
+    }
+
+    /// Returns the Struct representing the symbol table for serialization.
+    fn to_struct(&self) -> Struct {
+        Struct {
+            fields: vec![
+                (
+                    SymbolToken::Known {
+                        text: "imports".to_string(),
+                    },
+                    match self.import_previous_table {
+                        true => Value {
+                            value: Data::String(Some("$ion_symbol_table".to_owned())),
+                            annotations: vec![],
+                        },
+                        false => Value {
+                            // TODO: Support imports other than the previous table.
+                            value: Data::List(None),
+                            annotations: vec![],
+                        },
+                    },
+                ),
+                (
+                    SymbolToken::Known {
+                        text: "symbols".to_string(),
+                    },
+                    Value {
+                        value: Data::List(Some(List {
+                            values: self
+                                .current_segment_symbols
+                                .iter()
+                                .map(|s| Value {
+                                    value: Data::String(Some(s.to_owned())),
+                                    annotations: vec![],
+                                })
+                                .collect(),
+                        })),
+                        annotations: vec![],
+                    },
+                ),
+            ],
+        }
     }
 }
