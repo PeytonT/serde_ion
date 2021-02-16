@@ -29,6 +29,21 @@ impl From<&BigInt> for Int {
     }
 }
 
+// TODO: Is BigUInt -> positive sign Int really a reasonable default?
+impl From<&BigUint> for Int {
+    fn from(int: &BigUint) -> Self {
+        let mut bytes = int.to_bytes_be();
+        let first_byte = match bytes.first_mut() {
+            None => return Int::new(vec![0u8]),
+            Some(first_byte) => first_byte,
+        };
+        if *first_byte > 0b0111_1111 {
+            bytes.insert(0, 0b0000_0000);
+        }
+        Int::new(bytes)
+    }
+}
+
 impl From<&BigUint> for UInt {
     fn from(int: &BigUint) -> Self {
         // Conveniently, BigUint::to_bytes_be produces the UInt byte representation.

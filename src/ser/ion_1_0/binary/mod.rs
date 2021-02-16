@@ -621,8 +621,13 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             append_var_uint_u8(&mut contents, *hour);
             append_var_uint_u8(&mut contents, *minute);
             append_var_uint_u8(&mut contents, *second);
-            contents.extend(serialize_var_int_parts(Sign::Plus, fraction_coefficient));
-            contents.extend(Int::from(&BigInt::from(*fraction_exponent)).into_bytes());
+            let exponent = BigInt::from(*fraction_exponent);
+            // TODO: Optimize to eliminate unnecessary conversions through BigInt/BigUint.
+            contents.extend(serialize_var_int_parts(
+                exponent.sign(),
+                exponent.magnitude(),
+            ));
+            contents.extend(Int::from(fraction_coefficient).into_bytes());
             append(bytestream, contents);
         }
     }
