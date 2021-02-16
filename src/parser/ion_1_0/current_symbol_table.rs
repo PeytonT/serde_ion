@@ -24,7 +24,7 @@ impl CurrentSymbolTable {
                 Some(token) => Ok(token.clone()),
                 None => Err(SymbolError::AboveMaxId {
                     symbol_id: sid,
-                    max_id: symbols.len(),
+                    max_id: symbols.len() - 1,
                 }),
             },
             CurrentSymbolTable::SystemV1 => match SYSTEM_SYMBOL_TABLE_V1.symbols.get(sid) {
@@ -132,7 +132,7 @@ pub(crate) fn update_current_symbol_table(
                                 if text == "$ion_symbol_table" {
                                     TableImport::IonSymbolTable
                                 } else {
-                                    // Should we throw an error here?
+                                    // TODO: Should this be an error?
                                     TableImport::None
                                 }
                             }

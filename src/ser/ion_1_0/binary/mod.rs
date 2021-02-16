@@ -4,7 +4,7 @@ use self::subfield::*;
 use crate::binary::{type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt};
 use crate::error::{Error, SymbolError};
 use crate::parser::parse::BVM_1_0;
-use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_SIZE};
+use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_MAX_ID};
 use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::Version;
 use itertools::Itertools;
@@ -66,9 +66,9 @@ impl Writer {
                     ),
                 );
 
-                // If the symbol holds nothing more than the default symbols for this version then
-                // we can skip writing the symbol table.
-                if self.local_symbol_table.max_id != SYSTEM_SYMBOL_TABLE_V1_SIZE {
+                // If the symbol table holds nothing more than the default symbols for this version
+                // then we can skip writing the symbol table.
+                if self.local_symbol_table.max_id != SYSTEM_SYMBOL_TABLE_V1_MAX_ID {
                     let annotations = vec![SymbolToken::Known {
                         text: "$ion_symbol_table".to_string(),
                     }];
@@ -1164,7 +1164,6 @@ struct LocalSymbolTable {
     // Added in addition to any symbols imported from the system table or any imported tables, including the previous table.
     current_segment_symbols: Vec<String>,
     // It's useful to keep track of the size of the logical symbol list.
-    // This will be more useful if imports other than the current table are ever implemented.
     max_id: usize,
     // Informs table serialization logic of whether there is a preceding table that should be imported.
     import_previous_table: bool,
@@ -1192,7 +1191,7 @@ impl LocalSymbolTable {
                     ion_version: *version,
                     symbol_offsets,
                     current_segment_symbols: vec![],
-                    max_id: SYSTEM_SYMBOL_TABLE_V1_SIZE,
+                    max_id: SYSTEM_SYMBOL_TABLE_V1_MAX_ID,
                     import_previous_table: false,
                 }
             }
@@ -1208,13 +1207,13 @@ impl LocalSymbolTable {
             *self = LocalSymbolTable::new(version);
         }
 
-        // Sort the accumulated symbols in reverse order by count. There's never a downside to this,
-        // though it gets increasingly unlikely to save much space as the size of the extended
-        // symbol table grows.
         let current_segment_symbols: Vec<String> = symbol_counts
             .into_iter()
             // Filter out any symbols that already exist in the table.
-            .filter(|x| self.symbol_offsets.contains_key(&x.0))
+            .filter(|x| !self.symbol_offsets.contains_key(&x.0))
+            // Sort the accumulated symbols in reverse order by count.
+            // There's never a downside to this, though it gets increasingly unlikely to save much
+            // space as the size of the extended symbol table grows.
             .sorted_by_key(|x| -x.1)
             .map(|x| x.0)
             .collect();
@@ -1229,7 +1228,7 @@ impl LocalSymbolTable {
         // should be imported if it contained any symbols beyond the default set for the version.
         self.import_previous_table = self.max_id
             == match version {
-                Version::Ion_1_0 => SYSTEM_SYMBOL_TABLE_V1_SIZE,
+                Version::Ion_1_0 => SYSTEM_SYMBOL_TABLE_V1_MAX_ID,
             };
 
         self.max_id += current_segment_symbols.len();

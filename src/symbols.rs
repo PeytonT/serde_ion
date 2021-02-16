@@ -196,7 +196,7 @@ pub(crate) struct SystemSymbolTable {
     pub symbols: [SymbolToken; 10],
 }
 
-pub(crate) const SYSTEM_SYMBOL_TABLE_V1_SIZE: usize = 10;
+pub(crate) const SYSTEM_SYMBOL_TABLE_V1_MAX_ID: usize = 9;
 
 lazy_static! {
     pub(crate) static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {

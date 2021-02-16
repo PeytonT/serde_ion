@@ -520,7 +520,15 @@ mod symbol {
         writer.extend(Version::Ion_1_0, value).unwrap();
         writer.write();
 
-        assert_eq!(bytes.to_vec(), writer.get());
+        let output = writer.get();
+
+        // It is not the case that bytes.to_vec() == writer.get(), because the read bytes use the
+        // explicit form [113, 0], but the output bytes use the more compact implicit form [112].
+        assert_eq!(bytes.to_vec(), [224, 1, 0, 234, 113, 0]);
+        assert_eq!(output, [224, 1, 0, 234, 112]);
+        let implicit_zero_bytes =
+            include_bytes!("../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
+        assert_eq!(implicit_zero_bytes.to_vec(), output);
     }
 
     #[test]
