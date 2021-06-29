@@ -109,24 +109,21 @@ pub(crate) fn update_current_symbol_table(
                             .1
                             .value
                         {
-                            // This symbol table replaces the current table with a new set of symbols
-                            // from the catalog and any symbols present within the import itself.
-                            Data::List(list) => match list {
-                                None => TableImport::None,
-                                Some(List { values }) => {
-                                    TableImport::Imports(
-                                        values
-                                            .iter()
-                                            // each element of the list must be a struct;
-                                            // each element that is null or is not a struct is ignored.
-                                            .filter_map(|value| match &value.value {
-                                                Data::Struct(Some(val)) => Some(val.clone()),
-                                                _ => None,
-                                            })
-                                            .collect(),
-                                    )
-                                }
-                            },
+                            // If Data::List, this symbol table replaces the current table with a
+                            // new set of symbols from the catalog and any symbols present within
+                            // the import itself.
+                            Data::List(None) => TableImport::None,
+                            Data::List(Some(List { values })) => TableImport::Imports(
+                                values
+                                    .iter()
+                                    // each element of the list must be a struct;
+                                    // each element that is null or is not a struct is ignored.
+                                    .filter_map(|value| match &value.value {
+                                        Data::Struct(Some(val)) => Some(val.clone()),
+                                        _ => None,
+                                    })
+                                    .collect(),
+                            ),
                             // This symbol table is an update to the current table
                             Data::Symbol(Some(SymbolToken::Known { text })) => {
                                 if text == "$ion_symbol_table" {
@@ -155,21 +152,15 @@ pub(crate) fn update_current_symbol_table(
                         return Err(SymbolError::InvalidSymbolTable);
                     } else {
                         match &fields.get(*indices.get(0).unwrap()).unwrap().1.value {
-                            Data::List(list) => match list {
-                                None => vec![],
-                                Some(List { values }) => values
-                                    .iter()
-                                    .map(|value| match &value.value {
-                                        Data::String(string) => match string {
-                                            None => SymbolToken::Zero,
-                                            Some(string) => SymbolToken::Known {
-                                                text: string.clone(),
-                                            },
-                                        },
-                                        _ => SymbolToken::Zero,
-                                    })
-                                    .collect(),
-                            },
+                            Data::List(Some(List { values })) => values
+                                .iter()
+                                .map(|value| match &value.value {
+                                    Data::String(Some(string)) => SymbolToken::Known {
+                                        text: string.clone(),
+                                    },
+                                    _ => SymbolToken::Zero,
+                                })
+                                .collect(),
                             _ => vec![],
                         }
                     }
