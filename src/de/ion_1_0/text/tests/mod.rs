@@ -3,7 +3,7 @@ mod equivalencies;
 mod good;
 
 use super::*;
-use crate::parser::parse::parse_ion_text_1_0;
+use crate::parse::parse_ion_text_1_0;
 use itertools::{EitherOrBoth, Itertools};
 use log::error;
 use std::{

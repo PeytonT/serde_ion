@@ -1,4 +1,4 @@
-use crate::parser::parse::parse;
+use crate::parse::parse;
 use crate::ser::ion_1_0::binary::Writer;
 use crate::Version;
 use crate::{

@@ -1,9 +1,9 @@
 mod subfield;
 
 use self::subfield::*;
+use crate::binary::BVM_1_0;
 use crate::binary::{type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt};
 use crate::error::{Error, SymbolError};
-use crate::parser::parse::BVM_1_0;
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_MAX_ID};
 use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::Version;

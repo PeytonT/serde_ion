@@ -1,17 +1,3 @@
-mod subfield;
-
-use self::subfield::*;
-use super::current_symbol_table::*;
-use crate::{
-    binary::{LengthCode, TypeCode},
-    error::{BinaryFormatError, FormatError, TimeComponent},
-    parser::{
-        ion_1_0::current_symbol_table::CurrentSymbolTable,
-        parse_error::{IonError, IonResult},
-    },
-    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
-    value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value},
-};
 use itertools::Itertools;
 use nom::{
     bytes::complete::take,
@@ -24,6 +10,21 @@ use nom::{
 };
 use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
 use num_traits::{cast::FromPrimitive, identities::Zero, ToPrimitive};
+
+use crate::de::ion_1_0::current_symbol_table::CurrentSymbolTable;
+use crate::parse_error::{IonError, IonResult};
+use crate::{
+    binary::{LengthCode, TypeCode},
+    error::{BinaryFormatError, FormatError, TimeComponent},
+    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
+    value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value},
+};
+
+use super::current_symbol_table::*;
+
+use self::subfield::*;
+
+mod subfield;
 
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 

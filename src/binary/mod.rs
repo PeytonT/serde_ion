@@ -1,3 +1,48 @@
+/// ## Binary Version Markers
+///
+/// In the binary format, an Ion value stream starts with a four-octet binary version marker (BVM)
+/// that specifies the Ion version used to encode the data that follows, followed by zero or more
+/// values which contain the actual data. These values are generally referred to as  
+/// “top-level values”.
+///
+/// ```text
+///                        7    0 7     0 7     0 7    0
+///                       +------+-------+-------+------+
+/// binary version marker | 0xE0 | major | minor | 0xEA |
+///                       +------+-------+-------+------+
+/// ```
+/// The first octet is 0xE0 and the fourth octet is 0xEA.
+/// The second and third octets contain major and minor version numbers.
+/// The only currently valid BVM, identifying Ion 1.0, is 0xE0 0x01 0x00 0xEA.
+///
+/// ```text
+///               31                      0
+///              +-------------------------+
+/// value stream |  binary version marker  |
+///              +-------------------------+
+///              :          value          :
+///              +=========================+
+///                           ⋮
+///              +=========================+
+///              :  binary version marker  :
+///              +=========================+
+///              :          value          :
+///              +=========================+
+///                           ⋮
+/// ```
+/// A value stream can contain other BVMs interspersed with the top-level values.
+/// Each BVM resets the deserializer to the initial state for the given Ion version.
+pub(crate) const BVM_1_0: [u8; 4] = [
+    BVM_START,
+    BVM_1_0_MAJOR_VERSION,
+    BVM_1_0_MINOR_VERSION,
+    BVM_END,
+];
+const BVM_START: u8 = 0xE0;
+const BVM_END: u8 = 0xEA;
+const BVM_1_0_MAJOR_VERSION: u8 = 0x01;
+const BVM_1_0_MINOR_VERSION: u8 = 0x00;
+
 /// ## Typed Value Formats
 ///
 /// A value consists of a one-octet type descriptor, possibly followed by a length in octets,
@@ -272,9 +317,10 @@ impl VarInt {
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
-    use super::*;
     use num_traits::cast::FromPrimitive;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn type_code_has_16_variants() {

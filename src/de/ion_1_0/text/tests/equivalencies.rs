@@ -1,15 +1,13 @@
-use crate::{
-    parser::{
-        ion_1_0::text::tests::{find_ion_text, parse_file, test_path},
-        parse::parse_ion_text_1_0,
-    },
-    value::{self as ion, Value},
-};
-use itertools::Itertools;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
 };
+
+use itertools::Itertools;
+
+use crate::de::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
+use crate::parse::parse_ion_text_1_0;
+use crate::value::{self as ion, Value};
 
 #[test]
 fn test_equivs() {

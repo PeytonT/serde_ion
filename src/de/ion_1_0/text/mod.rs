@@ -1,18 +1,16 @@
 #![warn(dead_code, unused_variables)]
-#[cfg(test)]
-mod tests;
-mod time;
 
-use self::time::{TextDate, TextTime, TextTimestamp};
-use crate::{
-    error::{FormatError, SymbolError, TextFormatError},
-    parser::{
-        ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable},
-        parse_error::{IonError, IonResult},
-    },
-    symbols::SymbolToken,
-    value::{self as ion},
+use std::{
+    cell::RefCell,
+    convert::TryFrom,
+    f64::{INFINITY, NAN, NEG_INFINITY},
+    fmt::Debug,
+    iter::Extend,
+    ops::{Range, RangeFrom, RangeTo},
+    rc::Rc,
+    str::{self, from_utf8},
 };
+
 use ::time::UtcOffset;
 use log::warn;
 use nom::IResult;
@@ -35,16 +33,20 @@ use nom::{
 };
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{pow, Num, One, Zero};
-use std::{
-    cell::RefCell,
-    convert::TryFrom,
-    f64::{INFINITY, NAN, NEG_INFINITY},
-    fmt::Debug,
-    iter::Extend,
-    ops::{Range, RangeFrom, RangeTo},
-    rc::Rc,
-    str::{self, from_utf8},
+
+use crate::de::ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable};
+use crate::parse_error::{IonError, IonResult};
+use crate::{
+    error::{FormatError, SymbolError, TextFormatError},
+    symbols::SymbolToken,
+    value as ion,
 };
+
+use self::time::{TextDate, TextTime, TextTimestamp};
+
+#[cfg(test)]
+mod tests;
+mod time;
 
 /// Follows the following documents:
 /// Ion Text Encoding: http://amzn.github.io/ion-docs/docs/text.html

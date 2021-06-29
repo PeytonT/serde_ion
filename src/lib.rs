@@ -7,7 +7,8 @@
 mod binary;
 mod de;
 pub mod error;
-pub mod parser;
+pub mod parse;
+pub mod parse_error;
 mod ser;
 pub mod symbols;
 #[allow(non_snake_case)]

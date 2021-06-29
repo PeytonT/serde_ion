@@ -1,4 +1,4 @@
-use crate::parser::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
+use crate::de::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
 use itertools::Itertools;
 
 // TODO: find a way to guarantee that all bad test files are checked

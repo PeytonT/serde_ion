@@ -1,11 +1,3 @@
-use super::ion_1_0;
-use crate::{
-    parser::{
-        ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator},
-        parse_error::{IonError, IonResult},
-    },
-    value::Value,
-};
 use nom::{
     bytes::complete::tag,
     combinator::{all_consuming, map},
@@ -14,28 +6,11 @@ use nom::{
     Err,
 };
 
-const BVM_START_BYTE: u8 = 0xE0;
-const BVM_END_BYTE: u8 = 0xEA;
-
-#[derive(Clone, Debug, PartialEq)]
-struct IonVersion {
-    major: u8,
-    minor: u8,
-}
-const ION_VERSION_1_0: IonVersion = IonVersion {
-    major: 0x01,
-    minor: 0x00,
-};
-
-// Binary Ion streams begin with a four-octet Binary Version Marker
-// BVM_START MAJOR_VERSION MINOR_VERSION BVM_END
-// For version 1.0, this is 0xE0 0x01 0x00 0xEA
-pub(crate) const BVM_1_0: [u8; 4] = [
-    BVM_START_BYTE,
-    ION_VERSION_1_0.major,
-    ION_VERSION_1_0.minor,
-    BVM_END_BYTE,
-];
+use crate::binary::BVM_1_0;
+use crate::de::ion_1_0;
+use crate::de::ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator};
+use crate::parse_error::{IonError, IonResult};
+use crate::value::Value;
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
     all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
@@ -65,21 +40,24 @@ pub fn parse_ion_text_1_0(input: &str) -> IonResult<&str, Vec<Value>> {
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
-    use crate::error::{BinaryFormatError, FormatError};
-    use crate::parser::parse_error::IonError;
-    use crate::{
-        symbols::SymbolToken,
-        value::{Clob, Data, Decimal, Struct, Timestamp, Value},
-    };
+    use std::str::FromStr;
+
     use nom::error::{ErrorKind, ParseError};
     use nom::{AsBytes, Err};
     use num_bigint::{BigInt, BigUint};
     use num_traits::identities::Zero;
     use num_traits::Num;
     use pretty_assertions::assert_eq;
-    use std::str::FromStr;
+
+    use crate::error::{BinaryFormatError, FormatError};
+    use crate::parse_error::IonError;
+    use crate::{
+        symbols::SymbolToken,
+        value::{Clob, Data, Decimal, Struct, Timestamp, Value},
+    };
+
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
 
     pub fn strip_bvm(input: &[u8]) -> &[u8] {
         assert_eq!(BVM_1_0, &input[..4]);
@@ -88,18 +66,19 @@ mod tests {
 
     #[test]
     fn binary_version_marker_test() {
-        let data = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+        let data = include_bytes!("../tests/ion-tests/iontestdata/good/null.10n");
         assert_eq!(&BVM_1_0, &data[0..4]);
     }
 
     // Parse null tests
     mod null {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_null() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/null.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/null.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Null.into()]);
@@ -107,7 +86,7 @@ mod tests {
 
         #[test]
         fn test_parse_nopPadOneByte() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nopPadOneByte.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![]);
@@ -116,7 +95,7 @@ mod tests {
         #[test]
         fn test_parse_emptyThreeByteNopPad() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/emptyThreeByteNopPad.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![]);
@@ -124,7 +103,7 @@ mod tests {
 
         #[test]
         fn test_parse_nopPad16Bytes() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nopPad16Bytes.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![]);
@@ -132,7 +111,7 @@ mod tests {
 
         #[test]
         fn test_parse_nopPadTooShort() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/nopPadTooShort.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/nopPadTooShort.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -144,7 +123,7 @@ mod tests {
         #[test]
         fn test_parse_nopPadWithAnnotations() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/nopPadWithAnnotations.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/nopPadWithAnnotations.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -159,12 +138,13 @@ mod tests {
 
     // Parse bool tests
     mod bool {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullBool() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBool.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullBool.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Bool(None).into()]);
@@ -178,7 +158,7 @@ mod tests {
         #[test]
         fn test_parse_boolWithInvalidLength_1() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_1.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_1.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -198,7 +178,7 @@ mod tests {
         #[test]
         fn test_parse_boolWithInvalidLength_2() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_2.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/boolWithInvalidLength_2.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -213,12 +193,13 @@ mod tests {
 
     // Parse int tests
     mod int {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullInt2() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt2.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullInt2.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Int(None).into()]);
@@ -226,7 +207,7 @@ mod tests {
 
         #[test]
         fn test_parse_nullInt3() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullInt3.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullInt3.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Int(None).into()]);
@@ -234,7 +215,7 @@ mod tests {
 
         #[test]
         fn test_parse_intBigSize13() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize13.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intBigSize13.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -250,7 +231,7 @@ mod tests {
 
         #[test]
         fn test_parse_intBigSize14() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize14.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intBigSize14.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -266,7 +247,7 @@ mod tests {
 
         #[test]
         fn test_parse_intBigSize16() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize16.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intBigSize16.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -282,7 +263,7 @@ mod tests {
 
         #[test]
         fn test_parse_intBigSize256() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize256.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intBigSize256.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -296,7 +277,7 @@ mod tests {
 
         #[test]
         fn test_parse_intBigSize1201() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/intBigSize1201.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intBigSize1201.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -311,7 +292,7 @@ mod tests {
         #[test]
         fn test_parse_intLongMaxValuePlusOne() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMaxValuePlusOne.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/intLongMaxValuePlusOne.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -322,8 +303,7 @@ mod tests {
 
         #[test]
         fn test_parse_intLongMinValue() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/intLongMinValue.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/intLongMinValue.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -339,7 +319,7 @@ mod tests {
         #[test]
         fn test_parse_minLongWithLenTooLarge() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/minLongWithLenTooLarge.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/minLongWithLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -355,7 +335,7 @@ mod tests {
         #[test]
         fn test_parse_minLongWithLenTooSmall() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/minLongWithLenTooSmall.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/minLongWithLenTooSmall.10n");
             let index_of_error = &strip_bvm(bytes.as_bytes())[8..];
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -369,7 +349,7 @@ mod tests {
         //        Contains a negative integer with length of 1 and value of zero (hex: `31 00`).
         #[test]
         fn test_parse_negativeIntZero() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/negativeIntZero.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/negativeIntZero.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -386,8 +366,7 @@ mod tests {
         //        Contains a negative integer with length zero (hex: `30`).
         #[test]
         fn test_parse_negativeIntZeroLn() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/negativeIntZeroLn.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/negativeIntZeroLn.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -402,12 +381,13 @@ mod tests {
 
     // Parse float tests
     mod float {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullFloat() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullFloat.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullFloat.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Float(None).into()]);
@@ -419,8 +399,7 @@ mod tests {
         //        are available.
         #[test]
         fn test_parse_floatLenTooLarge() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/floatLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/floatLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -432,12 +411,13 @@ mod tests {
 
     // Parse decimal tests
     mod decimal {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullDecimal() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullDecimal.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullDecimal.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Decimal(None).into()]);
@@ -445,9 +425,8 @@ mod tests {
 
         #[test]
         fn test_parse_decimalNegativeOneDotZero() {
-            let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/decimalNegativeOneDotZero.10n"
-            );
+            let bytes =
+                include_bytes!("../tests/ion-tests/iontestdata/good/decimalNegativeOneDotZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -463,7 +442,7 @@ mod tests {
         #[test]
         fn test_parse_decimalNegativeZeroDot() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDot.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/decimalNegativeZeroDot.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -479,7 +458,7 @@ mod tests {
         #[test]
         fn test_parse_decimalNegativeZeroDotZero() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/decimalNegativeZeroDotZero.10n"
+                "../tests/ion-tests/iontestdata/good/decimalNegativeZeroDotZero.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -495,8 +474,7 @@ mod tests {
 
         #[test]
         fn test_parse_decimalOneDotZero() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/decimalOneDotZero.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/decimalOneDotZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -511,7 +489,7 @@ mod tests {
 
         #[test]
         fn test_parse_decimalZeroDot() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/decimalZeroDot.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/decimalZeroDot.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -534,8 +512,7 @@ mod tests {
         // BVM         8 byte decimal (valid)     9 byte decimal (invalid)
         #[test]
         fn test_parse_decimalExpTooLarge() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/decimalExpTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/decimalExpTooLarge.10n");
             let index_of_error = &strip_bvm(bytes.as_bytes())[9..];
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -553,7 +530,7 @@ mod tests {
         #[test]
         fn test_parse_decimalLenCauses64BitOverflow() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/decimalLenCauses64BitOverflow.10n"
+                "../tests/ion-tests/iontestdata/bad/decimalLenCauses64BitOverflow.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -568,8 +545,7 @@ mod tests {
         // Contains a Decimal whose length is specified as 34 bytes, but only 24 bytes of data are available.
         #[test]
         fn test_parse_decimalLenTooLarge() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/decimalLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/decimalLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -581,12 +557,13 @@ mod tests {
 
     // Parse timestamp tests
     mod timestamp {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullTimestamp() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullTimestamp.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Timestamp(None).into()]);
@@ -594,9 +571,8 @@ mod tests {
 
         #[test]
         fn test_parse_timestamp2011() {
-            let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n"
-            );
+            let bytes =
+                include_bytes!("../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -612,7 +588,7 @@ mod tests {
         #[test]
         fn test_parse_timestamp2011_02() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02.10n"
+                "../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -630,7 +606,7 @@ mod tests {
         #[test]
         fn test_parse_timestamp2011_02_20() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20.10n"
+                "../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -649,7 +625,7 @@ mod tests {
         #[test]
         fn test_parse_timestamp2011_02_20T19_30_59_100_8_00() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20T19_30_59_100-08_00.10n"
+                "../tests/ion-tests/iontestdata/good/timestamp/timestamp2011-02-20T19_30_59_100-08_00.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -673,13 +649,15 @@ mod tests {
 
     // Parse symbol tests
     mod symbol {
-        use self::assert_eq;
-        use super::*;
         use crate::error::SymbolError;
+
+        use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullSymbol() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSymbol.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullSymbol.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Symbol(None).into()]);
@@ -688,7 +666,7 @@ mod tests {
         #[test]
         fn test_parse_symbolExplicitZero() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/symbolExplicitZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Symbol(Some(SymbolToken::Zero)).into()]);
@@ -697,7 +675,7 @@ mod tests {
         #[test]
         fn test_parse_symbolImplicitZero() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/symbolImplicitZero.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Symbol(Some(SymbolToken::Zero)).into()]);
@@ -706,8 +684,7 @@ mod tests {
         // The symbol ID does not contain a mapping in the current symbol table context.
         #[test]
         fn test_parse_symbolIDUnmapped() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/symbolIDUnmapped.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/symbolIDUnmapped.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -725,9 +702,8 @@ mod tests {
         // The field name is out of range of the local symbol table.
         #[test]
         fn test_parse_fieldNameSymbolIDUnmapped() {
-            let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/fieldNameSymbolIDUnmapped.10n"
-            );
+            let bytes =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/fieldNameSymbolIDUnmapped.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -748,8 +724,7 @@ mod tests {
         //        is available.
         #[test]
         fn test_parse_symbolLenTooLarge() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/symbolLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/symbolLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -761,12 +736,13 @@ mod tests {
 
     // Parse string tests
     mod string {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullString() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullString.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullString.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::String(None).into()]);
@@ -778,8 +754,7 @@ mod tests {
         //        data are available.
         #[test]
         fn test_parse_stringLenTooLarge() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/stringLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/stringLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -795,7 +770,7 @@ mod tests {
         #[test]
         fn test_parse_stringWithLatinEncoding() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/stringWithLatinEncoding.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/stringWithLatinEncoding.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -810,12 +785,13 @@ mod tests {
 
     // Parse clob tests
     mod clob {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullClob() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullClob.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullClob.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Clob(None).into()]);
@@ -823,7 +799,7 @@ mod tests {
 
         #[test]
         fn test_parse_clobWithDel() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithDel.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/clobWithDel.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -834,9 +810,8 @@ mod tests {
 
         #[test]
         fn test_parse_clobWithNonAsciiCharacter() {
-            let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/clobWithNonAsciiCharacter.10n"
-            );
+            let bytes =
+                include_bytes!("../tests/ion-tests/iontestdata/good/clobWithNonAsciiCharacter.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -848,7 +823,7 @@ mod tests {
         #[test]
         fn test_parse_clobWithNullCharacter() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/clobWithNullCharacter.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/clobWithNullCharacter.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -863,7 +838,7 @@ mod tests {
         //        data are available.
         #[test]
         fn test_parse_clobLenTooLarge() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/clobLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/clobLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -875,12 +850,13 @@ mod tests {
 
     // Parse blob tests
     mod blob {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullBlob() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullBlob.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullBlob.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Blob(None).into()]);
@@ -892,7 +868,7 @@ mod tests {
         //        data are available.
         #[test]
         fn test_parse_blobLenTooLarge() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/bad/blobLenTooLarge.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/blobLenTooLarge.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -904,15 +880,17 @@ mod tests {
 
     // Parse list tests
     mod list {
-        use self::assert_eq;
-        use super::*;
         use nom::error::ErrorKind;
+
+        use super::*;
+
+        use self::assert_eq;
 
         // Good
 
         #[test]
         fn test_parse_nullList() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullList.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullList.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::List(None).into()]);
@@ -923,7 +901,7 @@ mod tests {
         #[test]
         fn test_parse_listWithValueLargerThanSize() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/listWithValueLargerThanSize.10n"
+                "../tests/ion-tests/iontestdata/bad/listWithValueLargerThanSize.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -936,12 +914,13 @@ mod tests {
 
     // Parse sexp tests
     mod sexp {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_nullSexp() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullSexp.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullSexp.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Sexp(None).into()]);
@@ -950,15 +929,17 @@ mod tests {
 
     // Parse struct tests
     mod r#struct {
-        use self::assert_eq;
-        use super::*;
         use std::string::String;
+
+        use super::*;
+
+        use self::assert_eq;
 
         // Good
 
         #[test]
         fn test_parse_nullStruct() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/nullStruct.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/nullStruct.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(value, vec![Data::Struct(None).into()]);
@@ -967,7 +948,7 @@ mod tests {
         #[test]
         fn test_parse_nopPadInsideEmptyStructNonZeroSymbolId() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructNonZeroSymbolId.10n"
+                "../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructNonZeroSymbolId.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -980,7 +961,7 @@ mod tests {
         #[test]
         fn test_parse_nopPadInsideEmptyStructZeroSymbolId() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructZeroSymbolId.10n"
+                "../tests/ion-tests/iontestdata/good/nopPadInsideEmptyStructZeroSymbolId.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -993,7 +974,7 @@ mod tests {
         #[test]
         fn test_parse_nopPadInsideStructWithNopPadThenValueZeroSymbolId() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithNopPadThenValueZeroSymbolId.10n"
+                "../tests/ion-tests/iontestdata/good/nopPadInsideStructWithNopPadThenValueZeroSymbolId.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -1014,7 +995,7 @@ mod tests {
         #[test]
         fn test_parse_nopPadInsideStructWithValueThenNopPad() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/good/nopPadInsideStructWithValueThenNopPad.10n"
+                "../tests/ion-tests/iontestdata/good/nopPadInsideStructWithValueThenNopPad.10n"
             );
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
@@ -1035,7 +1016,7 @@ mod tests {
         #[test]
         fn test_parse_structAnnotatedEmpty() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedEmpty.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/structAnnotatedEmpty.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1051,7 +1032,7 @@ mod tests {
 
         #[test]
         fn test_parse_structEmpty() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structEmpty.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/structEmpty.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1062,7 +1043,7 @@ mod tests {
 
         #[test]
         fn test_parse_structLen13() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen13.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/structLen13.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1081,7 +1062,7 @@ mod tests {
 
         #[test]
         fn test_parse_structLen14() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen14.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/structLen14.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1100,7 +1081,7 @@ mod tests {
 
         #[test]
         fn test_parse_structLen15() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structLen15.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/structLen15.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1119,7 +1100,7 @@ mod tests {
 
         #[test]
         fn test_parse_structOrdered() {
-            let bytes = include_bytes!("../../tests/ion-tests/iontestdata/good/structOrdered.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/good/structOrdered.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1153,7 +1134,7 @@ mod tests {
         #[test]
         fn test_parse_structAnnotatedOrdered() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/good/structAnnotatedOrdered.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/good/structAnnotatedOrdered.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
             assert_eq!(
@@ -1201,8 +1182,7 @@ mod tests {
         //        Ordered structs must contain at least one symbol/value pair.
         #[test]
         fn test_parse_structOrderedEmpty() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/structOrderedEmpty.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/structOrderedEmpty.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -1217,9 +1197,11 @@ mod tests {
 
     // Parse annotation tests
     mod annotation {
-        use self::assert_eq;
-        use super::*;
         use nom::error::ErrorKind;
+
+        use super::*;
+
+        use self::assert_eq;
 
         //    annotationLengthTooLongScalar.10n
         //---------------------------------
@@ -1228,7 +1210,7 @@ mod tests {
         #[test]
         fn test_parse_annotationLengthTooLongScalar() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongScalar.10n"
+                "../tests/ion-tests/iontestdata/bad/annotationLengthTooLongScalar.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -1245,7 +1227,7 @@ mod tests {
         #[test]
         fn test_parse_annotationLengthTooLongContainer() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooLongContainer.10n"
+                "../tests/ion-tests/iontestdata/bad/annotationLengthTooLongContainer.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -1262,7 +1244,7 @@ mod tests {
         #[test]
         fn test_parse_annotationLengthTooShortScalar() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortScalar.10n"
+                "../tests/ion-tests/iontestdata/bad/annotationLengthTooShortScalar.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -1279,7 +1261,7 @@ mod tests {
         #[test]
         fn test_parse_annotationLengthTooShortContainer() {
             let bytes = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/annotationLengthTooShortContainer.10n"
+                "../tests/ion-tests/iontestdata/bad/annotationLengthTooShortContainer.10n"
             );
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
@@ -1295,8 +1277,7 @@ mod tests {
         //    its value.
         #[test]
         fn test_parse_annotationNested() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationNested.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/annotationNested.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -1314,7 +1295,7 @@ mod tests {
         #[test]
         fn test_parse_annotationWithNoValue() {
             let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/annotationWithNoValue.10n");
+                include_bytes!("../tests/ion-tests/iontestdata/bad/annotationWithNoValue.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -1331,8 +1312,7 @@ mod tests {
         // Redundant: This is already covered by the invalid type descriptor tests.
         #[test]
         fn test_parse_emptyAnnotatedInt() {
-            let bytes =
-                include_bytes!("../../tests/ion-tests/iontestdata/bad/emptyAnnotatedInt.10n");
+            let bytes = include_bytes!("../tests/ion-tests/iontestdata/bad/emptyAnnotatedInt.10n");
             let index_of_error = strip_bvm(bytes.as_bytes());
             let err = parse(bytes).err().unwrap();
             assert_eq!(
@@ -1346,14 +1326,14 @@ mod tests {
     /// Tests in this module are obvious candidates for parameterized testing, if I can find a
     /// satisfactory parameterized testing harness.
     mod invalid_typecodes {
-        use self::assert_eq;
         use super::*;
+
+        use self::assert_eq;
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L2() {
-            let T1L2 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_2.10n"
-            );
+            let T1L2 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_2.10n");
             let index_of_error = strip_bvm(T1L2.as_bytes());
             let err = parse(T1L2).err().unwrap();
             assert_eq!(
@@ -1367,9 +1347,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L3() {
-            let T1L3 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_3.10n"
-            );
+            let T1L3 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_3.10n");
             let index_of_error = strip_bvm(T1L3.as_bytes());
             let err = parse(T1L3).err().unwrap();
             assert_eq!(
@@ -1383,9 +1362,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L4() {
-            let T1L4 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_4.10n"
-            );
+            let T1L4 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_4.10n");
             let index_of_error = strip_bvm(T1L4.as_bytes());
             let err = parse(T1L4).err().unwrap();
             assert_eq!(
@@ -1399,9 +1377,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L5() {
-            let T1L5 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_5.10n"
-            );
+            let T1L5 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_5.10n");
             let index_of_error = strip_bvm(T1L5.as_bytes());
             let err = parse(T1L5).err().unwrap();
             assert_eq!(
@@ -1415,9 +1392,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L6() {
-            let T1L6 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_6.10n"
-            );
+            let T1L6 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_6.10n");
             let index_of_error = strip_bvm(T1L6.as_bytes());
             let err = parse(T1L6).err().unwrap();
             assert_eq!(
@@ -1431,9 +1407,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L7() {
-            let T1L7 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_7.10n"
-            );
+            let T1L7 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_7.10n");
             let index_of_error = strip_bvm(T1L7.as_bytes());
             let err = parse(T1L7).err().unwrap();
             assert_eq!(
@@ -1447,9 +1422,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L8() {
-            let T1L8 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_8.10n"
-            );
+            let T1L8 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_8.10n");
             let index_of_error = strip_bvm(T1L8.as_bytes());
             let err = parse(T1L8).err().unwrap();
             assert_eq!(
@@ -1463,9 +1437,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L9() {
-            let T1L9 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_9.10n"
-            );
+            let T1L9 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_9.10n");
             let index_of_error = strip_bvm(T1L9.as_bytes());
             let err = parse(T1L9).err().unwrap();
             assert_eq!(
@@ -1479,9 +1452,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L10() {
-            let T1L10 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_10.10n"
-            );
+            let T1L10 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_10.10n");
             let index_of_error = strip_bvm(T1L10.as_bytes());
             let err = parse(T1L10).err().unwrap();
             assert_eq!(
@@ -1495,9 +1467,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L11() {
-            let T1L11 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_11.10n"
-            );
+            let T1L11 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_11.10n");
             let index_of_error = strip_bvm(T1L11.as_bytes());
             let err = parse(T1L11).err().unwrap();
             assert_eq!(
@@ -1511,9 +1482,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L12() {
-            let T1L12 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_12.10n"
-            );
+            let T1L12 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_12.10n");
             let index_of_error = strip_bvm(T1L12.as_bytes());
             let err = parse(T1L12).err().unwrap();
             assert_eq!(
@@ -1527,9 +1497,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L13() {
-            let T1L13 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_13.10n"
-            );
+            let T1L13 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_13.10n");
             let index_of_error = strip_bvm(T1L13.as_bytes());
             let err = parse(T1L13).err().unwrap();
             assert_eq!(
@@ -1543,9 +1512,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T1L14() {
-            let T1L14 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_14.10n"
-            );
+            let T1L14 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_1_length_14.10n");
             let index_of_error = strip_bvm(T1L14.as_bytes());
             let err = parse(T1L14).err().unwrap();
             assert_eq!(
@@ -1559,9 +1527,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T3L0() {
-            let T3L0 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_3_length_0.10n"
-            );
+            let T3L0 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_3_length_0.10n");
             let index_of_error = strip_bvm(T3L0.as_bytes());
             let err = parse(T3L0).err().unwrap();
             assert_eq!(
@@ -1575,9 +1542,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L1() {
-            let T4L1 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_1.10n"
-            );
+            let T4L1 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_1.10n");
             let index_of_error = strip_bvm(T4L1.as_bytes());
             let err = parse(T4L1).err().unwrap();
             assert_eq!(
@@ -1591,9 +1557,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L2() {
-            let T4L2 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_2.10n"
-            );
+            let T4L2 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_2.10n");
             let index_of_error = strip_bvm(T4L2.as_bytes());
             let err = parse(T4L2).err().unwrap();
             assert_eq!(
@@ -1607,9 +1572,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L3() {
-            let T4L3 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_3.10n"
-            );
+            let T4L3 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_3.10n");
             let index_of_error = strip_bvm(T4L3.as_bytes());
             let err = parse(T4L3).err().unwrap();
             assert_eq!(
@@ -1623,9 +1587,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L5() {
-            let T4L5 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_5.10n"
-            );
+            let T4L5 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_5.10n");
             let index_of_error = strip_bvm(T4L5.as_bytes());
             let err = parse(T4L5).err().unwrap();
             assert_eq!(
@@ -1639,9 +1602,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L6() {
-            let T4L6 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_6.10n"
-            );
+            let T4L6 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_6.10n");
             let index_of_error = strip_bvm(T4L6.as_bytes());
             let err = parse(T4L6).err().unwrap();
             assert_eq!(
@@ -1655,9 +1617,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L7() {
-            let T4L7 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_7.10n"
-            );
+            let T4L7 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_7.10n");
             let index_of_error = strip_bvm(T4L7.as_bytes());
             let err = parse(T4L7).err().unwrap();
             assert_eq!(
@@ -1671,9 +1632,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L9() {
-            let T4L9 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_9.10n"
-            );
+            let T4L9 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_9.10n");
             let index_of_error = strip_bvm(T4L9.as_bytes());
             let err = parse(T4L9).err().unwrap();
             assert_eq!(
@@ -1687,9 +1647,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L10() {
-            let T4L10 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_10.10n"
-            );
+            let T4L10 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_10.10n");
             let index_of_error = strip_bvm(T4L10.as_bytes());
             let err = parse(T4L10).err().unwrap();
             assert_eq!(
@@ -1703,9 +1662,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L11() {
-            let T4L11 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_11.10n"
-            );
+            let T4L11 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_11.10n");
             let index_of_error = strip_bvm(T4L11.as_bytes());
             let err = parse(T4L11).err().unwrap();
             assert_eq!(
@@ -1719,9 +1677,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L12() {
-            let T4L12 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_12.10n"
-            );
+            let T4L12 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_12.10n");
             let index_of_error = strip_bvm(T4L12.as_bytes());
             let err = parse(T4L12).err().unwrap();
             assert_eq!(
@@ -1735,9 +1692,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L13() {
-            let T4L13 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_13.10n"
-            );
+            let T4L13 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_13.10n");
             let index_of_error = strip_bvm(T4L13.as_bytes());
             let err = parse(T4L13).err().unwrap();
             assert_eq!(
@@ -1751,9 +1707,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T4L14() {
-            let T4L14 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_14.10n"
-            );
+            let T4L14 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_4_length_14.10n");
             let index_of_error = strip_bvm(T4L14.as_bytes());
             let err = parse(T4L14).err().unwrap();
             assert_eq!(
@@ -1767,9 +1722,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T6L0() {
-            let T6L0 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_0.10n"
-            );
+            let T6L0 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_0.10n");
             let index_of_error = strip_bvm(T6L0.as_bytes());
             let err = parse(T6L0).err().unwrap();
             assert_eq!(
@@ -1783,9 +1737,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T6L1() {
-            let T6L1 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_1.10n"
-            );
+            let T6L1 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_6_length_1.10n");
             let index_of_error = strip_bvm(T6L1.as_bytes());
             let err = parse(T6L1).err().unwrap();
             assert_eq!(
@@ -1799,9 +1752,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T14L1() {
-            let T14L1 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_1.10n"
-            );
+            let T14L1 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_1.10n");
             let index_of_error = strip_bvm(T14L1.as_bytes());
             let err = parse(T14L1).err().unwrap();
             assert_eq!(
@@ -1815,9 +1767,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T14L2() {
-            let T14L2 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_2.10n"
-            );
+            let T14L2 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_2.10n");
             let index_of_error = strip_bvm(T14L2.as_bytes());
             let err = parse(T14L2).err().unwrap();
             assert_eq!(
@@ -1832,7 +1783,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T14L15() {
             let T14L15 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_15.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_14_length_15.10n"
             );
             let index_of_error = strip_bvm(T14L15.as_bytes());
             let err = parse(T14L15).err().unwrap();
@@ -1847,9 +1798,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L0() {
-            let T15L0 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_0.10n"
-            );
+            let T15L0 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_0.10n");
             let index_of_error = strip_bvm(T15L0.as_bytes());
             let err = parse(T15L0).err().unwrap();
             assert_eq!(
@@ -1863,9 +1813,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L1() {
-            let T15L1 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_1.10n"
-            );
+            let T15L1 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_1.10n");
             let index_of_error = strip_bvm(T15L1.as_bytes());
             let err = parse(T15L1).err().unwrap();
             assert_eq!(
@@ -1879,9 +1828,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L2() {
-            let T15L2 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_2.10n"
-            );
+            let T15L2 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_2.10n");
             let index_of_error = strip_bvm(T15L2.as_bytes());
             let err = parse(T15L2).err().unwrap();
             assert_eq!(
@@ -1895,9 +1843,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L3() {
-            let T15L3 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_3.10n"
-            );
+            let T15L3 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_3.10n");
             let index_of_error = strip_bvm(T15L3.as_bytes());
             let err = parse(T15L3).err().unwrap();
             assert_eq!(
@@ -1911,9 +1858,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L4() {
-            let T15L4 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_4.10n"
-            );
+            let T15L4 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_4.10n");
             let index_of_error = strip_bvm(T15L4.as_bytes());
             let err = parse(T15L4).err().unwrap();
             assert_eq!(
@@ -1927,9 +1873,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L5() {
-            let T15L5 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_5.10n"
-            );
+            let T15L5 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_5.10n");
             let index_of_error = strip_bvm(T15L5.as_bytes());
             let err = parse(T15L5).err().unwrap();
             assert_eq!(
@@ -1943,9 +1888,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L6() {
-            let T15L6 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_6.10n"
-            );
+            let T15L6 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_6.10n");
             let index_of_error = strip_bvm(T15L6.as_bytes());
             let err = parse(T15L6).err().unwrap();
             assert_eq!(
@@ -1959,9 +1903,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L7() {
-            let T15L7 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_7.10n"
-            );
+            let T15L7 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_7.10n");
             let index_of_error = strip_bvm(T15L7.as_bytes());
             let err = parse(T15L7).err().unwrap();
             assert_eq!(
@@ -1975,9 +1918,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L8() {
-            let T15L8 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_8.10n"
-            );
+            let T15L8 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_8.10n");
             let index_of_error = strip_bvm(T15L8.as_bytes());
             let err = parse(T15L8).err().unwrap();
             assert_eq!(
@@ -1991,9 +1933,8 @@ mod tests {
 
         #[test]
         fn test_parse_invalid_type_descriptor_T15L9() {
-            let T15L9 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_9.10n"
-            );
+            let T15L9 =
+                include_bytes!("../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_9.10n");
             let index_of_error = strip_bvm(T15L9.as_bytes());
             let err = parse(T15L9).err().unwrap();
             assert_eq!(
@@ -2008,7 +1949,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L10() {
             let T15L10 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_10.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_10.10n"
             );
             let index_of_error = strip_bvm(T15L10.as_bytes());
             let err = parse(T15L10).err().unwrap();
@@ -2024,7 +1965,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L11() {
             let T15L11 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_11.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_11.10n"
             );
             let index_of_error = strip_bvm(T15L11.as_bytes());
             let err = parse(T15L11).err().unwrap();
@@ -2040,7 +1981,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L12() {
             let T15L12 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_12.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_12.10n"
             );
             let index_of_error = strip_bvm(T15L12.as_bytes());
             let err = parse(T15L12).err().unwrap();
@@ -2056,7 +1997,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L13() {
             let T15L13 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_13.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_13.10n"
             );
             let index_of_error = strip_bvm(T15L13.as_bytes());
             let err = parse(T15L13).err().unwrap();
@@ -2072,7 +2013,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L14() {
             let T15L14 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_14.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_14.10n"
             );
             let index_of_error = strip_bvm(T15L14.as_bytes());
             let err = parse(T15L14).err().unwrap();
@@ -2088,7 +2029,7 @@ mod tests {
         #[test]
         fn test_parse_invalid_type_descriptor_T15L15() {
             let T15L15 = include_bytes!(
-                "../../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_15.10n"
+                "../tests/ion-tests/iontestdata/bad/typecodes/type_15_length_15.10n"
             );
             let index_of_error = strip_bvm(T15L15.as_bytes());
             let err = parse(T15L15).err().unwrap();
