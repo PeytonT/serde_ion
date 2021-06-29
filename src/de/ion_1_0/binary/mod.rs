@@ -12,7 +12,7 @@ use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
 use num_traits::{cast::FromPrimitive, identities::Zero, ToPrimitive};
 
 use crate::de::ion_1_0::current_symbol_table::CurrentSymbolTable;
-use crate::parse_error::{IonError, IonResult};
+use crate::error::{IonError, IonResult};
 use crate::{
     binary::{LengthCode, TypeCode},
     error::{BinaryFormatError, FormatError, TimeComponent},

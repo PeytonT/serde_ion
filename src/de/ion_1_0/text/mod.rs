@@ -35,7 +35,7 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{pow, Num, One, Zero};
 
 use crate::de::ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable};
-use crate::parse_error::{IonError, IonResult};
+use crate::error::{IonError, IonResult};
 use crate::{
     error::{FormatError, SymbolError, TextFormatError},
     symbols::SymbolToken,

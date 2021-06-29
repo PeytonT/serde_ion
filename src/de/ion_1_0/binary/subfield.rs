@@ -1,6 +1,5 @@
 use std::iter;
 
-use crate::parse_error::{IonError, IonResult};
 use bit_vec::BitVec;
 use nom::{
     bytes::complete::{take, take_while},
@@ -9,6 +8,8 @@ use nom::{
 };
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{cast::ToPrimitive, identities::Zero};
+
+use crate::error::{IonError, IonResult};
 
 /// ## Basic Field Formats
 ///

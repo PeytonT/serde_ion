@@ -9,7 +9,7 @@ use nom::{
 use crate::binary::BVM_1_0;
 use crate::de::ion_1_0;
 use crate::de::ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator};
-use crate::parse_error::{IonError, IonResult};
+use crate::error::{IonError, IonResult};
 use crate::value::Value;
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
@@ -49,8 +49,8 @@ mod tests {
     use num_traits::Num;
     use pretty_assertions::assert_eq;
 
+    use crate::error::IonError;
     use crate::error::{BinaryFormatError, FormatError};
-    use crate::parse_error::IonError;
     use crate::{
         symbols::SymbolToken,
         value::{Clob, Data, Decimal, Struct, Timestamp, Value},
