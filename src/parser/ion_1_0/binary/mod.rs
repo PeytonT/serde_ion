@@ -601,8 +601,8 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>>
                 remaining_bytes => take_int(remaining_bytes)(coefficient_index)?,
             };
             Ok(Some(Decimal {
-                exponent,
                 coefficient,
+                exponent,
             }))
         }
     }
@@ -1032,13 +1032,7 @@ fn parse_list<'a>(
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
-            let values = values
-                .into_iter()
-                .filter_map(|value| match value {
-                    None => None,
-                    Some(value) => Some(value),
-                })
-                .collect();
+            let values = values.into_iter().flatten().collect();
             Ok(Some(List { values }))
         }
     }
@@ -1069,13 +1063,7 @@ fn parse_sexp<'a>(
         _ => {
             let (_, values) =
                 complete(all_consuming(many0(take_value(symbol_table))))(typed_value.rep)?;
-            let values = values
-                .into_iter()
-                .filter_map(|value| match value {
-                    None => None,
-                    Some(value) => Some(value),
-                })
-                .collect();
+            let values = values.into_iter().flatten().collect();
             Ok(Some(Sexp { values }))
         }
     }
@@ -1159,10 +1147,7 @@ fn parse_struct<'a>(
     // Strip all of the entries with values containing padding
     let entries: Vec<(usize, Value)> = entries
         .into_iter()
-        .filter_map(|(field_name, value)| match value {
-            None => None,
-            Some(value) => Some((field_name, value)),
-        })
+        .filter_map(|(field_name, value)| value.map(|value| (field_name, value)))
         .collect();
 
     // If the struct is a sorted struct, verify that it is actually sorted

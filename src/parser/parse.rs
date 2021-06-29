@@ -39,7 +39,7 @@ pub(crate) const BVM_1_0: [u8; 4] = [
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
     all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
-        x.into_iter().flatten().filter_map(|x| x).collect()
+        x.into_iter().flatten().flatten().collect()
     }))(input)
 }
 

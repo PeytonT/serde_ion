@@ -329,7 +329,7 @@ fn handle_imports(
                 if let Data::Int(Some(value)) = data {
                     if value < &One::one() {
                         One::one()
-                    } else if value > &BigInt::from(std::u32::MAX) {
+                    } else if value > &BigInt::from(u32::MAX) {
                         return Err(SymbolError::UnsupportedVersion(value.to_string()));
                     } else {
                         value.to_u32().expect("verified above")
@@ -358,7 +358,7 @@ fn handle_imports(
                 } else {
                     let data = &fields.get(*indices.get(0).unwrap()).unwrap().1.value;
                     if let Data::Int(Some(value)) = data {
-                        if &BigInt::zero() > value || value > &BigInt::from(std::u32::MAX) {
+                        if &BigInt::zero() > value || value > &BigInt::from(u32::MAX) {
                             return Err(SymbolError::InvalidMaxId(value.to_string()));
                         } else {
                             Some(value.to_u32().expect("confirmed max_id in range above"))

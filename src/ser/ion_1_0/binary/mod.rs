@@ -12,7 +12,6 @@ use num_bigint::{BigInt, Sign};
 use num_traits::Zero;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use std::mem::replace;
 
 /// A binary writer takes a stream of Ion values and produces the corresponding binary bytestream.
 ///
@@ -60,10 +59,7 @@ impl Writer {
                 // Absorb the symbols accumulated in the symbol_buffer into the local_symbol_table.
                 self.local_symbol_table.update(
                     &Version::Ion_1_0,
-                    replace(
-                        self.symbol_buffer.symbol_counts.borrow_mut(),
-                        HashMap::new(),
-                    ),
+                    std::mem::take(self.symbol_buffer.symbol_counts.borrow_mut()),
                 );
 
                 // If the symbol table holds nothing more than the default symbols for this version
@@ -82,7 +78,7 @@ impl Writer {
                 }
 
                 // Serialize the buffered values using the symbol table
-                replace(&mut self.value_buffer, Vec::new())
+                std::mem::take(&mut self.value_buffer)
                     .into_iter()
                     .for_each(|v| append_value(&mut self.bytes, &v, &self.local_symbol_table))
             }

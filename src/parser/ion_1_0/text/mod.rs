@@ -1499,8 +1499,7 @@ fn str_to_bigint<T: AsRef<str>>(digits: T, radix: u32) -> Result<BigInt, FormatE
 
 /// Helper for turning Vec<&str>s into BigInts.
 fn str_vec_to_bigint(vec: Vec<&str>, radix: u32) -> Result<BigInt, FormatError> {
-    let digits: String = vec.concat();
-    Ok(str_to_bigint(digits, radix)?)
+    str_to_bigint(vec.concat(), radix)
 }
 
 /// BIN_INTEGER
