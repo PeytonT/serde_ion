@@ -189,17 +189,16 @@ pub struct SharedImport {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SystemSymbolTable {
+pub(crate) struct SystemSymbolTable<const LENGTH: usize> {
     pub name: &'static str,
     pub version: u32,
-    // Hopefully there will be const generics by the time the $ion symbol table has more than 1 version
-    pub symbols: [SymbolToken; 10],
+    pub symbols: [SymbolToken; LENGTH],
 }
 
 pub(crate) const SYSTEM_SYMBOL_TABLE_V1_MAX_ID: usize = 9;
 
 lazy_static! {
-    pub(crate) static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable = {
+    pub(crate) static ref SYSTEM_SYMBOL_TABLE_V1: SystemSymbolTable<{ SYSTEM_SYMBOL_TABLE_V1_MAX_ID + 1 }> = {
         SystemSymbolTable {
             name: "$ion",
             version: 1,
