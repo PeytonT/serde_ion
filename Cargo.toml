@@ -1,7 +1,6 @@
 [package]
 name = "serde_ion"
 version = "0.1.0"
-authors = ["Peyton Turner <donaldpeytonturner@gmail.com>, Matthew Langhinrichs <mlanghinrichs@gmail.com>"]
 edition = "2018"
 description = """
 A native Rust encoding and decoding library for the Amazon Ion text and binary data formats.
