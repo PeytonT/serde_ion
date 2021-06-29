@@ -18,3 +18,8 @@ The submodule is required to run the test suite. It can be initialized from with
 $ git submodule init
 $ git submodule update
 ```
+
+## Conduct
+
+This project follows the [Rust Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct). 
+For issues please contact the project authors instead of the Rust moderation team.
