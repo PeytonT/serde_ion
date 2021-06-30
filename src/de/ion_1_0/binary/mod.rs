@@ -26,6 +26,8 @@ use self::subfield::*;
 
 mod subfield;
 
+//////////////////////////////////////////////////////////////////////////////
+
 type ParseResult<I, T> = Result<T, Err<IonError<I>>>;
 
 pub fn parse(

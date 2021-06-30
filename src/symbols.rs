@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// # symbol - Interned, Unicode symbolic atoms (aka identifiers)
@@ -86,7 +87,7 @@ use std::fmt;
 ///
 ///     * Greater than the current local symbol table’s max_id, or less than zero, an error must be raised.
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SymbolToken {
     // All SymbolTokens with identical known text are equivalent, import_location is ignored
     Known { text: String },
@@ -116,7 +117,7 @@ impl From<&str> for SymbolToken {
 /// ## ImportLocation
 ///
 /// <importName:String, importSID:Int>
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ImportLocation {
     import_name: String,
     // Index into a shared symbol table’s list of symbols.

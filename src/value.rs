@@ -7,8 +7,9 @@ use std::str;
 use crate::symbols::SymbolToken;
 use base64::encode;
 use num_bigint::{BigInt, BigUint};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Value {
     pub value: Data,
     // The Ion specification notes that in the text format, annotations are denoted by a non-null
@@ -39,7 +40,7 @@ impl From<Data> for Value {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Data {
     // null - A generic null value
     Null,
@@ -158,7 +159,7 @@ impl Data {
 
 // decimal - Decimal-encoded real numbers of arbitrary precision
 // Reference http://speleotrove.com/decimal/decarith.html
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Decimal {
     pub coefficient: BigInt,
     pub exponent: BigInt,
@@ -173,7 +174,7 @@ impl Decimal {
 // timestamp - Date/time/timezone moments of arbitrary precision
 // Mostly ISO 8601
 // Enum variant names represent the precision of the variant
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Timestamp {
     // TODO: Convert offset to i16, or consider some sort of BoundedInt?
     // https://github.com/rust-lang/rfcs/issues/671
@@ -231,7 +232,7 @@ impl Timestamp {
 }
 
 // blob - Binary data of user-defined encoding
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Blob {
     pub data: Vec<u8>,
 }
@@ -249,7 +250,7 @@ impl Blob {
 // String and symbol values. This guarantees that the value can be transmitted unscathed while
 // remaining generally readable (at least for western language text).
 // Like blobs, clobs disallow comments everywhere within the value.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Clob {
     pub data: Vec<u8>,
 }
@@ -263,7 +264,7 @@ impl Clob {
 }
 
 // struct - Unordered collections of tagged values
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Struct {
     // When two fields in the same struct have the same name we say they are "repeated fields".
     // Repeated fields are preserved, so 'fields' is a Vec instead of some sort of Hash table.
@@ -277,7 +278,7 @@ impl Struct {
 }
 
 // list - Ordered collections of values
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct List {
     pub values: Vec<Value>,
 }
@@ -305,7 +306,7 @@ impl IntoIterator for List {
 // An operator is an unquoted sequence of one or more of the following
 // nineteen ASCII characters: !#%&*+-./;<=>?@^`|~
 // Operators and identifiers can be juxtaposed without whitespace.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Sexp {
     pub values: Vec<Value>,
 }

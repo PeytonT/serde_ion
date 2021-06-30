@@ -14,10 +14,25 @@ pub type IonResult<I, T> = std::result::Result<(I, T), Err<IonError<I>>>;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum Error {
+    // TODO: Handle this better.
+    #[error("nom parsing error not converted to any other form of error")]
+    Nom(),
+    // TODO: Handle this better.
+    #[error("string message for Serde")]
+    Serde(String),
     #[error("invalid symbol")]
     Symbol(SymbolError),
     #[error("invalid format")]
     Format(FormatError),
+}
+
+impl serde::de::Error for Error {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: std::fmt::Display,
+    {
+        Self::Serde(format!("{}", msg))
+    }
 }
 
 impl From<SymbolError> for Error {
@@ -29,6 +44,16 @@ impl From<SymbolError> for Error {
 impl From<FormatError> for Error {
     fn from(error: FormatError) -> Self {
         Error::Format(error)
+    }
+}
+
+impl<I> From<IonError<I>> for Error {
+    fn from(error: IonError<I>) -> Self {
+        match error.kind {
+            ErrorKind::Nom(_, _) => Error::Nom(),
+            ErrorKind::Symbol(_, error) => Error::Symbol(error),
+            ErrorKind::Format(_, error) => Error::Format(error),
+        }
     }
 }
 
@@ -157,12 +182,6 @@ impl<'a> IonError<&'a [u8]> {
             .collect_vec();
 
         IonError { kind, backtrace }
-    }
-}
-
-impl<'a> IonError<&'a str> {
-    pub(crate) fn into_bytes_err(self, origin: &str) -> IonError<&'a [u8]> {
-        todo!()
     }
 }
 
