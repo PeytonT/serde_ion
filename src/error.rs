@@ -6,6 +6,9 @@ use num_bigint::BigInt;
 use thiserror::Error;
 
 use crate::symbols::ImportLocation;
+use std::fmt::Display;
+
+//////////////////////////////////////////////////////////////////////////////
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -29,7 +32,16 @@ pub enum Error {
 impl serde::de::Error for Error {
     fn custom<T>(msg: T) -> Self
     where
-        T: std::fmt::Display,
+        T: Display,
+    {
+        Self::Serde(format!("{}", msg))
+    }
+}
+
+impl serde::ser::Error for Error {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: Display,
     {
         Self::Serde(format!("{}", msg))
     }
