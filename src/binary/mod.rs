@@ -316,6 +316,12 @@ impl VarInt {
     }
 }
 
+#[derive(PartialEq, PartialOrd, Eq, Ord, Copy, Clone, Debug, Hash)]
+pub(crate) enum Sign {
+    Minus,
+    Plus,
+}
+
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests {

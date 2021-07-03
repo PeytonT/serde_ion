@@ -1,4 +1,4 @@
-use crate::binary::{Int, UInt, VarInt, VarUInt};
+use crate::binary::{self, Int, UInt, VarInt, VarUInt};
 use bit_vec::BitVec;
 use num_bigint::{BigInt, BigUint, Sign};
 
@@ -53,11 +53,19 @@ impl From<&BigUint> for UInt {
 
 impl From<&BigInt> for VarInt {
     fn from(int: &BigInt) -> Self {
-        VarInt::new(serialize_var_int_parts(int.sign(), int.magnitude()))
+        match int.sign() {
+            Sign::Minus => VarInt::new(serialize_var_int_parts(
+                binary::Sign::Minus,
+                int.magnitude(),
+            )),
+            Sign::NoSign | Sign::Plus => {
+                VarInt::new(serialize_var_int_parts(binary::Sign::Plus, int.magnitude()))
+            }
+        }
     }
 }
 
-pub(crate) fn serialize_var_int_parts(sign: Sign, magnitude: &BigUint) -> Vec<u8> {
+pub(crate) fn serialize_var_int_parts(sign: binary::Sign, magnitude: &BigUint) -> Vec<u8> {
     // bits needed to represent the magnitude of the VarInt
     let num_bits = magnitude.bits() as usize;
 
@@ -84,7 +92,10 @@ pub(crate) fn serialize_var_int_parts(sign: Sign, magnitude: &BigUint) -> Vec<u8
 
     // the first byte is special because it has a sign bit and may have leading zeros
     output_bits.push(total_bytes == 1);
-    output_bits.push(sign != Sign::Plus);
+    match sign {
+        binary::Sign::Minus => output_bits.push(true),
+        binary::Sign::Plus => output_bits.push(false),
+    }
     // push leading zeros
     for _ in 0..leading_zeros {
         output_bits.push(false);

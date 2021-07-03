@@ -2,7 +2,6 @@ use std::str::from_utf8;
 
 use itertools::Itertools;
 use nom::{error::ContextError, error::FromExternalError, error::ParseError, Err, Offset};
-use num_bigint::BigInt;
 use thiserror::Error;
 
 use crate::symbols::ImportLocation;
@@ -128,8 +127,8 @@ pub enum BinaryFormatError {
     StructUnordered,
     #[error("invalid local symbol table")]
     LocalTable,
-    #[error("time component out of range: {0} - {1}")]
-    TimeComponentRange(TimeComponent, BigInt),
+    #[error("time component has value outsize of allowed range: {0} - {1}")]
+    TimeComponentRange(TimeComponent, String),
 }
 
 #[derive(Error, Debug, PartialEq)]

@@ -859,7 +859,7 @@ fn test_lists() {
             symbol("qSymbol"),
             clob(b"clob data"),
             blob_encoded(b"YmxvYiBkYXRh"),
-            timestamp(TextDate::day(1970, 6, 6).unwrap(), None, None),
+            timestamp(TextDate::day(1970, 6, 6).unwrap(), None),
             ion::Data::Struct(None).into(),
         ]),
         list(vec![
@@ -2153,26 +2153,43 @@ fn test_testfile25() {
     let result = parse_file(&test_path("good/testfile25.ion"));
 
     let expected = vec![sexp(vec![
-        timestamp(TextDate::day(2007, 11, 20).unwrap(), None, None),
+        timestamp(TextDate::day(2007, 11, 20).unwrap(), None),
         timestamp(
             TextDate::day(2008, 12, 23).unwrap(),
-            Some(minute(23, 0)),
-            Some(UtcOffset::UTC),
+            Some(minute(Some(UtcOffset::UTC), 23, 0)),
         ),
         timestamp(
             TextDate::day(2008, 12, 23).unwrap(),
-            Some(fractional_second(23, 0, 1, BigUint::from(123u32), -3)),
-            Some(UtcOffset::east_hours(7)),
+            Some(fractional_second(
+                Some(UtcOffset::east_hours(7)),
+                23,
+                0,
+                1,
+                BigUint::from(123u32),
+                -3,
+            )),
         ),
         timestamp(
             TextDate::day(2008, 12, 23).unwrap(),
-            Some(fractional_second(23, 0, 2, BigUint::from(456u32), -3)),
-            Some(UtcOffset::west_hours(6)),
+            Some(fractional_second(
+                Some(UtcOffset::west_hours(6)),
+                23,
+                0,
+                2,
+                BigUint::from(456u32),
+                -3,
+            )),
         ),
         timestamp(
             TextDate::day(2008, 12, 23).unwrap(),
-            Some(fractional_second(23, 0, 3, BigUint::from(789u32), -3)),
-            Some(UtcOffset::east_hours(8)),
+            Some(fractional_second(
+                Some(UtcOffset::east_hours(8)),
+                23,
+                0,
+                3,
+                BigUint::from(789u32),
+                -3,
+            )),
         ),
     ])];
 
@@ -2250,30 +2267,41 @@ fn test_testfile33() {
         map_data(vec![
             (
                 "whenDate".into(),
-                timestamp(TextDate::day(2007, 1, 31).unwrap(), None, None),
+                timestamp(TextDate::day(2007, 1, 31).unwrap(), None),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(minute(1, 2)),
-                    None,
+                    Some(minute(Some(UtcOffset::UTC), 1, 2)),
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
-                    None,
+                    Some(fractional_second(
+                        Some(UtcOffset::UTC),
+                        1,
+                        4,
+                        5,
+                        BigUint::from(385u32),
+                        -3,
+                    )),
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
-                    Some(UtcOffset::east_minutes(60 + 11)),
+                    Some(fractional_second(
+                        Some(UtcOffset::east_minutes(60 + 11)),
+                        1,
+                        4,
+                        5,
+                        BigUint::from(385u32),
+                        -3,
+                    )),
                 ),
             ),
         ]),
@@ -2321,30 +2349,41 @@ fn test_testfile35() {
         map_data(vec![
             (
                 "whenDate".into(),
-                timestamp(TextDate::day(2007, 1, 31).unwrap(), None, None),
+                timestamp(TextDate::day(2007, 1, 31).unwrap(), None),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(minute(1, 2)),
-                    None,
+                    Some(minute(Some(UtcOffset::UTC), 1, 2)),
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
-                    None,
+                    Some(fractional_second(
+                        Some(UtcOffset::UTC),
+                        1,
+                        4,
+                        5,
+                        BigUint::from(385u32),
+                        -3,
+                    )),
                 ),
             ),
             (
                 "whenDate".into(),
                 timestamp(
                     TextDate::day(2007, 1, 31).unwrap(),
-                    Some(fractional_second(1, 4, 5, BigUint::from(385u32), -3)),
-                    Some(UtcOffset::east_minutes(60 + 11)),
+                    Some(fractional_second(
+                        Some(UtcOffset::east_minutes(60 + 11)),
+                        1,
+                        4,
+                        5,
+                        BigUint::from(385u32),
+                        -3,
+                    )),
                 ),
             ),
         ]),

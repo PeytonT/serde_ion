@@ -102,11 +102,16 @@ fn boolean(b: bool) -> ion::Value {
     ion::Data::Bool(Some(b)).into()
 }
 
-fn minute(hour: u8, minute: u8) -> TextTime {
-    TextTime::Minute { hour, minute }
+fn minute(offset: Option<UtcOffset>, hour: u8, minute: u8) -> TextTime {
+    TextTime::Minute {
+        offset,
+        hour,
+        minute,
+    }
 }
 
 fn fractional_second(
+    offset: Option<UtcOffset>,
     hour: u8,
     minute: u8,
     second: u8,
@@ -114,6 +119,7 @@ fn fractional_second(
     fraction_exponent: i32,
 ) -> TextTime {
     TextTime::FractionalSecond {
+        offset,
         hour,
         minute,
         second,
@@ -122,16 +128,12 @@ fn fractional_second(
     }
 }
 
-fn timestamp(date: TextDate, time: Option<TextTime>, offset: Option<UtcOffset>) -> ion::Value {
-    timestamp_data(date, time, offset).into()
+fn timestamp(date: TextDate, time: Option<TextTime>) -> ion::Value {
+    timestamp_data(date, time).into()
 }
 
-fn timestamp_data(date: TextDate, time: Option<TextTime>, offset: Option<UtcOffset>) -> ion::Data {
-    ion::Data::Timestamp(Some(
-        TextTimestamp::new(date, time, offset.unwrap_or(UtcOffset::UTC))
-            .try_into()
-            .unwrap(),
-    ))
+fn timestamp_data(date: TextDate, time: Option<TextTime>) -> ion::Data {
+    ion::Data::Timestamp(Some(TextTimestamp::new(date, time).try_into().unwrap()))
 }
 
 fn decimal(coefficient: &str, exponent: &str) -> ion::Value {

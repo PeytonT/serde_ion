@@ -8,13 +8,13 @@ use nom::{
     sequence::pair,
     Err,
 };
-use num_bigint::{BigInt, BigUint, Sign, ToBigInt};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{cast::FromPrimitive, identities::Zero, ToPrimitive};
 
 use crate::de::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::error::{IonError, IonResult};
 use crate::{
-    binary::{LengthCode, TypeCode},
+    binary::{self, LengthCode, TypeCode},
     error::{BinaryFormatError, FormatError, TimeComponent},
     symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
     value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value},
@@ -598,7 +598,7 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>>
             exponent: BigInt::zero(),
         })),
         _ => {
-            let (coefficient_index, exponent) = take_var_int(typed_value.rep)?;
+            let (coefficient_index, exponent) = take_var_int_as_num_bigint(typed_value.rep)?;
             let (_, coefficient) = match coefficient_index.len() {
                 0 => (coefficient_index, BigInt::zero()),
                 remaining_bytes => take_int(remaining_bytes)(coefficient_index)?,
@@ -655,40 +655,30 @@ fn parse_decimal(typed_value: TypedValue) -> ParseResult<&[u8], Option<Decimal>>
 /// decimal value. The fractional seconds’ value is coefficient * 10 ^ exponent.
 /// It must be greater than or equal to zero and less than 1. A missing coefficient defaults to zero.
 /// Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
-/// The following hex encoded timestamps are equivalent:
-///
-/// 68 80 0F D0 81 81 80 80 80       ///  2000-01-01T00:00:00Z with no fractional seconds
-/// 69 80 0F D0 81 81 80 80 80 80    ///  The same instant with 0d0 fractional seconds and implicit zero coefficient
-/// 6A 80 0F D0 81 81 80 80 80 80 00 ///  The same instant with 0d0 fractional seconds and explicit zero coefficient
-/// 69 80 0F D0 81 81 80 80 80 C0    ///  The same instant with 0d-0 fractional seconds
-/// 69 80 0F D0 81 81 80 80 80 81    ///  The same instant with 0d1 fractional seconds
-/// Conversely, none of the following are equivalent:
-///
-/// 68 80 0F D0 81 81 80 80 80       ///  2000-01-01T00:00:00Z with no fractional seconds
-/// 69 80 0F D0 81 81 80 80 80 C1    ///  2000-01-01T00:00:00.0Z
-/// 69 80 0F D0 81 81 80 80 80 C2    ///  2000-01-01T00:00:00.00Z
-/// If a timestamp representation has a component of a certain precision, each of the less precise
-/// components must also be present or else the representation is illegal.
-/// For example, a timestamp representation that has a fraction_exponent and fraction_coefficient component but not the month component, is illegal.
-///
-/// Note: The component values in the binary encoding are always in UTC, while components in the
-/// text encoding are in the local time! This means that transcoding requires a conversion between
-/// UTC and local time.
 fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timestamp>> {
     match typed_value.length_code {
         LengthCode::L15 => Ok(None),
         _ => {
-            let (rest, offset) = take_var_int(typed_value.rep)?;
-            let offset = match offset.to_i32() {
-                Some(offset) => offset,
-                None => {
-                    return Err(Err::Failure(IonError::from_format_error(
-                        typed_value.index,
-                        FormatError::Binary(BinaryFormatError::TimeComponentRange(
-                            TimeComponent::Offset,
-                            offset,
-                        )),
-                    )))
+            // When parsing a Timestamp's offset, we have to distinguish between positive and negative zero.
+            let (rest, (offset_sign, offset_magnitude)) = take_var_int(typed_value.rep)?;
+            let offset = if offset_sign == binary::Sign::Minus && offset_magnitude.is_zero() {
+                Option::None
+            } else {
+                let offset = match offset_sign {
+                    binary::Sign::Minus => BigInt::from_biguint(Sign::Minus, offset_magnitude),
+                    binary::Sign::Plus => BigInt::from_biguint(Sign::Plus, offset_magnitude),
+                };
+                match offset.to_i16() {
+                    Some(offset) => Option::Some(offset),
+                    None => {
+                        return Err(Err::Failure(IonError::from_format_error(
+                            typed_value.index,
+                            FormatError::Binary(BinaryFormatError::TimeComponentRange(
+                                TimeComponent::Offset,
+                                offset.to_string(),
+                            )),
+                        )))
+                    }
                 }
             };
 
@@ -700,7 +690,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Year,
-                            year.to_bigint().unwrap(),
+                            year.to_string(),
                         )),
                     )))
                 }
@@ -708,7 +698,8 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
 
             // Parsing complete with precision of Year
             if rest.is_empty() {
-                return Ok(Some(Timestamp::Year { offset, year }));
+                // TODO: Validate offset: https://github.com/amzn/ion-docs/issues/151
+                return Ok(Some(Timestamp::Year { year }));
             }
 
             let (rest, month) = take_var_uint(rest)?;
@@ -719,7 +710,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Month,
-                            month.to_bigint().unwrap(),
+                            month.to_string(),
                         )),
                     )))
                 }
@@ -727,11 +718,8 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
 
             // Parsing complete with precision of Month
             if rest.is_empty() {
-                return Ok(Some(Timestamp::Month {
-                    offset,
-                    year,
-                    month,
-                }));
+                // TODO: Validate offset: https://github.com/amzn/ion-docs/issues/151
+                return Ok(Some(Timestamp::Month { year, month }));
             }
 
             let (rest, day) = take_var_uint(rest)?;
@@ -742,7 +730,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Day,
-                            day.to_bigint().unwrap(),
+                            day.to_string(),
                         )),
                     )))
                 }
@@ -750,12 +738,8 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
 
             // Parsing complete with precision of Day
             if rest.is_empty() {
-                return Ok(Some(Timestamp::Day {
-                    offset,
-                    year,
-                    month,
-                    day,
-                }));
+                // TODO: Validate offset: https://github.com/amzn/ion-docs/issues/151
+                return Ok(Some(Timestamp::Day { year, month, day }));
             }
 
             let (rest, hour) = take_var_uint(rest)?;
@@ -766,7 +750,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Hour,
-                            hour.to_bigint().unwrap(),
+                            hour.to_string(),
                         )),
                     )))
                 }
@@ -779,7 +763,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Minute,
-                            minute.to_bigint().unwrap(),
+                            minute.to_string(),
                         )),
                     )))
                 }
@@ -805,7 +789,7 @@ fn parse_timestamp(typed_value: TypedValue) -> ParseResult<&[u8], Option<Timesta
                         typed_value.index,
                         FormatError::Binary(BinaryFormatError::TimeComponentRange(
                             TimeComponent::Second,
-                            second.to_bigint().unwrap(),
+                            second.to_string(),
                         )),
                     )))
                 }

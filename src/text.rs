@@ -65,15 +65,18 @@ impl fmt::Debug for TextDate {
 #[derive(Clone, PartialEq)]
 pub enum TextTime {
     Minute {
+        offset: Option<UtcOffset>,
         hour: u8,
         minute: u8,
     },
     Second {
+        offset: Option<UtcOffset>,
         hour: u8,
         minute: u8,
         second: u8,
     },
     FractionalSecond {
+        offset: Option<UtcOffset>,
         hour: u8,
         minute: u8,
         second: u8,
@@ -85,27 +88,52 @@ pub enum TextTime {
 impl fmt::Debug for TextTime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TextTime::Minute { hour, minute } => format!("{:02}:{:02}", hour, minute).fmt(f),
+            TextTime::Minute {
+                offset,
+                hour,
+                minute,
+            } => match offset {
+                None => format!("{:02}:{:02}-00:00", hour, minute).fmt(f),
+                Some(offset) => format!("{:02}:{:02}{}", hour, minute, offset).fmt(f),
+            },
             TextTime::Second {
+                offset,
                 hour,
                 minute,
                 second,
-            } => format!("{:02}:{:02}:{:02}", hour, minute, second,).fmt(f),
+            } => match offset {
+                None => format!("{:02}:{:02}:{:02}-00:00", hour, minute, second).fmt(f),
+                Some(offset) => format!("{:02}:{:02}:{:02}{}", hour, minute, second, offset).fmt(f),
+            },
             TextTime::FractionalSecond {
+                offset,
                 hour,
                 minute,
                 second,
                 fraction_coefficient,
-                ..
-            } => format!(
-                "{:02}:{:02}:{:02}.{}",
-                hour,
-                minute,
-                second,
                 // TODO: leading zeroes need to be added.
-                fraction_coefficient.to_str_radix(10)
-            )
-            .fmt(f),
+                ..
+            } => match offset {
+                None => format!(
+                    "{:02}:{:02}:{:02}.{}-00:00",
+                    hour,
+                    minute,
+                    second,
+                    // TODO: leading zeroes need to be added.
+                    fraction_coefficient.to_str_radix(10)
+                )
+                .fmt(f),
+                Some(offset) => format!(
+                    "{:02}:{:02}:{:02}.{}{}",
+                    hour,
+                    minute,
+                    second,
+                    // TODO: leading zeroes need to be added.
+                    fraction_coefficient.to_str_radix(10),
+                    offset
+                )
+                .fmt(f),
+            },
         }
     }
 }
@@ -114,12 +142,11 @@ impl fmt::Debug for TextTime {
 pub struct TextTimestamp {
     date: TextDate,
     time: Option<TextTime>,
-    offset: UtcOffset,
 }
 
 impl TextTimestamp {
-    pub fn new(date: TextDate, time: Option<TextTime>, offset: time::UtcOffset) -> Self {
-        Self { date, time, offset }
+    pub fn new(date: TextDate, time: Option<TextTime>) -> Self {
+        Self { date, time }
     }
 }
 
@@ -127,52 +154,53 @@ impl TryFrom<TextTimestamp> for Timestamp {
     type Error = TextFormatError;
 
     fn try_from(timestamp: TextTimestamp) -> Result<Self, Self::Error> {
-        let offset = timestamp.offset.as_seconds();
         Ok(match timestamp.time {
             None => match timestamp.date {
-                TextDate::Year { year } => Timestamp::Year { year, offset },
-                TextDate::Month { year, month } => Timestamp::Month {
-                    year,
-                    month,
-                    offset,
-                },
+                TextDate::Year { year } => Timestamp::Year { year },
+                TextDate::Month { year, month } => Timestamp::Month { year, month },
                 TextDate::Day { date } => Timestamp::Day {
                     year: date.year() as u16,
                     month: date.month(),
                     day: date.day(),
-                    offset,
                 },
             },
             Some(time) => match timestamp.date {
                 TextDate::Day { date } => match time {
-                    TextTime::Minute { hour, minute } => Timestamp::Minute {
+                    TextTime::Minute {
+                        offset,
+                        hour,
+                        minute,
+                    } => Timestamp::Minute {
+                        offset: offset.map(|offset| offset.as_minutes()),
                         year: date.year() as u16,
                         month: date.month(),
                         day: date.day(),
                         hour,
                         minute,
-                        offset,
                     },
                     TextTime::Second {
+                        offset,
                         hour,
                         minute,
                         second,
                     } => Timestamp::Second {
+                        offset: offset.map(|offset| offset.as_minutes()),
                         year: date.year() as u16,
                         month: date.month(),
                         day: date.day(),
                         hour,
                         minute,
                         second,
-                        offset,
                     },
                     TextTime::FractionalSecond {
+                        offset,
                         hour,
                         minute,
                         second,
                         fraction_coefficient,
                         fraction_exponent,
                     } => Timestamp::FractionalSecond {
+                        offset: offset.map(|offset| offset.as_minutes()),
                         year: date.year() as u16,
                         month: date.month(),
                         day: date.day(),
@@ -181,7 +209,6 @@ impl TryFrom<TextTimestamp> for Timestamp {
                         second,
                         fraction_coefficient,
                         fraction_exponent,
-                        offset,
                     },
                 },
                 _ => return Err(TextFormatError::ImpreciseDate),

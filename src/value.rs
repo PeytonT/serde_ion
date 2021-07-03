@@ -180,17 +180,17 @@ impl Decimal {
 // (https://www.w3.org/TR/NOTE-datetime), but they must end with the literal “T” if not at least
 // whole-day precision. Fractional seconds are allowed, with at least one digit of precision and an
 // unlimited maximum. Local-time offsets may be represented as either hour:minute offsets from UTC,
-// or as the literal “Z” to denote a local time of UTC. They are required on timestamps with time
-// and are not allowed on date values.
+// or as the literal “Z” to denote a local time of UTC.
 //
 // Ion follows the “Unknown Local Offset Convention” of RFC3339:
 // > If the time in UTC is known, but the offset to local time is unknown, this can be
 // > represented with an offset of “-00:00”. This differs semantically from an offset of “Z” or
 // > “+00:00”, which imply that UTC is the preferred reference point for the specified time.
-// > RFC2822 describes a similar convention for email.
 //
+// Local-time offsets are required on timestamps with time and are not allowed on date values.
 // Values that are precise only to the year, month, or date are assumed to be UTC values with
-// unknown local offset.
+// unknown local offset. As a result, Timestamp variants with this level of precision do not need
+// to store an offset field.
 //
 // Zero and negative dates are not valid, so the earliest instant in time that can be
 // represented as a timestamp is Jan 01, 0001. As per the W3C note, leap seconds cannot be
@@ -228,25 +228,21 @@ impl Decimal {
 //  https://github.com/amzn/ion-docs/issues/151
 #[derive(Clone, Debug, PartialEq)]
 pub enum Timestamp {
-    // TODO: Convert offset to i16, or consider some sort of BoundedInt?
-    // https://github.com/rust-lang/rfcs/issues/671
     Year {
-        offset: i32,
         year: u16,
     },
     Month {
-        offset: i32,
         year: u16,
         month: u8,
     },
     Day {
-        offset: i32,
         year: u16,
         month: u8,
         day: u8,
     },
     Minute {
-        offset: i32,
+        // Minutes difference from UTC. Option::None indicates an unknown local offset.
+        offset: Option<i16>,
         year: u16,
         month: u8,
         day: u8,
@@ -254,7 +250,8 @@ pub enum Timestamp {
         minute: u8,
     },
     Second {
-        offset: i32,
+        // Minutes difference from UTC. Option::None indicates an unknown local offset.
+        offset: Option<i16>,
         year: u16,
         month: u8,
         day: u8,
@@ -263,7 +260,8 @@ pub enum Timestamp {
         second: u8,
     },
     FractionalSecond {
-        offset: i32,
+        // Minutes difference from UTC. Option::None indicates an unknown local offset.
+        offset: Option<i16>,
         year: u16,
         month: u8,
         day: u8,
@@ -273,6 +271,7 @@ pub enum Timestamp {
         fraction_coefficient: BigUint,
         // The restriction of fractional_exponent to i32 rather than BigInt should not pose an issue for any non-pathological use
         // TODO: Revisit this - absolute correctness to the spec is a compelling virtue.
+        // TODO: It seems like this could be unsigned, since per the spec it should never need to be positive.
         fraction_exponent: i32,
     },
 }

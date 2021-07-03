@@ -1,5 +1,6 @@
 use std::iter;
 
+use crate::binary;
 use bit_vec::BitVec;
 use nom::{
     bytes::complete::{take, take_while},
@@ -145,19 +146,25 @@ pub(crate) fn parse_uint(bytes: &[u8]) -> num_bigint::BigUint {
     BigUint::from_bytes_be(bytes)
 }
 
-pub(crate) fn take_var_int(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
+pub(crate) fn take_var_int(i: &[u8]) -> IonResult<&[u8], (binary::Sign, num_bigint::BigUint)> {
     let (input, sequence) = take_while(high_bit_unset)(i)?;
     let (input, terminator) = take(1usize)(input)?;
     Ok((input, parse_var_int(sequence, terminator[0])))
 }
 
-// There are scenarios (ex. timestamp exponent values) where allowing a VarInt that cannot fit in i32 is unreasonable.
-// This should not pose an issue for non-pathological use cases.
+pub(crate) fn take_var_int_as_num_bigint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigInt> {
+    let (input, sequence) = take_while(high_bit_unset)(i)?;
+    let (input, terminator) = take(1usize)(input)?;
+    Ok((input, parse_var_int_as_num_bigint(sequence, terminator[0])))
+}
+
+// There are scenarios (ex. timestamp exponent values) where allowing a VarInt that cannot fit in
+// i32 is unreasonable. This should not pose an issue for non-pathological use cases.
 // TODO: obvious room for performance improvement
 pub(crate) fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
     let (rest, sequence) = take_while(high_bit_unset)(i)?;
     let (rest, terminator) = take(1usize)(rest)?;
-    let value = parse_var_int(sequence, terminator[0]);
+    let value = parse_var_int_as_num_bigint(sequence, terminator[0]);
     match value.to_i32() {
         Some(value) => Ok((rest, value)),
         None => Err(Err::Failure(IonError::from_error_kind(
@@ -167,22 +174,24 @@ pub(crate) fn take_var_int_as_i32(i: &[u8]) -> IonResult<&[u8], i32> {
     }
 }
 
-pub(crate) fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
+// num_bigint::BigInt doesn't preserve the distinction between positive and negative zero,
+// but this distinction exists in VarInts and is relevant when parsing Timestamps.
+pub(crate) fn parse_var_int(sequence: &[u8], terminator: u8) -> (binary::Sign, BigUint) {
     let sign = match sequence.first() {
         Some(byte) => {
             // we know that no byte in the sequence has the high bit set
             if *byte > 0b0011_1111 {
-                Sign::Minus
+                binary::Sign::Minus
             } else {
-                Sign::Plus
+                binary::Sign::Plus
             }
         }
         None => {
             // we know that the terminator byte has the high bit set
             if terminator > 0b1011_1111 {
-                Sign::Minus
+                binary::Sign::Minus
             } else {
-                Sign::Plus
+                binary::Sign::Plus
             }
         }
     };
@@ -191,7 +200,7 @@ pub(crate) fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigI
     let payload_bits = 7 * (sequence.len() + 1);
 
     // round payload_bits up to the nearest multiple of 8
-    let bit_capacity = (payload_bits + 8 - 1) & (usize::max_value() << 3);
+    let bit_capacity = (payload_bits + 8 - 1) & (usize::MAX << 3);
 
     let mut bits = BitVec::with_capacity(bit_capacity);
 
@@ -216,7 +225,18 @@ pub(crate) fn parse_var_int(sequence: &[u8], terminator: u8) -> num_bigint::BigI
     // clear the sign bit in the first byte
     bits.set(leading_bits, false);
 
-    BigInt::from_biguint(sign, BigUint::from_bytes_be(&*bits.to_bytes()))
+    (sign, BigUint::from_bytes_be(&*bits.to_bytes()))
+}
+
+pub(crate) fn parse_var_int_as_num_bigint(sequence: &[u8], terminator: u8) -> num_bigint::BigInt {
+    let (sign, biguint): (binary::Sign, BigUint) = parse_var_int(sequence, terminator);
+    BigInt::from_biguint(
+        match sign {
+            binary::Sign::Minus => num_bigint::Sign::Minus,
+            binary::Sign::Plus => num_bigint::Sign::Plus,
+        },
+        biguint,
+    )
 }
 
 pub(crate) fn take_var_uint(i: &[u8]) -> IonResult<&[u8], num_bigint::BigUint> {
@@ -245,7 +265,7 @@ pub(crate) fn parse_var_uint(sequence: &[u8], terminator: u8) -> num_bigint::Big
     let payload_bits = 7 * (sequence.len() + 1);
 
     // round payload_bits up to the nearest multiple of 8
-    let bit_capacity = (payload_bits + 8 - 1) & (usize::max_value() << 3);
+    let bit_capacity = (payload_bits + 8 - 1) & (usize::MAX << 3);
 
     let mut bits = BitVec::with_capacity(bit_capacity);
 
@@ -550,7 +570,7 @@ mod tests {
         let bytes: &[u8] = &decode("bf").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(63));
     }
 
@@ -563,7 +583,7 @@ mod tests {
         let bytes: &[u8] = &decode("3fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(8191));
     }
 
@@ -576,7 +596,7 @@ mod tests {
         let bytes: &[u8] = &decode("3f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(1_048_575));
     }
 
@@ -589,7 +609,7 @@ mod tests {
         let bytes: &[u8] = &decode("3f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(134_217_727));
     }
 
@@ -602,7 +622,7 @@ mod tests {
         let bytes: &[u8] = &decode("077f7f7fff").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(2_147_483_647));
     }
 
@@ -614,7 +634,7 @@ mod tests {
         let bytes: &[u8] = &decode("a0").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(32));
     }
 
@@ -626,7 +646,7 @@ mod tests {
         let bytes: &[u8] = &decode("2080").unwrap();
         let sequence = &bytes[..bytes.len() - 1];
         let terminator = bytes[bytes.len() - 1];
-        let varint = parse_var_int(sequence, terminator);
+        let varint = parse_var_int_as_num_bigint(sequence, terminator);
         assert_eq!(varint, BigInt::from(4096));
     }
 

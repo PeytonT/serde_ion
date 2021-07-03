@@ -575,14 +575,7 @@ mod tests {
                 include_bytes!("../tests/ion-tests/iontestdata/good/timestamp/timestamp2011.10n");
             let (remaining_bytes, value) = parse(bytes).unwrap();
             assert_eq!(remaining_bytes, &[] as &[u8]);
-            assert_eq!(
-                value,
-                vec![Timestamp::Year {
-                    offset: 0,
-                    year: 2011
-                }
-                .into()]
-            );
+            assert_eq!(value, vec![Timestamp::Year { year: 2011 }.into()]);
         }
 
         #[test]
@@ -595,7 +588,6 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Timestamp::Month {
-                    offset: 0,
                     year: 2011,
                     month: 2
                 }
@@ -613,7 +605,6 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Timestamp::Day {
-                    offset: 0,
                     year: 2011,
                     month: 2,
                     day: 20
@@ -632,7 +623,7 @@ mod tests {
             assert_eq!(
                 value,
                 vec![Timestamp::FractionalSecond {
-                    offset: -480,
+                    offset: Option::Some(-480),
                     year: 2011,
                     month: 2,
                     day: 20,

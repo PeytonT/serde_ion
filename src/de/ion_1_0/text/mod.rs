@@ -1232,10 +1232,8 @@ fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
                 pair(take_date, opt(preceded(one_of("tT"), opt(take_time)))),
                 |((year, month, day), maybe_time)| match TextDate::day(year as u16, month, day) {
                     Ok(date) => match maybe_time {
-                        Some(Some((time, offset))) => {
-                            Ok(TextTimestamp::new(date, Some(time), offset))
-                        }
-                        _ => Ok(text::TextTimestamp::new(date, None, UtcOffset::UTC)),
+                        Some(Some(time)) => Ok(TextTimestamp::new(date, Some(time))),
+                        _ => Ok(text::TextTimestamp::new(date, None)),
                     },
                     Err(e) => Err(e),
                 },
@@ -1246,12 +1244,10 @@ fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
                     separated_pair(take_year, char('-'), take_month),
                     one_of("tT"),
                 ),
-                |(year, month)| {
-                    TextTimestamp::new(TextDate::month(year as u16, month), None, UtcOffset::UTC)
-                },
+                |(year, month)| TextTimestamp::new(TextDate::month(year as u16, month), None),
             ),
             map(terminated(take_year, one_of("tT")), |year| {
-                TextTimestamp::new(TextDate::year(year as u16), None, UtcOffset::UTC)
+                TextTimestamp::new(TextDate::year(year as u16), None)
             }),
         )),
         ion::Timestamp::try_from,
@@ -1351,37 +1347,11 @@ fn take_hour_and_minute(i: &str) -> IonResult<&str, (u8, u8)> {
     separated_pair(take_hour, char(COLON), take_minute)(i)
 }
 
-fn assemble_time_hm(hour: u8, minute: u8) -> TextTime {
-    TextTime::Minute { hour, minute }
-}
-
-fn assemble_time_hms(
-    hour: u8,
-    minute: u8,
-    second: u8,
-    maybe_fraction: Option<(BigUint, i32)>,
-) -> TextTime {
-    match maybe_fraction {
-        Some((fraction_coefficient, fraction_exponent)) => TextTime::FractionalSecond {
-            hour,
-            minute,
-            second,
-            fraction_coefficient,
-            fraction_exponent,
-        },
-        None => TextTime::Second {
-            hour,
-            minute,
-            second,
-        },
-    }
-}
-
 /// fragment
 /// TIME
 ///     : HOUR ':' MINUTE (':' SECOND)? OFFSET
 ///     ;
-fn take_time(i: &str) -> IonResult<&str, (TextTime, UtcOffset)> {
+fn take_time(i: &str) -> IonResult<&str, TextTime> {
     let (i, ((hour, minute), second, offset)) = tuple((
         take_hour_and_minute,
         opt(preceded(char(COLON), take_second)),
@@ -1389,11 +1359,30 @@ fn take_time(i: &str) -> IonResult<&str, (TextTime, UtcOffset)> {
     ))(i)?;
 
     let time = match second {
-        Some((second, fraction)) => assemble_time_hms(hour, minute, second, fraction),
-        None => assemble_time_hm(hour, minute),
+        Some((second, Some((fraction_coefficient, fraction_exponent)))) => {
+            TextTime::FractionalSecond {
+                offset,
+                hour,
+                minute,
+                second,
+                fraction_coefficient,
+                fraction_exponent,
+            }
+        }
+        Some((second, None)) => TextTime::Second {
+            offset,
+            hour,
+            minute,
+            second,
+        },
+        None => TextTime::Minute {
+            offset,
+            hour,
+            minute,
+        },
     };
 
-    Ok((i, (time, offset)))
+    Ok((i, time))
 }
 
 /// fragment
@@ -1401,15 +1390,19 @@ fn take_time(i: &str) -> IonResult<&str, (TextTime, UtcOffset)> {
 ///     : 'Z'
 ///     | PLUS_OR_MINUS HOUR ':' MINUTE
 ///     ;
-fn take_offset(i: &str) -> IonResult<&str, UtcOffset> {
+fn take_offset(i: &str) -> IonResult<&str, Option<UtcOffset>> {
     alt((
-        map(char('Z'), |_| UtcOffset::UTC),
+        map(char('Z'), |_| Option::Some(UtcOffset::UTC)),
         map(
             pair(take_plus_or_minus, take_hour_and_minute),
             |(sign, (hour, minutes))| {
                 let minutes: i16 = ((hour as i16) * 60) + (minutes as i16);
+                // Special handling for "negative zero", indicating unknown offset.
+                if sign == '-' && minutes == 0 {
+                    return Option::None;
+                };
                 let signed_minutes = if sign == '-' { -minutes } else { minutes };
-                UtcOffset::minutes(signed_minutes)
+                Option::Some(UtcOffset::minutes(signed_minutes))
             },
         ),
     ))(i)

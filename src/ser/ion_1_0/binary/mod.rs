@@ -1,8 +1,9 @@
 mod subfield;
 
 use self::subfield::*;
-use crate::binary::BVM_1_0;
-use crate::binary::{type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt};
+use crate::binary::{
+    self, type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt, BVM_1_0,
+};
 use crate::error::{Error, SymbolError};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_MAX_ID};
 use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
@@ -502,25 +503,6 @@ fn append_decimal(bytestream: &mut Vec<u8>, value: &Option<Decimal>) {
 // decimal value. The fractional seconds’ value is coefficient * 10 ^ exponent.
 // It must be greater than or equal to zero and less than 1. A missing coefficient defaults to zero.
 // Fractions whose coefficient is zero and exponent is greater than -1 are ignored.
-// The following hex encoded timestamps are equivalent:
-//
-// 68 80 0F D0 81 81 80 80 80       //  2000-01-01T00:00:00Z with no fractional seconds
-// 69 80 0F D0 81 81 80 80 80 80    //  The same instant with 0d0 fractional seconds and implicit zero coefficient
-// 6A 80 0F D0 81 81 80 80 80 80 00 //  The same instant with 0d0 fractional seconds and explicit zero coefficient
-// 69 80 0F D0 81 81 80 80 80 C0    //  The same instant with 0d-0 fractional seconds
-// 69 80 0F D0 81 81 80 80 80 81    //  The same instant with 0d1 fractional seconds
-// Conversely, none of the following are equivalent:
-//
-// 68 80 0F D0 81 81 80 80 80       //  2000-01-01T00:00:00Z with no fractional seconds
-// 69 80 0F D0 81 81 80 80 80 C1    //  2000-01-01T00:00:00.0Z
-// 69 80 0F D0 81 81 80 80 80 C2    //  2000-01-01T00:00:00.00Z
-// If a timestamp representation has a component of a certain precision, each of the less precise
-// components must also be present or else the representation is illegal.
-// For example, a timestamp representation that has a fraction_exponent and fraction_coefficient component but not the month component, is illegal.
-//
-// Note: The component values in the binary encoding are always in UTC, while components in the
-// text encoding are in the local time! This means that transcoding requires a conversion between
-// UTC and local time.
 fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
     fn append(bytestream: &mut Vec<u8>, contents: Vec<u8>) {
         match contents.len() {
@@ -537,31 +519,26 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
         bytestream.extend(contents);
     }
 
-    // TODO: Add specialized subfield functions and reduce casting and allocating of BigInts.
+    // Whenever the local offset is unknown, the serialized offset value must be negative zero.
+    // This is always the case for Timestamps of year/month/day precision.
+    const NEGATIVE_ZERO_VARINT: u8 = 0b1100_0000;
+
+    // TODO: Add specialized subfield functions and eliminate round-trips through BigInt.
     match value {
         None => bytestream.push(type_descriptor(TypeCode::Timestamp, LengthCode::L15)),
-        Some(Timestamp::Year { offset, year }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+        Some(Timestamp::Year { year }) => {
+            let mut contents = vec![NEGATIVE_ZERO_VARINT];
             append_var_uint_u16(&mut contents, *year);
             append(bytestream, contents);
         }
-        Some(Timestamp::Month {
-            offset,
-            year,
-            month,
-        }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+        Some(Timestamp::Month { year, month }) => {
+            let mut contents = vec![NEGATIVE_ZERO_VARINT];
             append_var_uint_u16(&mut contents, *year);
             append_var_uint_u8(&mut contents, *month);
             append(bytestream, contents);
         }
-        Some(Timestamp::Day {
-            offset,
-            year,
-            month,
-            day,
-        }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+        Some(Timestamp::Day { year, month, day }) => {
+            let mut contents = vec![NEGATIVE_ZERO_VARINT];
             append_var_uint_u16(&mut contents, *year);
             append_var_uint_u8(&mut contents, *month);
             append_var_uint_u8(&mut contents, *day);
@@ -575,7 +552,10 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             hour,
             minute,
         }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            let mut contents = match offset {
+                None => vec![NEGATIVE_ZERO_VARINT],
+                Some(offset) => VarInt::from(&BigInt::from(*offset)).into_bytes(),
+            };
             append_var_uint_u16(&mut contents, *year);
             append_var_uint_u8(&mut contents, *month);
             append_var_uint_u8(&mut contents, *day);
@@ -592,7 +572,10 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             minute,
             second,
         }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            let mut contents = match offset {
+                None => vec![NEGATIVE_ZERO_VARINT],
+                Some(offset) => VarInt::from(&BigInt::from(*offset)).into_bytes(),
+            };
             append_var_uint_u16(&mut contents, *year);
             append_var_uint_u8(&mut contents, *month);
             append_var_uint_u8(&mut contents, *day);
@@ -612,7 +595,10 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             fraction_coefficient,
             fraction_exponent,
         }) => {
-            let mut contents = VarInt::from(&BigInt::from(*offset)).into_bytes();
+            let mut contents = match offset {
+                None => vec![NEGATIVE_ZERO_VARINT],
+                Some(offset) => VarInt::from(&BigInt::from(*offset)).into_bytes(),
+            };
             append_var_uint_u16(&mut contents, *year);
             append_var_uint_u8(&mut contents, *month);
             append_var_uint_u8(&mut contents, *day);
@@ -621,10 +607,16 @@ fn append_timestamp(bytestream: &mut Vec<u8>, value: &Option<Timestamp>) {
             append_var_uint_u8(&mut contents, *second);
             let exponent = BigInt::from(*fraction_exponent);
             // TODO: Optimize to eliminate unnecessary conversions through BigInt/BigUint.
-            contents.extend(serialize_var_int_parts(
-                exponent.sign(),
-                exponent.magnitude(),
-            ));
+            match exponent.sign() {
+                Sign::Minus => contents.extend(serialize_var_int_parts(
+                    binary::Sign::Minus,
+                    exponent.magnitude(),
+                )),
+                Sign::NoSign | Sign::Plus => contents.extend(serialize_var_int_parts(
+                    binary::Sign::Plus,
+                    exponent.magnitude(),
+                )),
+            }
             contents.extend(Int::from(fraction_coefficient).into_bytes());
             append(bytestream, contents);
         }
