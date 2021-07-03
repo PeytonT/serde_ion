@@ -49,51 +49,55 @@ impl<'a> Serializer for &'a mut TextSerializer {
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<()> {
-        todo!()
+        self.output += if v { "true" } else { "false" };
+        Ok(())
     }
 
     fn serialize_i8(self, v: i8) -> Result<()> {
-        todo!()
+        self.serialize_i64(i64::from(v))
     }
 
     fn serialize_i16(self, v: i16) -> Result<()> {
-        todo!()
+        self.serialize_i64(i64::from(v))
     }
 
     fn serialize_i32(self, v: i32) -> Result<()> {
-        todo!()
+        self.serialize_i64(i64::from(v))
     }
 
     fn serialize_i64(self, v: i64) -> Result<()> {
-        todo!()
+        self.output += &v.to_string();
+        Ok(())
     }
 
     fn serialize_u8(self, v: u8) -> Result<()> {
-        todo!()
+        self.serialize_u64(u64::from(v))
     }
 
     fn serialize_u16(self, v: u16) -> Result<()> {
-        todo!()
+        self.serialize_u64(u64::from(v))
     }
 
     fn serialize_u32(self, v: u32) -> Result<()> {
-        todo!()
+        self.serialize_u64(u64::from(v))
     }
 
     fn serialize_u64(self, v: u64) -> Result<()> {
-        todo!()
+        self.output += &v.to_string();
+        Ok(())
     }
 
     fn serialize_f32(self, v: f32) -> Result<()> {
-        todo!()
+        self.serialize_f64(f64::from(v))
     }
 
     fn serialize_f64(self, v: f64) -> Result<()> {
-        todo!()
+        self.output += &v.to_string();
+        Ok(())
     }
 
     fn serialize_char(self, v: char) -> Result<()> {
-        todo!()
+        self.serialize_str(&v.to_string())
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
@@ -104,19 +108,24 @@ impl<'a> Serializer for &'a mut TextSerializer {
         todo!()
     }
 
+    // This is lossy because the type signature does not include the type
+    // information of the None that could otherwise be used to generate
+    // a typed null.
     fn serialize_none(self) -> Result<()> {
-        todo!()
+        self.serialize_unit()
     }
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<()>
     where
         T: Serialize,
     {
-        todo!()
+        value.serialize(self)
     }
 
+    // Use Ion's untyped null.
     fn serialize_unit(self) -> Result<()> {
-        todo!()
+        self.output += "null";
+        Ok(())
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<()> {

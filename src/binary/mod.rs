@@ -1,3 +1,5 @@
+//! Special values and types related to the binary Ion format.
+
 /// ## Binary Version Markers
 ///
 /// In the binary format, an Ion value stream starts with a four-octet binary version marker (BVM)

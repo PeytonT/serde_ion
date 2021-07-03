@@ -13,6 +13,7 @@ pub mod symbols;
 #[allow(non_snake_case)]
 #[cfg(test)]
 mod tests;
+mod text;
 pub mod value;
 
 extern crate bit_vec;

@@ -36,17 +36,15 @@ use num_traits::{pow, Num, One, Zero};
 
 use crate::de::ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable};
 use crate::error::{IonError, IonResult};
+use crate::text::{TextDate, TextTime, TextTimestamp};
 use crate::{
     error::{FormatError, SymbolError, TextFormatError},
     symbols::SymbolToken,
-    value as ion,
+    text, value as ion,
 };
-
-use self::time::{TextDate, TextTime, TextTimestamp};
 
 #[cfg(test)]
 mod tests;
-mod time;
 
 /// Follows the following documents:
 /// Ion Text Encoding: http://amzn.github.io/ion-docs/docs/text.html
@@ -1237,7 +1235,7 @@ fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
                         Some(Some((time, offset))) => {
                             Ok(TextTimestamp::new(date, Some(time), offset))
                         }
-                        _ => Ok(time::TextTimestamp::new(date, None, UtcOffset::UTC)),
+                        _ => Ok(text::TextTimestamp::new(date, None, UtcOffset::UTC)),
                     },
                     Err(e) => Err(e),
                 },

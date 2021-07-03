@@ -1,7 +1,36 @@
-use crate::{error::TextFormatError, value::Timestamp};
-use num_bigint::BigUint;
+//! Special values and types related to the text Ion format.
+
 use std::{convert::TryFrom, fmt};
+
+use num_bigint::BigUint;
+use phf::phf_set;
 use time::{ComponentRangeError, UtcOffset};
+
+use crate::{error::TextFormatError, value::Timestamp};
+
+//////////////////////////////////////////////////////////////////////////////
+
+// The text format treats all of these as reserved tokens with various special meanings.
+// To use those as a symbol, they must be enclosed in single-quotes.
+// TODO: Profile if this is actually faster than a linear search of an array.
+static RESERVED_TOKENS: phf::Set<&'static str> = phf_set! {
+    "null",
+    "null.null",
+    "null.bool",
+    "null.int",
+    "null.float",
+    "null.decimal",
+    "null.timestamp",
+    "null.string",
+    "null.symbol",
+    "null.blob",
+    "null.clob",
+    "null.struct",
+    "null.list",
+    "null.sexp",
+    "true",
+    "false",
+};
 
 #[derive(Clone, PartialEq)]
 pub enum TextDate {

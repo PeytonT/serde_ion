@@ -174,7 +174,7 @@ pub enum TextFormatError {
     UnsupportedVersion(u32, u32),
     #[error("Ion Version Marker could not be parsed (int component too big)")]
     IvmParseError,
-    #[error("Date is too imprecise for time value presence")]
+    #[error("Date is too imprecise to include time components")]
     ImpreciseDate,
 }
 

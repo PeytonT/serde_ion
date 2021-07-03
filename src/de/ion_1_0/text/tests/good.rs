@@ -4,12 +4,13 @@ use num_bigint::BigUint;
 use time::UtcOffset;
 
 use crate::de::ion_1_0::text::tests::{fractional_second, minute};
+use crate::text::TextDate;
 use crate::{symbols::SymbolToken, value as ion};
 
 use super::{
     annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
     int_i64, int_i64_data, int_s, list, map, map_data, parse_file, sexp, sexp_data, string, symbol,
-    symbol_data, test_path, time::TextDate, timestamp, value, verify_tlvs,
+    symbol_data, test_path, timestamp, value, verify_tlvs,
 };
 
 // TODO: find a way to guarantee that all good test files are checked

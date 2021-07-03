@@ -109,6 +109,8 @@ impl Writer {
         Ok(())
     }
 
+    // TODO: Add a 'pad' method for adding NOP padding.
+
     pub fn get(self) -> Vec<u8> {
         self.bytes
     }
