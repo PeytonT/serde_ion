@@ -220,37 +220,63 @@ fn append_nop_pad(bytestream: &mut Vec<u8>, size: usize) {
     const FOUR_BYTE_VARUINT_FOUR: usize = THREE_BYTE_VARUINT_CUTOFF + 1;
     const FOUR_BYTE_VARUINT_CUTOFF: usize = FOUR_BYTE_VARUINT_RANGE_UPPER_USIZE + 1 + 4;
 
-    // TODO: Clean up this mess with a const fn once min_const_generics is stable.
     match size {
         0 => {}
-        #[rustfmt::skip]
-        1  => bytestream.extend_from_slice(&[0b0000_0000]),
-        #[rustfmt::skip]
-        2  => bytestream.extend_from_slice(&[0b0000_0001, 0b0000_0000]),
-        #[rustfmt::skip]
-        3  => bytestream.extend_from_slice(&[0b0000_0010, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        4  => bytestream.extend_from_slice(&[0b0000_0011, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        5  => bytestream.extend_from_slice(&[0b0000_0100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        6  => bytestream.extend_from_slice(&[0b0000_0101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        7  => bytestream.extend_from_slice(&[0b0000_0110, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        8  => bytestream.extend_from_slice(&[0b0000_0111, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        9  => bytestream.extend_from_slice(&[0b0000_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        10 => bytestream.extend_from_slice(&[0b0000_1001, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        11 => bytestream.extend_from_slice(&[0b0000_1010, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        12 => bytestream.extend_from_slice(&[0b0000_1011, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        13 => bytestream.extend_from_slice(&[0b0000_1100, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
-        #[rustfmt::skip]
-        14 => bytestream.extend_from_slice(&[0b0000_1101, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000]),
+        1 => {
+            bytestream.push(0b0000_0000);
+        }
+        2 => {
+            bytestream.push(0b0000_0001);
+            bytestream.extend_from_slice(&[0u8, 1]);
+        }
+        3 => {
+            bytestream.push(0b0000_0010);
+            bytestream.extend_from_slice(&[0u8, 2]);
+        }
+        4 => {
+            bytestream.push(0b0000_0011);
+            bytestream.extend_from_slice(&[0u8, 3]);
+        }
+        5 => {
+            bytestream.push(0b0000_0100);
+            bytestream.extend_from_slice(&[0u8, 4]);
+        }
+        6 => {
+            bytestream.push(0b0000_0101);
+            bytestream.extend_from_slice(&[0u8, 5]);
+        }
+        7 => {
+            bytestream.push(0b0000_0110);
+            bytestream.extend_from_slice(&[0u8, 6]);
+        }
+        8 => {
+            bytestream.push(0b0000_0111);
+            bytestream.extend_from_slice(&[0u8, 7]);
+        }
+        9 => {
+            bytestream.push(0b0000_1000);
+            bytestream.extend_from_slice(&[0u8, 8]);
+        }
+        10 => {
+            bytestream.push(0b0000_1001);
+            bytestream.extend_from_slice(&[0u8, 9]);
+        }
+        11 => {
+            bytestream.push(0b0000_1010);
+            bytestream.extend_from_slice(&[0u8, 10]);
+        }
+        12 => {
+            bytestream.push(0b0000_1011);
+            bytestream.extend_from_slice(&[0u8, 11]);
+        }
+        13 => {
+            bytestream.push(0b0000_1100);
+            bytestream.extend_from_slice(&[0u8, 12]);
+        }
+        14 => {
+            bytestream.push(0b0000_1101);
+            bytestream.extend_from_slice(&[0u8, 13]);
+        }
         15..=ONE_BYTE_VARUINT_CUTOFF => {
             bytestream.push(0b0000_1110);
             append_var_uint_usize(bytestream, size - 2);
