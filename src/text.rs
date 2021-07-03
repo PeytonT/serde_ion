@@ -3,7 +3,7 @@
 use std::{convert::TryFrom, fmt};
 
 use num_bigint::BigUint;
-use phf::phf_set;
+use phf::{phf_map, phf_set};
 use time::{ComponentRangeError, UtcOffset};
 
 use crate::{error::TextFormatError, value::Timestamp};
@@ -13,7 +13,7 @@ use crate::{error::TextFormatError, value::Timestamp};
 // The text format treats all of these as reserved tokens with various special meanings.
 // To use those as a symbol, they must be enclosed in single-quotes.
 // TODO: Profile if this is actually faster than a linear search of an array.
-static RESERVED_TOKENS: phf::Set<&'static str> = phf_set! {
+pub(crate) static RESERVED_TOKENS: phf::Set<&'static str> = phf_set! {
     "null",
     "null.null",
     "null.bool",
@@ -31,6 +31,35 @@ static RESERVED_TOKENS: phf::Set<&'static str> = phf_set! {
     "true",
     "false",
 };
+
+// The Ion text format supports escape sequences only within quoted strings and symbols.
+// TODO: Profile if this is actually faster than a linear search of an array.
+pub(crate) static ESCAPED_CODE_POINTS: phf::Map<char, &'static str> = phf_map! {
+    '\u{0000}' => r#"\0"#,
+    '\u{0007}' => r#"\a"#,
+    '\u{0008}' => r#"\b"#,
+    '\u{0009}' => r#"\t"#,
+    '\u{000A}' => r#"\n"#,
+    '\u{000C}' => r#"\f"#,
+    '\u{000D}' => r#"\r"#,
+    '\u{000B}' => r#"\v"#,
+    '\u{0022}' => r#"\""#,
+    '\u{0027}' => r#"\'"#,
+    '\u{003F}' => r#"\?"#,
+    '\u{005C}' => r#"\\"#,
+    '\u{002F}' => r#"\/"#,
+};
+
+pub(crate) fn escape(input: &str) -> String {
+    let mut escaped = String::new();
+    input
+        .chars()
+        .for_each(|c| match ESCAPED_CODE_POINTS.get(&c) {
+            None => escaped.push(c),
+            Some(escape) => escaped.push_str(escape),
+        });
+    escaped
+}
 
 #[derive(Clone, PartialEq)]
 pub enum TextDate {

@@ -5,6 +5,7 @@ extern crate serde_bytes;
 use std::str;
 
 use crate::symbols::SymbolToken;
+use crate::text::escape;
 use base64::encode;
 use num_bigint::{BigInt, BigUint};
 
@@ -126,8 +127,7 @@ impl Data {
                 None => String::from("null.timestamp"),
             },
             Data::String(string) => match string {
-                // TODO: Handle escape sequences
-                Some(string) => String::from(string),
+                Some(string) => escape(string),
                 None => String::from("null.string"),
             },
             Data::Symbol(symbol) => match symbol {
@@ -308,9 +308,9 @@ pub struct Clob {
 
 impl Clob {
     pub fn to_text(&self) -> String {
-        // from_utf8's constraints might not be sufficiently strong
-        // needs to re-expand escape sequences
-        format!("{{{{{}}}}}", str::from_utf8(&self.data).unwrap())
+        // TODO: from_utf8 might not be sufficient?
+        // Clob uses the same escaping syntax as string and symbol values.
+        format!("{{{{{}}}}}", escape(str::from_utf8(&self.data).unwrap()))
     }
 }
 
@@ -318,7 +318,7 @@ impl Clob {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Struct {
     // When two fields in the same struct have the same name we say they are "repeated fields".
-    // Repeated fields are preserved, so 'fields' is a Vec instead of some sort of Hash table.
+    // Repeated fields are preserved, so 'fields' is a Vec instead of some sort of map.
     pub fields: Vec<(SymbolToken, Value)>,
 }
 
@@ -364,6 +364,7 @@ pub struct Sexp {
 
 impl Sexp {
     pub fn to_text(&self) -> String {
+        // TODO: Ensure that symbols use their special sexp form.
         todo!()
     }
 }

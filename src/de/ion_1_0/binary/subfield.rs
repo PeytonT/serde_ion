@@ -290,6 +290,7 @@ pub(crate) fn parse_var_uint(sequence: &[u8], terminator: u8) -> num_bigint::Big
     BigUint::from_bytes_be(&*bits.to_bytes())
 }
 
+// TODO: Profile and see if #[inline] directives are needed here and elsewhere.
 fn high_bit_unset(byte: u8) -> bool {
     byte < 0b1000_0000
 }

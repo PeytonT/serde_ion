@@ -1,3 +1,5 @@
+use crate::text::escape;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -15,11 +17,11 @@ use std::fmt;
 /// A processor encountering a symbol with unknown text and a valid SID other than $0 MAY produce an error
 /// because this means that the context of the data is missing.
 /// Note: serde_ion does not support symbols other than $0 with unknown text.
-
+///
 /// # Structures
 ///
 /// Where Int may be any integer and String may be any string.
-
+///
 /// ## SymbolToken
 ///
 /// <text:String, importLocation:ImportLocation>
@@ -100,7 +102,39 @@ pub enum SymbolToken {
 impl SymbolToken {
     pub fn to_text(&self) -> String {
         match self {
-            SymbolToken::Known { text } => text.to_string(),
+            SymbolToken::Known { text } => {
+                // Symbols in the 'identifiers' subset can be denoted in text without single-quotes.
+                if IDENTIFIER_SYMBOL_REGEX.is_match(text) {
+                    // 'identifiers' contain no code points that need to be escaped
+                    return text.to_string();
+                }
+                // Otherwise, symbols are delimited by single-quotes and use the same
+                // escape characters as strings.
+                format!("\'{}\'", escape(text))
+            }
+            SymbolToken::Unknown { .. } => todo!(), // should error, but how?
+            SymbolToken::Zero => "$0".to_string(),
+        }
+    }
+
+    // Within S-expressions, the rules for unquoted symbols include additional tokens.
+    pub fn to_sexp_text(&self) -> String {
+        match self {
+            SymbolToken::Known { text } => {
+                // Symbols in the 'identifiers' subset can be denoted in text without single-quotes.
+                if IDENTIFIER_SYMBOL_REGEX.is_match(text) {
+                    // 'identifiers' contain no code points that need to be escaped
+                    return text.to_string();
+                }
+                // Within S-expressions, the 'operators' symbols are also unquoted.
+                if OPERATOR_SYMBOL_REGEX.is_match(text) {
+                    // 'operators' contain no code points that need to be escaped
+                    return text.to_string();
+                }
+                // Otherwise, symbols are delimited by single-quotes and use the same
+                // escape characters as strings.
+                format!("\'{}\'", escape(text))
+            }
             SymbolToken::Unknown { .. } => todo!(), // should error, but how?
             SymbolToken::Zero => "$0".to_string(),
         }
@@ -235,4 +269,14 @@ lazy_static! {
             ],
         }
     };
+
+    // A subset of symbols called identifiers can be denoted in text without single-quotes.
+    // An identifier is a sequence of ASCII letters, digits, or the characters $ or _
+    // that does not start with a digit.
+    // TODO: Tests for this regex. So far this has only been sanity-checked with https://rustexp.lpil.uk/.
+    pub(crate) static ref IDENTIFIER_SYMBOL_REGEX: Regex = Regex::new(r"^(?:[[:alpha:]]|_|\$)+(?:[[:alnum:]]|_|\$)*$").unwrap();
+
+    // An operator is an unquoted sequence of one or more of the following nineteen ASCII characters: !#%&*+-./;<=>?@^`|~
+    // TODO: Tests for this regex. So far this has only been sanity-checked with https://rustexp.lpil.uk/.
+    pub(crate) static ref OPERATOR_SYMBOL_REGEX: Regex = Regex::new(r"^(?:!|#|%|&|\*|\+|-|\.|/|;|<|=|>|\?|@|\^|`|\||~)+$").unwrap();
 }
