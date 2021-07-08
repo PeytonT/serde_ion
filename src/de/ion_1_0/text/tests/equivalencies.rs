@@ -7,7 +7,8 @@ use itertools::Itertools;
 
 use crate::de::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
 use crate::parse::parse_ion_text_1_0;
-use crate::value::{self as ion, Value};
+use crate::types::value::{self as ion, Value};
+use crate::types::{list, sexp};
 
 #[test]
 fn test_equivs() {
@@ -94,11 +95,11 @@ where
 
                     match tlv {
                         ion::Value {
-                            value: ion::Data::Sexp(Some(ion::Sexp { values })),
+                            value: ion::Data::Sexp(Some(sexp::Sexp { values })),
                             ..
                         }
                         | ion::Value {
-                            value: ion::Data::List(Some(ion::List { values })),
+                            value: ion::Data::List(Some(list::List { values })),
                             ..
                         } => {
                             let values = if embedded {

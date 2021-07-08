@@ -37,10 +37,11 @@ use num_traits::{pow, Num, One, Zero};
 use crate::de::ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable};
 use crate::error::{IonError, IonResult};
 use crate::text::{TextDate, TextTime, TextTimestamp};
+use crate::types::{blob, clob, decimal, list, sexp, timestamp, value as ion};
 use crate::{
     error::{FormatError, SymbolError, TextFormatError},
     symbols::SymbolToken,
-    text, value as ion,
+    text, types,
 };
 
 #[cfg(test)]
@@ -139,7 +140,7 @@ impl<'a> ValueIterator<'a> {
     }
 }
 
-fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
+fn as_shared_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct> {
     match &value.value {
         ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
             Some(SymbolToken::Known { text }) if text == "$ion_shared_symbol_table" => Some(table),
@@ -149,7 +150,7 @@ fn as_shared_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
     }
 }
 
-fn as_local_symbol_table(value: &ion::Value) -> Option<&ion::Struct> {
+fn as_local_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct> {
     match &value.value {
         ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
             Some(SymbolToken::Known { text }) if text == "$ion_symbol_table" => Some(table),
@@ -601,7 +602,7 @@ fn take_quoted_annotation(table: Table) -> impl Fn(&str) -> IonResult<&str, Symb
 ///     : L_BRACKET ws* value ws* (COMMA ws* value)* ws* (COMMA ws*)? R_BRACKET
 ///     | L_BRACKET ws* R_BRACKET
 ///     ;
-fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
+fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, list::List> {
     move |i: &str| {
         map(
             preceded(
@@ -614,7 +615,7 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
                     preceded(opt(pair(char(COMMA), eat_opt_ws)), char(R_BRACKET)),
                 )),
             ),
-            |values| ion::List { values },
+            |values| list::List { values },
         )(i)
     }
 }
@@ -622,7 +623,7 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::List> {
 /// sexp
 ///     : L_PAREN (ws* sexp_value)* ws* value? R_PAREN
 ///     ;
-fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Sexp> {
+fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, sexp::Sexp> {
     move |i: &str| {
         let (i, grouped_values) = preceded(
             terminated(char(L_PAREN), eat_opt_ws),
@@ -645,7 +646,7 @@ fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Sexp> {
                 values.push(second);
             }
         });
-        Ok((i, ion::Sexp { values }))
+        Ok((i, sexp::Sexp { values }))
     }
 }
 
@@ -851,7 +852,7 @@ fn take_operator(_table: Table) -> impl Fn(&str) -> IonResult<&str, SymbolToken>
 ///     : L_CURLY ws* field (ws* COMMA ws* field)* ws* (COMMA ws*)? R_CURLY
 ///     | L_CURLY ws* R_CURLY
 ///     ;
-fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Struct> {
+fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, types::r#struct::Struct> {
     move |i: &str| {
         map(
             preceded(
@@ -870,7 +871,7 @@ fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Struct> {
                     ),
                 ))),
             ),
-            |fields| ion::Struct { fields },
+            |fields| types::r#struct::Struct { fields },
         )(i)
     }
 }
@@ -1225,7 +1226,7 @@ fn take_bool(i: &str) -> IonResult<&str, bool> {
 ///     | YEAR '-' MONTH 'T'
 ///     | YEAR 'T'
 ///     ;
-fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
+fn take_timestamp(i: &str) -> IonResult<&str, timestamp::Timestamp> {
     let (i, timestamp) = map_res(
         alt((
             map_res(
@@ -1250,7 +1251,7 @@ fn take_timestamp(i: &str) -> IonResult<&str, ion::Timestamp> {
                 TextTimestamp::new(TextDate::year(year as u16), None)
             }),
         )),
-        ion::Timestamp::try_from,
+        timestamp::Timestamp::try_from,
     )(i)?;
 
     Ok((i, timestamp))
@@ -1699,7 +1700,7 @@ fn assemble_decimal<'a>(
     integer: String,
     fractional: Option<Vec<&'a str>>,
     exponent: Option<String>,
-) -> IonResult<&'a str, ion::Decimal> {
+) -> IonResult<&'a str, decimal::Decimal> {
     // coefficient drops -0
     let sign = if integer.starts_with('-') {
         Sign::Minus
@@ -1744,7 +1745,7 @@ fn assemble_decimal<'a>(
 
     Ok((
         i,
-        ion::Decimal {
+        decimal::Decimal {
             coefficient,
             exponent,
         },
@@ -1998,18 +1999,18 @@ fn take_text_escape(i: &str) -> IonResult<&str, Escape> {
 /// SHORT_QUOTED_CLOB
 ///     : LOB_START WS* SHORT_QUOTE CLOB_SHORT_TEXT SHORT_QUOTE WS* LOB_END
 ///     ;
-fn take_short_quoted_clob(i: &[u8]) -> IonResult<&[u8], ion::Clob> {
-    map(take_clob_short_text, |data| ion::Clob { data })(i)
+fn take_short_quoted_clob(i: &[u8]) -> IonResult<&[u8], clob::Clob> {
+    map(take_clob_short_text, |data| clob::Clob { data })(i)
 }
 
 /// Note: quoting lowered to take_clob_short_text via take_delimited_input.
 /// LONG_QUOTED_CLOB
 ///     : LOB_START (WS* LONG_QUOTE CLOB_LONG_TEXT*? LONG_QUOTE)+ WS* LOB_END
 ///     ;
-fn take_long_quoted_clob(i: &[u8]) -> IonResult<&[u8], ion::Clob> {
+fn take_long_quoted_clob(i: &[u8]) -> IonResult<&[u8], clob::Clob> {
     let (i, vec) = many1(preceded(eat_opt_whitespace, take_clob_long_text))(i)?;
     let data = vec.concat();
-    Ok((i, ion::Clob { data }))
+    Ok((i, clob::Clob { data }))
 }
 
 /// fragment
@@ -2118,10 +2119,10 @@ where
 /// BLOB
 ///     : LOB_START (BASE_64_QUARTET | WS)* BASE_64_PAD? WS* LOB_END
 ///     ;
-fn take_blob_body(i: &[u8]) -> IonResult<&[u8], ion::Blob> {
+fn take_blob_body(i: &[u8]) -> IonResult<&[u8], blob::Blob> {
     let (i, vec) = take_base_64(i)?;
     match base64::decode(&vec) {
-        Ok(data) => Ok((i, ion::Blob { data })),
+        Ok(data) => Ok((i, blob::Blob { data })),
         Err(_) => Err(Err::Failure(IonError::from_format_error(
             i,
             FormatError::Text(TextFormatError::Base64Decode),

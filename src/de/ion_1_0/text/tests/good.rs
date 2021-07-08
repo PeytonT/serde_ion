@@ -4,8 +4,9 @@ use num_bigint::BigUint;
 use time::UtcOffset;
 
 use crate::de::ion_1_0::text::tests::{fractional_second, minute};
+use crate::symbols::SymbolToken;
 use crate::text::TextDate;
-use crate::{symbols::SymbolToken, value as ion};
+use crate::types::{list as ion_list, value as ion};
 
 use super::{
     annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
@@ -614,7 +615,7 @@ fn test_float_specials() {
 
     match result.unwrap().get(0) {
         Some(ion::Value {
-            value: ion::Data::List(Some(ion::List { values: list })),
+            value: ion::Data::List(Some(ion_list::List { values: list })),
             ..
         }) => {
             let mut values = list.iter();

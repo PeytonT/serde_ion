@@ -14,7 +14,7 @@ pub mod symbols;
 #[cfg(test)]
 mod tests;
 mod text;
-pub mod value;
+mod types;
 
 extern crate bit_vec;
 extern crate serde;

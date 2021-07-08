@@ -1,18 +1,28 @@
-mod subfield;
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
 
-use self::subfield::*;
+use itertools::Itertools;
+use num_bigint::{BigInt, Sign};
+use num_traits::Zero;
+
 use crate::binary::{
     self, type_descriptor, Int, LengthCode, TypeCode, UInt, VarInt, VarUInt, BVM_1_0,
 };
 use crate::error::{Error, SymbolError};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_MAX_ID};
-use crate::value::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
+use crate::types::blob::Blob;
+use crate::types::clob::Clob;
+use crate::types::decimal::Decimal;
+use crate::types::list::List;
+use crate::types::r#struct::Struct;
+use crate::types::sexp::Sexp;
+use crate::types::timestamp::Timestamp;
+use crate::types::value::{Data, Value};
 use crate::Version;
-use itertools::Itertools;
-use num_bigint::{BigInt, Sign};
-use num_traits::Zero;
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
+
+use self::subfield::*;
+
+mod subfield;
 
 /// A binary writer takes a stream of Ion values and produces the corresponding binary bytestream.
 ///

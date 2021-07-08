@@ -1,20 +1,24 @@
-use crate::parse::parse;
-use crate::ser::ion_1_0::binary::Writer;
-use crate::Version;
-use crate::{
-    symbols::SymbolToken,
-    value::{Clob, Data, Decimal, Struct, Timestamp, Value},
-};
+use std::str::FromStr;
+
 use num_bigint::{BigInt, BigUint};
 use num_traits::identities::Zero;
 use num_traits::Num;
 use pretty_assertions::assert_eq;
-use std::str::FromStr;
+
+use crate::parse::parse;
+use crate::ser::ion_1_0::binary::Writer;
+use crate::symbols::SymbolToken;
+use crate::types::clob::Clob;
+use crate::types::decimal::Decimal;
+use crate::types::timestamp::Timestamp;
+use crate::types::value::{Data, Value};
+use crate::Version;
 
 // null tests
 mod null {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_null() {
@@ -33,8 +37,9 @@ mod null {
 
 // bool tests
 mod bool {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullBool() {
@@ -53,8 +58,9 @@ mod bool {
 
 // int tests
 mod int {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullInt() {
@@ -225,8 +231,9 @@ mod int {
 
 // float tests
 mod float {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullFloat() {
@@ -245,8 +252,9 @@ mod float {
 
 // decimal tests
 mod decimal {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullDecimal() {
@@ -373,8 +381,9 @@ mod decimal {
 
 // timestamp tests
 mod timestamp {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullTimestamp() {
@@ -483,8 +492,9 @@ mod timestamp {
 
 // symbol tests
 mod symbol {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullSymbol() {
@@ -539,8 +549,9 @@ mod symbol {
 
 // string tests
 mod string {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullString() {
@@ -559,8 +570,9 @@ mod string {
 
 // clob tests
 mod clob {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullClob() {
@@ -631,8 +643,9 @@ mod clob {
 
 // blob tests
 mod blob {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullBlob() {
@@ -651,8 +664,9 @@ mod blob {
 
 // list tests
 mod list {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullList() {
@@ -671,8 +685,9 @@ mod list {
 
 // sexp tests
 mod sexp {
-    use self::assert_eq;
     use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullSexp() {
@@ -691,9 +706,13 @@ mod sexp {
 
 // struct tests
 mod r#struct {
-    use self::assert_eq;
-    use super::*;
     use std::string::String;
+
+    use crate::types::r#struct::Struct;
+
+    use super::*;
+
+    use self::assert_eq;
 
     #[test]
     fn test_nullStruct() {

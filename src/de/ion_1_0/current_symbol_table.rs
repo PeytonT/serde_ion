@@ -1,12 +1,16 @@
-use crate::{
-    error::SymbolError,
-    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
-    value::{Data, List, Struct, Value},
-};
+use std::collections::HashMap;
+
 use itertools::Itertools;
 use num_bigint::BigInt;
 use num_traits::{One, ToPrimitive, Zero};
-use std::collections::HashMap;
+
+use crate::types::list::List;
+use crate::types::r#struct::Struct;
+use crate::types::value::{Data, Value};
+use crate::{
+    error::SymbolError,
+    symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},
+};
 
 #[derive(Debug)]
 pub enum CurrentSymbolTable {

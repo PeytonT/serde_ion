@@ -1,11 +1,3 @@
-mod bad;
-mod equivalencies;
-mod good;
-
-use super::*;
-use crate::parse::parse_ion_text_1_0;
-use itertools::{EitherOrBoth, Itertools};
-use log::error;
 use std::{
     convert::TryInto,
     ffi::OsStr,
@@ -14,6 +6,18 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+
+use itertools::{EitherOrBoth, Itertools};
+use log::error;
+
+use crate::parse::parse_ion_text_1_0;
+use crate::types::{blob, clob, decimal, list, r#struct, sexp};
+
+use super::*;
+
+mod bad;
+mod equivalencies;
+mod good;
 
 /// This file includes some machinery for handling the variety of tests we put the text parser
 /// through. Namely, it abstracts away the test file location as well as the comparison between
@@ -139,7 +143,7 @@ fn timestamp_data(date: TextDate, time: Option<TextTime>) -> ion::Data {
 fn decimal(coefficient: &str, exponent: &str) -> ion::Value {
     let coefficient = BigInt::from_str(coefficient).unwrap();
     let exponent = BigInt::from_str(exponent).unwrap();
-    ion::Data::Decimal(Some(ion::Decimal {
+    ion::Data::Decimal(Some(decimal::Decimal {
         coefficient,
         exponent,
     }))
@@ -188,12 +192,12 @@ fn clob(d: &[u8]) -> ion::Value {
 
 fn clob_data(d: &[u8]) -> ion::Data {
     let data = d.to_vec();
-    ion::Data::Clob(Some(ion::Clob { data }))
+    ion::Data::Clob(Some(clob::Clob { data }))
 }
 
 fn blob_decoded(d: &[u8]) -> ion::Value {
     let data = d.to_vec();
-    ion::Data::Blob(Some(ion::Blob { data })).into()
+    ion::Data::Blob(Some(blob::Blob { data })).into()
 }
 
 fn blob_encoded(d: &[u8]) -> ion::Value {
@@ -202,11 +206,11 @@ fn blob_encoded(d: &[u8]) -> ion::Value {
 
 fn blob_encoded_data(d: &[u8]) -> ion::Data {
     let data = base64::decode(d).unwrap();
-    ion::Data::Blob(Some(ion::Blob { data }))
+    ion::Data::Blob(Some(blob::Blob { data }))
 }
 
 fn sexp_data(values: Vec<ion::Value>) -> ion::Data {
-    ion::Data::Sexp(Some(ion::Sexp { values }))
+    ion::Data::Sexp(Some(sexp::Sexp { values }))
 }
 
 fn sexp(values: Vec<ion::Value>) -> ion::Value {
@@ -214,11 +218,11 @@ fn sexp(values: Vec<ion::Value>) -> ion::Value {
 }
 
 fn list(values: Vec<ion::Value>) -> ion::Value {
-    ion::Data::List(Some(ion::List { values })).into()
+    ion::Data::List(Some(list::List { values })).into()
 }
 
 fn map_data(fields: Vec<(SymbolToken, ion::Value)>) -> ion::Data {
-    ion::Data::Struct(Some(ion::Struct { fields }))
+    ion::Data::Struct(Some(r#struct::Struct { fields }))
 }
 
 fn map(fields: Vec<(SymbolToken, ion::Value)>) -> ion::Value {

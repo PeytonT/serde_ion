@@ -6,7 +6,8 @@ use num_bigint::BigUint;
 use phf::{phf_map, phf_set};
 use time::{ComponentRangeError, UtcOffset};
 
-use crate::{error::TextFormatError, value::Timestamp};
+use crate::error::TextFormatError;
+use crate::types::timestamp::Timestamp;
 
 //////////////////////////////////////////////////////////////////////////////
 
