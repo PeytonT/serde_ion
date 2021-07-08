@@ -2,7 +2,7 @@ extern crate base64;
 extern crate num_bigint;
 extern crate serde_bytes;
 
-use std::str;
+use std::{fmt, str};
 
 use num_bigint::BigInt;
 
@@ -86,34 +86,11 @@ pub enum Data {
     Sexp(Option<Sexp>),
 }
 
-macro_rules! ion_type_promotions {
-    ($ion_type:ty, $data_variant:expr) => {
-        impl From<$ion_type> for Data {
-            fn from(ion_value: $ion_type) -> Self {
-                $data_variant(Some(ion_value))
-            }
-        }
-
-        impl From<$ion_type> for Value {
-            fn from(ion_value: $ion_type) -> Self {
-                $data_variant(Some(ion_value)).into()
-            }
-        }
-    };
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_text())
+    }
 }
-
-ion_type_promotions!(bool, Data::Bool);
-ion_type_promotions!(BigInt, Data::Int);
-ion_type_promotions!(f64, Data::Float);
-ion_type_promotions!(Decimal, Data::Decimal);
-ion_type_promotions!(Timestamp, Data::Timestamp);
-ion_type_promotions!(String, Data::String);
-ion_type_promotions!(SymbolToken, Data::Symbol);
-ion_type_promotions!(Blob, Data::Blob);
-ion_type_promotions!(Clob, Data::Clob);
-ion_type_promotions!(Struct, Data::Struct);
-ion_type_promotions!(List, Data::List);
-ion_type_promotions!(Sexp, Data::Sexp);
 
 impl Data {
     pub fn to_text(&self) -> String {
@@ -171,3 +148,32 @@ impl Data {
         }
     }
 }
+
+macro_rules! ion_type_promotions {
+    ($ion_type:ty, $data_variant:expr) => {
+        impl From<$ion_type> for Data {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value))
+            }
+        }
+
+        impl From<$ion_type> for Value {
+            fn from(ion_value: $ion_type) -> Self {
+                $data_variant(Some(ion_value)).into()
+            }
+        }
+    };
+}
+
+ion_type_promotions!(bool, Data::Bool);
+ion_type_promotions!(BigInt, Data::Int);
+ion_type_promotions!(f64, Data::Float);
+ion_type_promotions!(Decimal, Data::Decimal);
+ion_type_promotions!(Timestamp, Data::Timestamp);
+ion_type_promotions!(String, Data::String);
+ion_type_promotions!(SymbolToken, Data::Symbol);
+ion_type_promotions!(Blob, Data::Blob);
+ion_type_promotions!(Clob, Data::Clob);
+ion_type_promotions!(Struct, Data::Struct);
+ion_type_promotions!(List, Data::List);
+ion_type_promotions!(Sexp, Data::Sexp);
