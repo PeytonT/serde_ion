@@ -4,9 +4,7 @@ use itertools::Itertools;
 use num_bigint::BigInt;
 use num_traits::{One, ToPrimitive, Zero};
 
-use crate::types::list::List;
-use crate::types::r#struct::Struct;
-use crate::types::value::{Data, Value};
+use crate::types::{Data, List, Struct, Value};
 use crate::{
     error::SymbolError,
     symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1},

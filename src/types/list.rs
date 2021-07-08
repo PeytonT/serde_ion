@@ -1,4 +1,4 @@
-use crate::types::value::Value;
+use crate::types::Value;
 
 // list - Ordered collections of values
 #[derive(Clone, Debug, PartialEq)]

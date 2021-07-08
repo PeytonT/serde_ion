@@ -6,7 +6,7 @@ use time::UtcOffset;
 use crate::de::ion_1_0::text::tests::{fractional_second, minute};
 use crate::symbols::SymbolToken;
 use crate::text::TextDate;
-use crate::types::{list as ion_list, value as ion};
+use crate::types::{Data, List, Value};
 
 use super::{
     annot, blob_decoded, blob_encoded, blob_encoded_data, boolean, clob, clob_data, decimal, float,
@@ -20,21 +20,21 @@ use super::{
 fn test_all_nulls() {
     let result = parse_file(&test_path("good/allNulls.ion"));
 
-    let expected: ion::Value = list(vec![
-        ion::Data::Null.into(),
-        ion::Data::Null.into(),
-        ion::Data::Bool(None).into(),
-        ion::Data::Int(None).into(),
-        ion::Data::Float(None).into(),
-        ion::Data::Decimal(None).into(),
-        ion::Data::Timestamp(None).into(),
-        ion::Data::String(None).into(),
-        ion::Data::Symbol(None).into(),
-        ion::Data::Blob(None).into(),
-        ion::Data::Clob(None).into(),
-        ion::Data::Struct(None).into(),
-        ion::Data::List(None).into(),
-        ion::Data::Sexp(None).into(),
+    let expected: Value = list(vec![
+        Data::Null.into(),
+        Data::Null.into(),
+        Data::Bool(None).into(),
+        Data::Int(None).into(),
+        Data::Float(None).into(),
+        Data::Decimal(None).into(),
+        Data::Timestamp(None).into(),
+        Data::String(None).into(),
+        Data::Symbol(None).into(),
+        Data::Blob(None).into(),
+        Data::Clob(None).into(),
+        Data::Struct(None).into(),
+        Data::List(None).into(),
+        Data::Sexp(None).into(),
     ]);
 
     verify_tlvs(vec![expected], result);
@@ -142,8 +142,8 @@ fn test_booleans() {
     let result = parse_file(&test_path("good/booleans.ion"));
 
     let expected = vec![
-        ion::Data::Bool(Some(true)).into(),
-        ion::Data::Bool(Some(false)).into(),
+        Data::Bool(Some(true)).into(),
+        Data::Bool(Some(false)).into(),
     ];
 
     verify_tlvs(expected, result);
@@ -614,15 +614,15 @@ fn test_float_specials() {
     let result = parse_file(&test_path("good/floatSpecials.ion"));
 
     match result.unwrap().get(0) {
-        Some(ion::Value {
-            value: ion::Data::List(Some(ion_list::List { values: list })),
+        Some(Value {
+            value: Data::List(Some(List { values: list })),
             ..
         }) => {
             let mut values = list.iter();
 
             let mut next_float = || match values.next() {
-                Some(ion::Value {
-                    value: ion::Data::Float(Some(value)),
+                Some(Value {
+                    value: Data::Float(Some(value)),
                     ..
                 }) => value,
                 other => {
@@ -861,7 +861,7 @@ fn test_lists() {
             clob(b"clob data"),
             blob_encoded(b"YmxvYiBkYXRh"),
             timestamp(TextDate::day(1970, 6, 6).unwrap(), None),
-            ion::Data::Struct(None).into(),
+            Data::Struct(None).into(),
         ]),
         list(vec![
             map(vec![("one".into(), int_i64(1))]),
@@ -989,20 +989,20 @@ fn test_nulls() {
     let result = parse_file(&test_path("good/nulls.ion"));
 
     let expected = vec![
-        ion::Data::Null.into(),
-        ion::Data::Null.into(),
-        ion::Data::Int(None).into(),
-        ion::Data::Float(None).into(),
-        ion::Data::Decimal(None).into(),
-        ion::Data::Symbol(None).into(),
-        ion::Data::String(None).into(),
-        ion::Data::Timestamp(None).into(),
-        ion::Data::Blob(None).into(),
-        ion::Data::Clob(None).into(),
-        ion::Data::Bool(None).into(),
-        ion::Data::List(None).into(),
-        ion::Data::Sexp(None).into(),
-        ion::Data::Struct(None).into(),
+        Data::Null.into(),
+        Data::Null.into(),
+        Data::Int(None).into(),
+        Data::Float(None).into(),
+        Data::Decimal(None).into(),
+        Data::Symbol(None).into(),
+        Data::String(None).into(),
+        Data::Timestamp(None).into(),
+        Data::Blob(None).into(),
+        Data::Clob(None).into(),
+        Data::Bool(None).into(),
+        Data::List(None).into(),
+        Data::Sexp(None).into(),
+        Data::Struct(None).into(),
     ];
 
     verify_tlvs(expected, result);
@@ -1128,11 +1128,7 @@ fn test_sexps() {
         ]),
         sexp(vec![sexp(vec![sexp(vec![])])]),
         sexp(vec![list(vec![])]),
-        sexp(vec![
-            ion::Data::Null.into(),
-            symbol("."),
-            symbol("timestamps"),
-        ]),
+        sexp(vec![Data::Null.into(), symbol("."), symbol("timestamps")]),
         sexp(vec![symbol("op1"), symbol("."), symbol("op2")]),
         sexp(vec![
             value(symbol_data("+++"), vec![annot("a_plus_plus_plus_operator")]),
@@ -1255,7 +1251,7 @@ fn test_struct_field_annotations_unquoted_then_quoted() {
 
     let expected = vec![map(vec![(
         "f".into(),
-        value(ion::Data::Null, vec![annot("a"), annot("b")]),
+        value(Data::Null, vec![annot("a"), annot("b")]),
     )])];
 
     verify_tlvs(expected, result);
@@ -1630,7 +1626,7 @@ fn test_symbol_zero() {
     let result = parse_file(&test_path("good/symbolZero.ion"));
 
     let expected = vec![
-        ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
+        Data::Symbol(Some(SymbolToken::Zero)).into(),
         value(symbol_data("abc"), vec![SymbolToken::Zero]),
         map(vec![(SymbolToken::Zero, symbol("abc"))]),
         map(vec![(
@@ -1640,14 +1636,14 @@ fn test_symbol_zero() {
         map(vec![(
             SymbolToken::Zero,
             value(
-                ion::Data::Symbol(Some(SymbolToken::Zero)),
+                Data::Symbol(Some(SymbolToken::Zero)),
                 vec![SymbolToken::Zero],
             ),
         )]),
         sexp(vec![
-            ion::Data::Symbol(Some(SymbolToken::Zero)).into(),
+            Data::Symbol(Some(SymbolToken::Zero)).into(),
             value(
-                ion::Data::Symbol(Some(SymbolToken::Zero)),
+                Data::Symbol(Some(SymbolToken::Zero)),
                 vec![SymbolToken::Zero],
             ),
         ]),
@@ -2062,17 +2058,17 @@ fn test_testfile22() {
     let result = parse_file(&test_path("good/testfile22.ion"));
 
     let expected = vec![sexp(vec![
-        ion::Data::Null.into(),
-        ion::Data::Null.into(),
-        ion::Data::Bool(None).into(),
-        ion::Data::Int(None).into(),
-        ion::Data::Float(None).into(),
-        ion::Data::Decimal(None).into(),
-        ion::Data::Timestamp(None).into(),
-        ion::Data::Symbol(None).into(),
-        ion::Data::String(None).into(),
-        ion::Data::List(None).into(),
-        ion::Data::Struct(None).into(),
+        Data::Null.into(),
+        Data::Null.into(),
+        Data::Bool(None).into(),
+        Data::Int(None).into(),
+        Data::Float(None).into(),
+        Data::Decimal(None).into(),
+        Data::Timestamp(None).into(),
+        Data::Symbol(None).into(),
+        Data::String(None).into(),
+        Data::List(None).into(),
+        Data::Struct(None).into(),
     ])];
 
     verify_tlvs(expected, result);

@@ -10,7 +10,7 @@ use crate::binary::BVM_1_0;
 use crate::de::ion_1_0;
 use crate::de::ion_1_0::{current_symbol_table::CurrentSymbolTable, text::ValueIterator};
 use crate::error::{IonError, IonResult};
-use crate::types::value::Value;
+use crate::types::Value;
 
 pub fn parse(input: &[u8]) -> IonResult<&[u8], Vec<Value>> {
     all_consuming(map(many0(preceded(tag(BVM_1_0), parse_ion_1_0())), |x| {
@@ -52,11 +52,7 @@ mod tests {
     use crate::error::IonError;
     use crate::error::{BinaryFormatError, FormatError};
     use crate::symbols::SymbolToken;
-    use crate::types::clob::Clob;
-    use crate::types::decimal::Decimal;
-    use crate::types::r#struct::Struct;
-    use crate::types::timestamp::Timestamp;
-    use crate::types::value::{Data, Value};
+    use crate::types::{Clob, Data, Decimal, Struct, Timestamp, Value};
 
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;

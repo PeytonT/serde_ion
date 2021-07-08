@@ -10,14 +10,7 @@ use crate::binary::{
 };
 use crate::error::{Error, SymbolError};
 use crate::symbols::{SymbolToken, SYSTEM_SYMBOL_TABLE_V1_MAX_ID};
-use crate::types::blob::Blob;
-use crate::types::clob::Clob;
-use crate::types::decimal::Decimal;
-use crate::types::list::List;
-use crate::types::r#struct::Struct;
-use crate::types::sexp::Sexp;
-use crate::types::timestamp::Timestamp;
-use crate::types::value::{Data, Value};
+use crate::types::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::Version;
 
 use self::subfield::*;

@@ -7,12 +7,11 @@ use itertools::Itertools;
 
 use crate::de::ion_1_0::text::tests::{find_ion_text, parse_file, test_path};
 use crate::parse::parse_ion_text_1_0;
-use crate::types::value::{self as ion, Value};
-use crate::types::{list, sexp};
+use crate::types::{Data, List, Sexp, Value};
 
 #[test]
 fn test_equivs() {
-    fn equivalent(values: &[Vec<ion::Value>]) -> Result<(), String> {
+    fn equivalent(values: &[Vec<Value>]) -> Result<(), String> {
         for mut vec in values.iter().combinations(2) {
             let a = vec.pop().unwrap();
             let b = vec.pop().unwrap();
@@ -33,7 +32,7 @@ fn test_equivs() {
 
 #[test]
 fn test_non_equivs() {
-    fn non_equivalent(values: &[Vec<ion::Value>]) -> Result<(), String> {
+    fn non_equivalent(values: &[Vec<Value>]) -> Result<(), String> {
         for mut vec in values.iter().combinations(2) {
             let a = vec.pop().unwrap();
             let b = vec.pop().unwrap();
@@ -94,12 +93,12 @@ where
                     let embedded = tlv.has_annotation("embedded_documents");
 
                     match tlv {
-                        ion::Value {
-                            value: ion::Data::Sexp(Some(sexp::Sexp { values })),
+                        Value {
+                            value: Data::Sexp(Some(Sexp { values })),
                             ..
                         }
-                        | ion::Value {
-                            value: ion::Data::List(Some(list::List { values })),
+                        | Value {
+                            value: Data::List(Some(List { values })),
                             ..
                         } => {
                             let values = if embedded {
@@ -107,8 +106,8 @@ where
                                     .into_iter()
                                     .enumerate()
                                     .filter_map(|(idx, v)| {
-                                        if let ion::Value {
-                                            value: ion::Data::String(Some(value)),
+                                        if let Value {
+                                            value: Data::String(Some(value)),
                                             ..
                                         } = v
                                         {

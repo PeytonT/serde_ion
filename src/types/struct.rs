@@ -1,5 +1,5 @@
 use crate::symbols::SymbolToken;
-use crate::types::value::Value;
+use crate::types::Value;
 
 // struct - Unordered collections of tagged values
 #[derive(Clone, Debug, PartialEq)]

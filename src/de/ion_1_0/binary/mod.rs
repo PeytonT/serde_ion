@@ -13,14 +13,7 @@ use num_traits::{cast::FromPrimitive, identities::Zero, ToPrimitive};
 
 use crate::de::ion_1_0::current_symbol_table::CurrentSymbolTable;
 use crate::error::{IonError, IonResult};
-use crate::types::blob::Blob;
-use crate::types::clob::Clob;
-use crate::types::decimal::Decimal;
-use crate::types::list::List;
-use crate::types::r#struct::Struct;
-use crate::types::sexp::Sexp;
-use crate::types::timestamp::Timestamp;
-use crate::types::value::{Data, Value};
+use crate::types::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::{
     binary::{self, LengthCode, TypeCode},
     error::{BinaryFormatError, FormatError, TimeComponent},

@@ -37,11 +37,11 @@ use num_traits::{pow, Num, One, Zero};
 use crate::de::ion_1_0::current_symbol_table::{update_current_symbol_table, CurrentSymbolTable};
 use crate::error::{IonError, IonResult};
 use crate::text::{TextDate, TextTime, TextTimestamp};
-use crate::types::{blob, clob, decimal, list, sexp, timestamp, value as ion};
+use crate::types::{Blob, Clob, Data, Decimal, List, Sexp, Struct, Timestamp, Value};
 use crate::{
     error::{FormatError, SymbolError, TextFormatError},
     symbols::SymbolToken,
-    text, types,
+    text,
 };
 
 #[cfg(test)]
@@ -66,7 +66,7 @@ type Table = Rc<RefCell<CurrentSymbolTable>>;
 pub struct ValueIterator<'a> {
     pub(crate) remaining: &'a str,
     pub(crate) current_table: Table,
-    next: Option<ion::Value>,
+    next: Option<Value>,
 }
 
 impl<'a> ValueIterator<'a> {
@@ -89,8 +89,8 @@ impl<'a> ValueIterator<'a> {
 
     fn handle_meta_values(
         &mut self,
-        value: ion::Value,
-        next: Option<ion::Value>,
+        value: Value,
+        next: Option<Value>,
     ) -> Option<<Self as Iterator>::Item> {
         let value = if is_system_value(&value) {
             None
@@ -140,9 +140,9 @@ impl<'a> ValueIterator<'a> {
     }
 }
 
-fn as_shared_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct> {
+fn as_shared_symbol_table(value: &Value) -> Option<&Struct> {
     match &value.value {
-        ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
+        Data::Struct(Some(table)) => match value.annotations.get(0) {
             Some(SymbolToken::Known { text }) if text == "$ion_shared_symbol_table" => Some(table),
             _ => None,
         },
@@ -150,9 +150,9 @@ fn as_shared_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct
     }
 }
 
-fn as_local_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct> {
+fn as_local_symbol_table(value: &Value) -> Option<&Struct> {
     match &value.value {
-        ion::Data::Struct(Some(table)) => match value.annotations.get(0) {
+        Data::Struct(Some(table)) => match value.annotations.get(0) {
             Some(SymbolToken::Known { text }) if text == "$ion_symbol_table" => Some(table),
             _ => None,
         },
@@ -168,7 +168,7 @@ fn as_local_symbol_table(value: &ion::Value) -> Option<&types::r#struct::Struct>
 ///     : (ws* top_level_value)* ws* value? EOF
 ///     ;
 impl<'a> Iterator for ValueIterator<'a> {
-    type Item = IonResult<&'a str, ion::Value>;
+    type Item = IonResult<&'a str, Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(next) = self.next.take() {
@@ -238,10 +238,10 @@ impl<'a> Iterator for ValueIterator<'a> {
 struct IonVersionMarker(u32, u32);
 
 /// System values are NOPs, currently triggered by a symbol which matches the IVM.
-fn is_system_value(value: &ion::Value) -> bool {
+fn is_system_value(value: &Value) -> bool {
     value.annotations.is_empty()
         && value.value
-            == ion::Data::Symbol(Some(SymbolToken::Known {
+            == Data::Symbol(Some(SymbolToken::Known {
                 text: "$ion_1_0".to_owned(),
             }))
 }
@@ -293,22 +293,18 @@ fn take_ivm(i: &str) -> IonResult<&str, IonVersionMarker> {
 ///     | keyword_entity quoted_annotation value
 ///     | keyword_entity keyword_delimiting_entity
 ///     ;
-fn take_top_level_value(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Value, Option<ion::Value>)> {
+fn take_top_level_value(table: Table) -> impl Fn(&str) -> IonResult<&str, (Value, Option<Value>)> {
     move |i: &str| {
         let (i, (annotations, (value, next_value))) = pair(
             many0(take_annotation(table.clone())),
             take_top_level_data(table.clone()),
         )(i)?;
 
-        Ok((i, (ion::Value { value, annotations }, next_value)))
+        Ok((i, (Value { value, annotations }, next_value)))
     }
 }
 
-fn take_top_level_data(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+fn take_top_level_data(table: Table) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         alt((
             map(take_delimiting_entity(table.clone()), |data| (data, None)),
@@ -323,7 +319,7 @@ fn take_top_level_data(
 
 fn take_top_level_numeric_entity(
     table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         take_delimited_value(
             take_numeric_entity,
@@ -336,7 +332,7 @@ fn take_top_level_numeric_entity(
 
 fn take_top_level_keyword_entity(
     table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         take_delimited_value(
             take_keyword_entity(table.clone()),
@@ -362,10 +358,10 @@ fn take_delimited_value<'a, F, D>(
     delimiter_parser: D,
     delimiter: Option<char>,
     table: Table,
-) -> impl FnMut(&'a str) -> IonResult<&'a str, (ion::Data, Option<ion::Value>)>
+) -> impl FnMut(&'a str) -> IonResult<&'a str, (Data, Option<Value>)>
 where
-    F: FnMut(&'a str) -> IonResult<&'a str, ion::Data>,
-    D: Fn(&'a str) -> IonResult<&'a str, ion::Data>,
+    F: FnMut(&'a str) -> IonResult<&'a str, Data>,
+    D: Fn(&'a str) -> IonResult<&'a str, Data>,
 {
     move |i: &str| {
         // First check if we should continue by trying to parse a value.
@@ -389,7 +385,7 @@ where
                 |(head_annotation, (mut rest_annotation, value))| {
                     // It is mandatory to maintain the order of annotations applied to an object.
                     rest_annotation.insert(0, head_annotation);
-                    Some(ion::Value {
+                    Some(Value {
                         value,
                         annotations: rest_annotation,
                     })
@@ -405,17 +401,15 @@ where
 /// value
 ///     : annotation* entity
 ///     ;
-fn take_value(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Value> {
+fn take_value(table: Table) -> impl Fn(&str) -> IonResult<&str, Value> {
     move |i: &str| {
         map(take_value_parts(table.clone()), |(annotations, value)| {
-            ion::Value { value, annotations }
+            Value { value, annotations }
         })(i)
     }
 }
 
-fn take_value_parts(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (Vec<SymbolToken>, ion::Data)> {
+fn take_value_parts(table: Table) -> impl Fn(&str) -> IonResult<&str, (Vec<SymbolToken>, Data)> {
     move |i: &str| {
         pair(
             many0(take_annotation(table.clone())),
@@ -433,7 +427,7 @@ fn take_value_parts(
 ///     | delimiting_entity
 ///     | keyword_entity
 ///     ;
-fn take_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         alt((
             take_numeric_entity,
@@ -450,7 +444,7 @@ fn take_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
 /// Both forms of LOBs consist of ASCII characters and are parsed as bytes. This is necessary
 /// in certain situations, such as expanding an escape for a character that takes an additional byte
 /// when encoded in UTF-8.
-fn take_lob(i: &str) -> IonResult<&str, ion::Data> {
+fn take_lob(i: &str) -> IonResult<&str, Data> {
     let b = i.as_bytes();
 
     let result = preceded(
@@ -475,11 +469,11 @@ fn take_lob(i: &str) -> IonResult<&str, ion::Data> {
     }
 }
 
-fn take_lob_body(i: &[u8]) -> IonResult<&[u8], ion::Data> {
+fn take_lob_body(i: &[u8]) -> IonResult<&[u8], Data> {
     alt((
-        map(take_short_quoted_clob, |c| ion::Data::Clob(Some(c))),
-        map(take_long_quoted_clob, |c| ion::Data::Clob(Some(c))),
-        map(take_blob_body, |b| ion::Data::Blob(Some(b))),
+        map(take_short_quoted_clob, |c| Data::Clob(Some(c))),
+        map(take_long_quoted_clob, |c| Data::Clob(Some(c))),
+        map(take_blob_body, |b| Data::Blob(Some(b))),
     ))(i)
 }
 
@@ -493,14 +487,14 @@ fn take_lob_body(i: &[u8]) -> IonResult<&[u8], ion::Data> {
 ///     | sexp
 ///     | struct
 ///     ;
-fn take_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         alt((
             take_quoted_text,
             take_lob,
-            map(take_list(table.clone()), |l| ion::Data::List(Some(l))),
-            map(take_sexp(table.clone()), |s| ion::Data::Sexp(Some(s))),
-            map(take_struct(table.clone()), |s| ion::Data::Struct(Some(s))),
+            map(take_list(table.clone()), |l| Data::List(Some(l))),
+            map(take_sexp(table.clone()), |s| Data::Sexp(Some(s))),
+            map(take_struct(table.clone()), |s| Data::Struct(Some(s))),
         ))(i)
     }
 }
@@ -509,7 +503,7 @@ fn take_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion:
 ///     : delimiting_entity
 ///     | numeric_entity
 ///     ;
-fn take_keyword_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_keyword_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| alt((take_delimiting_entity(table.clone()), take_numeric_entity))(i)
 }
 
@@ -524,19 +518,19 @@ fn take_keyword_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&s
 ///     // they are ordinary symbols on their own
 ///     | TYPE
 ///     ;
-fn take_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         alt((
             map_res(take_identifier_symbol, |s| {
                 let result = get_or_make_symbol(table.clone(), s.to_owned());
                 match result {
-                    Ok(symbol) => Ok(ion::Data::Symbol(Some(symbol))),
+                    Ok(symbol) => Ok(Data::Symbol(Some(symbol))),
                     Err(e) => Err(Err::Failure(IonError::from_symbol_error(i, e))),
                 }
             }),
             take_any_null,
-            map(take_bool, |b| ion::Data::Bool(Some(b))),
-            map(take_special_float, |f| ion::Data::Float(Some(f))),
+            map(take_bool, |b| Data::Bool(Some(b))),
+            map(take_special_float, |f| Data::Float(Some(f))),
         ))(i)
     }
 }
@@ -551,9 +545,9 @@ fn take_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Da
 ///     | FLOAT
 ///     | DECIMAL
 ///     ;
-fn take_numeric_entity(i: &str) -> IonResult<&str, ion::Data> {
+fn take_numeric_entity(i: &str) -> IonResult<&str, Data> {
     alt((
-        map(take_timestamp, |t| ion::Data::Timestamp(Some(t))),
+        map(take_timestamp, |t| Data::Timestamp(Some(t))),
         take_float_or_decimal,
         map(
             alt((
@@ -561,7 +555,7 @@ fn take_numeric_entity(i: &str) -> IonResult<&str, ion::Data> {
                 take_hex_integer,
                 map_res(take_dec_integer, |s| str_to_bigint(s, 10)),
             )),
-            |bigint| ion::Data::Int(Some(bigint)),
+            |bigint| Data::Int(Some(bigint)),
         ),
     ))(i)
 }
@@ -602,7 +596,7 @@ fn take_quoted_annotation(table: Table) -> impl Fn(&str) -> IonResult<&str, Symb
 ///     : L_BRACKET ws* value ws* (COMMA ws* value)* ws* (COMMA ws*)? R_BRACKET
 ///     | L_BRACKET ws* R_BRACKET
 ///     ;
-fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, list::List> {
+fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, List> {
     move |i: &str| {
         map(
             preceded(
@@ -615,7 +609,7 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, list::List> {
                     preceded(opt(pair(char(COMMA), eat_opt_ws)), char(R_BRACKET)),
                 )),
             ),
-            |values| list::List { values },
+            |values| List { values },
         )(i)
     }
 }
@@ -623,7 +617,7 @@ fn take_list(table: Table) -> impl Fn(&str) -> IonResult<&str, list::List> {
 /// sexp
 ///     : L_PAREN (ws* sexp_value)* ws* value? R_PAREN
 ///     ;
-fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, sexp::Sexp> {
+fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, Sexp> {
     move |i: &str| {
         let (i, grouped_values) = preceded(
             terminated(char(L_PAREN), eat_opt_ws),
@@ -646,13 +640,13 @@ fn take_sexp(table: Table) -> impl Fn(&str) -> IonResult<&str, sexp::Sexp> {
                 values.push(second);
             }
         });
-        Ok((i, sexp::Sexp { values }))
+        Ok((i, Sexp { values }))
     }
 }
 
 fn take_sexp_numeric_entity_data(
     table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         take_delimited_value(
             take_numeric_entity,
@@ -663,9 +657,7 @@ fn take_sexp_numeric_entity_data(
     }
 }
 
-fn take_sexp_keyword_data(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+fn take_sexp_keyword_data(table: Table) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         take_delimited_value(
             take_sexp_keyword_entity(table.clone()),
@@ -676,12 +668,10 @@ fn take_sexp_keyword_data(
     }
 }
 
-fn take_sexp_null_data(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+fn take_sexp_null_data(table: Table) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         take_delimited_value(
-            value(ion::Data::Null, take_null),
+            value(Data::Null, take_null),
             take_sexp_null_delimiting_entity(table.clone()),
             Some(R_PAREN),
             table.clone(),
@@ -689,9 +679,7 @@ fn take_sexp_null_data(
     }
 }
 
-fn take_sexp_data(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Data, Option<ion::Value>)> {
+fn take_sexp_data(table: Table) -> impl Fn(&str) -> IonResult<&str, (Data, Option<Value>)> {
     move |i: &str| {
         alt((
             map(take_delimiting_entity(table.clone()), |data| (data, None)),
@@ -702,7 +690,7 @@ fn take_sexp_data(
                 take_sexp_null_data(table.clone()),
             )),
             map(
-                map(take_operator(table.clone()), |s| ion::Data::Symbol(Some(s))),
+                map(take_operator(table.clone()), |s| Data::Symbol(Some(s))),
                 |data| (data, None),
             ),
         ))(i)
@@ -727,16 +715,14 @@ fn take_sexp_data(
 ///     | NULL quoted_annotation value
 ///     | NULL sexp_null_delimiting_entity
 ///     ;
-fn take_sexp_value(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, (ion::Value, Option<ion::Value>)> {
+fn take_sexp_value(table: Table) -> impl Fn(&str) -> IonResult<&str, (Value, Option<Value>)> {
     move |i: &str| {
         map(
             pair(
                 many0(take_annotation(table.clone())),
                 take_sexp_data(table.clone()),
             ),
-            |(annotations, (value, next))| (ion::Value { value, annotations }, next),
+            |(annotations, (value, next))| (Value { value, annotations }, next),
         )(i)
     }
 }
@@ -752,14 +738,12 @@ fn take_sexp_value(
 ///     | numeric_entity
 ///     | operator
 ///     ;
-fn take_sexp_keyword_delimiting_entity(
-    table: Table,
-) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_sexp_keyword_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         alt((
             take_delimiting_entity(table.clone()),
             take_numeric_entity,
-            map(take_operator(table.clone()), |s| ion::Data::Symbol(Some(s))),
+            map(take_operator(table.clone()), |s| Data::Symbol(Some(s))),
         ))(i)
     }
 }
@@ -768,12 +752,12 @@ fn take_sexp_keyword_delimiting_entity(
 ///     : delimiting_entity
 ///     | NON_DOT_OPERATOR+
 ///     ;
-fn take_sexp_null_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_sexp_null_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         alt((
             take_delimiting_entity(table.clone()),
             map(take_while1(is_non_dot_operator), |s: &str| {
-                ion::Data::Symbol(Some(SymbolToken::Known {
+                Data::Symbol(Some(SymbolToken::Known {
                     text: s.to_string(),
                 }))
             }),
@@ -781,24 +765,24 @@ fn take_sexp_null_delimiting_entity(table: Table) -> impl Fn(&str) -> IonResult<
     }
 }
 
-fn take_sexp_keyword(i: &str) -> IonResult<&str, ion::Data> {
+fn take_sexp_keyword(i: &str) -> IonResult<&str, Data> {
     alt((
         take_typed_null,
-        value(ion::Data::Null, terminated(take_null, peek(not(char('.'))))),
-        map(take_bool, |b| ion::Data::Bool(Some(b))),
-        map(take_special_float, |f| ion::Data::Float(Some(f))),
+        value(Data::Null, terminated(take_null, peek(not(char('.'))))),
+        map(take_bool, |b| Data::Bool(Some(b))),
+        map(take_special_float, |f| Data::Float(Some(f))),
         take_sexp_type,
     ))(i)
 }
 
-fn take_sexp_type(i: &str) -> IonResult<&str, ion::Data> {
+fn take_sexp_type(i: &str) -> IonResult<&str, Data> {
     let (i, null_type) = take_type(i)?;
     if null_type == NullType::Null {
         peek(not(char('.')))(i)?;
     }
     Ok((
         i,
-        ion::Data::Symbol(Some(SymbolToken::Known {
+        Data::Symbol(Some(SymbolToken::Known {
             text: null_type.as_str().to_string(),
         })),
     ))
@@ -813,7 +797,7 @@ fn take_sexp_type(i: &str) -> IonResult<&str, ion::Data> {
 ///     // they are ordinary symbols on their own
 ///     | TYPE
 ///     ;
-fn take_sexp_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, ion::Data> {
+fn take_sexp_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, Data> {
     move |i: &str| {
         let result = map(
             verify(take_identifier_symbol, |s| {
@@ -824,7 +808,7 @@ fn take_sexp_keyword_entity(table: Table) -> impl Fn(&str) -> IonResult<&str, io
 
         match result {
             Err(_) => (),
-            Ok((i, Ok(token))) => return Ok((i, ion::Data::Symbol(Some(token)))),
+            Ok((i, Ok(token))) => return Ok((i, Data::Symbol(Some(token)))),
             Ok((i, Err(e))) => return Err(Err::Failure(IonError::from_symbol_error(i, e))),
         }
 
@@ -852,7 +836,7 @@ fn take_operator(_table: Table) -> impl Fn(&str) -> IonResult<&str, SymbolToken>
 ///     : L_CURLY ws* field (ws* COMMA ws* field)* ws* (COMMA ws*)? R_CURLY
 ///     | L_CURLY ws* R_CURLY
 ///     ;
-fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, types::r#struct::Struct> {
+fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, Struct> {
     move |i: &str| {
         map(
             preceded(
@@ -871,7 +855,7 @@ fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, types::r#struct
                     ),
                 ))),
             ),
-            |fields| types::r#struct::Struct { fields },
+            |fields| Struct { fields },
         )(i)
     }
 }
@@ -879,7 +863,7 @@ fn take_struct(table: Table) -> impl Fn(&str) -> IonResult<&str, types::r#struct
 /// field
 ///     : field_name ws* COLON ws* annotation* entity
 ///     ;
-fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, ion::Value)> {
+fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, Value)> {
     move |i: &str| {
         map(
             separated_pair(
@@ -890,7 +874,7 @@ fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, io
                     take_entity(table.clone()),
                 ),
             ),
-            |(field, (annotations, value))| (field, ion::Value { value, annotations }),
+            |(field, (annotations, value))| (field, Value { value, annotations }),
         )(i)
     }
 }
@@ -899,32 +883,32 @@ fn take_field(table: Table) -> impl Fn(&str) -> IonResult<&str, (SymbolToken, io
 ///     : NULL
 ///     | typed_null
 ///     ;
-fn take_any_null(i: &str) -> IonResult<&str, ion::Data> {
-    alt((take_typed_null, value(ion::Data::Null, take_null)))(i)
+fn take_any_null(i: &str) -> IonResult<&str, Data> {
+    alt((take_typed_null, value(Data::Null, take_null)))(i)
 }
 
 /// typed_null
 ///     : NULL DOT NULL
 ///     | NULL DOT TYPE
 ///     ;
-fn take_typed_null(i: &str) -> IonResult<&str, ion::Data> {
+fn take_typed_null(i: &str) -> IonResult<&str, Data> {
     let (i, null_type) = preceded(take_null, preceded(char(DOT), take_type))(i)?;
 
     let data = {
         match null_type {
-            NullType::Null => ion::Data::Null,
-            NullType::Bool => ion::Data::Bool(None),
-            NullType::Int => ion::Data::Int(None),
-            NullType::Float => ion::Data::Float(None),
-            NullType::Decimal => ion::Data::Decimal(None),
-            NullType::Timestamp => ion::Data::Timestamp(None),
-            NullType::String => ion::Data::String(None),
-            NullType::Symbol => ion::Data::Symbol(None),
-            NullType::Blob => ion::Data::Blob(None),
-            NullType::Clob => ion::Data::Clob(None),
-            NullType::Struct => ion::Data::Struct(None),
-            NullType::List => ion::Data::List(None),
-            NullType::Sexp => ion::Data::Sexp(None),
+            NullType::Null => Data::Null,
+            NullType::Bool => Data::Bool(None),
+            NullType::Int => Data::Int(None),
+            NullType::Float => Data::Float(None),
+            NullType::Decimal => Data::Decimal(None),
+            NullType::Timestamp => Data::Timestamp(None),
+            NullType::String => Data::String(None),
+            NullType::Symbol => Data::Symbol(None),
+            NullType::Blob => Data::Blob(None),
+            NullType::Clob => Data::Clob(None),
+            NullType::Struct => Data::Struct(None),
+            NullType::List => Data::List(None),
+            NullType::Sexp => Data::Sexp(None),
         }
     };
 
@@ -953,17 +937,17 @@ fn take_field_name(table: Table) -> impl Fn(&str) -> IonResult<&str, SymbolToken
 ///     | SHORT_QUOTED_STRING
 ///     | (ws* LONG_QUOTED_STRING)+
 ///     ;
-fn take_quoted_text(i: &str) -> IonResult<&str, ion::Data> {
+fn take_quoted_text(i: &str) -> IonResult<&str, Data> {
     alt((
         map(take_quoted_symbol, |text| {
-            ion::Data::Symbol(Some(SymbolToken::Known { text }))
+            Data::Symbol(Some(SymbolToken::Known { text }))
         }),
-        map(take_short_quoted_string, |s| ion::Data::String(Some(s))),
+        map(take_short_quoted_string, |s| Data::String(Some(s))),
         map(
             map(many1(preceded(eat_opt_ws, take_long_quoted_string)), |v| {
                 v.concat()
             }),
-            |s| ion::Data::String(Some(s)),
+            |s| Data::String(Some(s)),
         ),
     ))(i)
 }
@@ -1226,7 +1210,7 @@ fn take_bool(i: &str) -> IonResult<&str, bool> {
 ///     | YEAR '-' MONTH 'T'
 ///     | YEAR 'T'
 ///     ;
-fn take_timestamp(i: &str) -> IonResult<&str, timestamp::Timestamp> {
+fn take_timestamp(i: &str) -> IonResult<&str, Timestamp> {
     let (i, timestamp) = map_res(
         alt((
             map_res(
@@ -1251,7 +1235,7 @@ fn take_timestamp(i: &str) -> IonResult<&str, timestamp::Timestamp> {
                 TextTimestamp::new(TextDate::year(year as u16), None)
             }),
         )),
-        timestamp::Timestamp::try_from,
+        Timestamp::try_from,
     )(i)?;
 
     Ok((i, timestamp))
@@ -1587,7 +1571,7 @@ enum FloatOrDecimal {
     Decimal(String),
 }
 
-fn take_float_or_decimal(i: &str) -> IonResult<&str, ion::Data> {
+fn take_float_or_decimal(i: &str) -> IonResult<&str, Data> {
     let (i, integer) = take_dec_integer(i)?;
     let (i, fractional) = opt(take_dec_frac)(i)?;
     let (i, exponent) = opt(alt((
@@ -1602,12 +1586,12 @@ fn take_float_or_decimal(i: &str) -> IonResult<&str, ion::Data> {
 
     let numeric = match exponent {
         Some(FloatOrDecimal::Float(exponent)) => {
-            ion::Data::Float(Some(assemble_float(i, integer, fractional, exponent)?.1))
+            Data::Float(Some(assemble_float(i, integer, fractional, exponent)?.1))
         }
-        Some(FloatOrDecimal::Decimal(exponent)) => ion::Data::Decimal(Some(
+        Some(FloatOrDecimal::Decimal(exponent)) => Data::Decimal(Some(
             assemble_decimal(i, integer, fractional, Some(exponent))?.1,
         )),
-        None => ion::Data::Decimal(Some(assemble_decimal(i, integer, fractional, None)?.1)),
+        None => Data::Decimal(Some(assemble_decimal(i, integer, fractional, None)?.1)),
     };
 
     Ok((i, numeric))
@@ -1700,7 +1684,7 @@ fn assemble_decimal<'a>(
     integer: String,
     fractional: Option<Vec<&'a str>>,
     exponent: Option<String>,
-) -> IonResult<&'a str, decimal::Decimal> {
+) -> IonResult<&'a str, Decimal> {
     // coefficient drops -0
     let sign = if integer.starts_with('-') {
         Sign::Minus
@@ -1745,7 +1729,7 @@ fn assemble_decimal<'a>(
 
     Ok((
         i,
-        decimal::Decimal {
+        Decimal {
             coefficient,
             exponent,
         },
@@ -1999,18 +1983,18 @@ fn take_text_escape(i: &str) -> IonResult<&str, Escape> {
 /// SHORT_QUOTED_CLOB
 ///     : LOB_START WS* SHORT_QUOTE CLOB_SHORT_TEXT SHORT_QUOTE WS* LOB_END
 ///     ;
-fn take_short_quoted_clob(i: &[u8]) -> IonResult<&[u8], clob::Clob> {
-    map(take_clob_short_text, |data| clob::Clob { data })(i)
+fn take_short_quoted_clob(i: &[u8]) -> IonResult<&[u8], Clob> {
+    map(take_clob_short_text, |data| Clob { data })(i)
 }
 
 /// Note: quoting lowered to take_clob_short_text via take_delimited_input.
 /// LONG_QUOTED_CLOB
 ///     : LOB_START (WS* LONG_QUOTE CLOB_LONG_TEXT*? LONG_QUOTE)+ WS* LOB_END
 ///     ;
-fn take_long_quoted_clob(i: &[u8]) -> IonResult<&[u8], clob::Clob> {
+fn take_long_quoted_clob(i: &[u8]) -> IonResult<&[u8], Clob> {
     let (i, vec) = many1(preceded(eat_opt_whitespace, take_clob_long_text))(i)?;
     let data = vec.concat();
-    Ok((i, clob::Clob { data }))
+    Ok((i, Clob { data }))
 }
 
 /// fragment
@@ -2119,10 +2103,10 @@ where
 /// BLOB
 ///     : LOB_START (BASE_64_QUARTET | WS)* BASE_64_PAD? WS* LOB_END
 ///     ;
-fn take_blob_body(i: &[u8]) -> IonResult<&[u8], blob::Blob> {
+fn take_blob_body(i: &[u8]) -> IonResult<&[u8], Blob> {
     let (i, vec) = take_base_64(i)?;
     match base64::decode(&vec) {
-        Ok(data) => Ok((i, blob::Blob { data })),
+        Ok(data) => Ok((i, Blob { data })),
         Err(_) => Err(Err::Failure(IonError::from_format_error(
             i,
             FormatError::Text(TextFormatError::Base64Decode),

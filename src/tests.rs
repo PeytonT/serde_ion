@@ -8,10 +8,7 @@ use pretty_assertions::assert_eq;
 use crate::parse::parse;
 use crate::ser::ion_1_0::binary::Writer;
 use crate::symbols::SymbolToken;
-use crate::types::clob::Clob;
-use crate::types::decimal::Decimal;
-use crate::types::timestamp::Timestamp;
-use crate::types::value::{Data, Value};
+use crate::types::{Clob, Data, Decimal, Timestamp, Value};
 use crate::Version;
 
 // null tests
@@ -708,7 +705,7 @@ mod sexp {
 mod r#struct {
     use std::string::String;
 
-    use crate::types::r#struct::Struct;
+    use crate::types::Struct;
 
     use super::*;
 
